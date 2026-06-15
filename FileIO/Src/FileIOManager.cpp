@@ -3,6 +3,7 @@
 #include "FileIO/FileWriterFactory.h"
 #include "FileIO/IFileParser.h"
 #include "FileIO/IFileWriter.h"
+#include "Log/SyLogger.h"
 
 #include <filesystem>
 
@@ -37,30 +38,14 @@ namespace Fio
 
     ParseResult FileIOManager::importFile(const std::string& filePath, FileFormat format, VecSyEntityPtr& outEntities)
     {
-        if (m_importCallback)
-            m_importCallback(filePath, true);
-
+        SY_INFOF("[FileIO] Importing file: %s (format=%d)", filePath.c_str(), static_cast<int>(format));
         auto& factory = FileParserFactory::instance();
-        if (!factory.hasParser(format))
-        {
-            if (m_importCallback)
-                m_importCallback(filePath, false);
-            return ParseResult::fail("No parser registered for this format");
-        }
-
-        auto parser = factory.createParser(format);
-        if (!parser)
-        {
-            if (m_importCallback)
-                m_importCallback(filePath, false);
-            return ParseResult::fail("Failed to create parser");
-        }
-
-        auto result = parser->parse(filePath, outEntities);
-        if (m_importCallback)
-            m_importCallback(filePath, result.success);
-
-        return result;
+        return processFile<ParseResult>(
+            filePath, m_importCallback, "parser",
+            [&]() { return factory.hasParser(format); },
+            [&]() { return factory.createParser(format); },
+            [&](IFileParser* p) { return p->parse(filePath, outEntities); }
+        );
     }
 
     WriteResult FileIOManager::exportFile(const std::string& filePath, const VecSyEntityPtr& entities)
@@ -74,30 +59,15 @@ namespace Fio
 
     WriteResult FileIOManager::exportFile(const std::string& filePath, FileFormat format, const VecSyEntityPtr& entities)
     {
-        if (m_exportCallback)
-            m_exportCallback(filePath, true);
-
+        SY_INFOF("[FileIO] Exporting file: %s (format=%d, entities=%zu)",
+            filePath.c_str(), static_cast<int>(format), entities.size());
         auto& factory = FileWriterFactory::instance();
-        if (!factory.hasWriter(format))
-        {
-            if (m_exportCallback)
-                m_exportCallback(filePath, false);
-            return WriteResult::fail("No writer registered for this format");
-        }
-
-        auto writer = factory.createWriter(format);
-        if (!writer)
-        {
-            if (m_exportCallback)
-                m_exportCallback(filePath, false);
-            return WriteResult::fail("Failed to create writer");
-        }
-
-        auto result = writer->write(filePath, entities);
-        if (m_exportCallback)
-            m_exportCallback(filePath, result.success);
-
-        return result;
+        return processFile<WriteResult>(
+            filePath, m_exportCallback, "writer",
+            [&]() { return factory.hasWriter(format); },
+            [&]() { return factory.createWriter(format); },
+            [&](IFileWriter* w) { return w->write(filePath, entities); }
+        );
     }
 
     FileFormat FileIOManager::detectFormat(const std::string& filePath) const
@@ -117,6 +87,8 @@ namespace Fio
             return FileFormat::BMP;
         if (ext == "png")
             return FileFormat::PNG;
+        if (ext == "igs" || ext == "iges")
+            return FileFormat::UG;
 
         return FileFormat::Unknown;
     }

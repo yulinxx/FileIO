@@ -5,6 +5,8 @@
 #include "FileIO/Parsers/UgParser.h"
 #include "FileIO/Parsers/PdfParser.h"
 #include "FileIO/Parsers/AiParser.h"
+#include "FileIO/Parsers/NativeParser.h"
+#include "FileIO/Parsers/NativeParser3D.h"
 
 #include <algorithm>
 #include <cctype>
@@ -35,7 +37,7 @@ namespace Fio
         std::string lowerExt = ext;
         std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
             [](unsigned char c) { return std::tolower(c); });
-        
+
         auto it = m_extToFormat.find(lowerExt);
         if (it != m_extToFormat.end())
             return createParser(it->second);
@@ -52,7 +54,7 @@ namespace Fio
         std::string lowerExt = ext;
         std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
             [](unsigned char c) { return std::tolower(c); });
-        
+
         auto it = m_extToFormat.find(lowerExt);
         if (it != m_extToFormat.end())
             return it->second;
@@ -77,40 +79,28 @@ namespace Fio
 
     void FileParserFactory::initDefaults()
     {
-        registerParser(FileFormat::DXF, []() {
-            return std::make_unique<DxfParser>();
-            });
-        m_extToFormat["dxf"] = FileFormat::DXF;
+        registerWithExtensions(FileFormat::DXF, []() { return std::make_unique<DxfParser>(); },
+            { "dxf" });
 
-        registerParser(FileFormat::PLT, []() {
-            return std::make_unique<PltParser>();
-            });
-        m_extToFormat["plt"] = FileFormat::PLT;
-        m_extToFormat["hpgl"] = FileFormat::PLT;
+        registerWithExtensions(FileFormat::PLT, []() { return std::make_unique<PltParser>(); },
+            { "plt", "hpgl" });
 
-        registerParser(FileFormat::SVG, []() {
-            return std::make_unique<SvgParser>();
-            });
-        m_extToFormat["svg"] = FileFormat::SVG;
-        m_extToFormat["svgz"] = FileFormat::SVG;
+        registerWithExtensions(FileFormat::SVG, []() { return std::make_unique<SvgParser>(); },
+            { "svg", "svgz" });
 
-        registerParser(FileFormat::UG, []() {
-            return std::make_unique<UgParser>();
-            });
-        m_extToFormat["prt"] = FileFormat::UG;
-        m_extToFormat["igs"] = FileFormat::UG;
-        m_extToFormat["iges"] = FileFormat::UG;
-        m_extToFormat["stp"] = FileFormat::UG;
-        m_extToFormat["step"] = FileFormat::UG;
+        registerWithExtensions(FileFormat::UG, []() { return std::make_unique<UgParser>(); },
+            { "prt", "igs", "iges", "stp", "step" });
 
-        registerParser(FileFormat::PDF, []() {
-            return std::make_unique<PdfParser>();
-            });
-        m_extToFormat["pdf"] = FileFormat::PDF;
+        registerWithExtensions(FileFormat::PDF, []() { return std::make_unique<PdfParser>(); },
+            { "pdf" });
 
-        registerParser(FileFormat::AI, []() {
-            return std::make_unique<AiParser>();
-            });
-        m_extToFormat["ai"] = FileFormat::AI;
+        registerWithExtensions(FileFormat::AI, []() { return std::make_unique<AiParser>(); },
+            { "ai" });
+
+        registerWithExtensions(FileFormat::Native, []() { return std::make_unique<NativeParser>(); },
+            { "sy" });
+
+        registerWithExtensions(FileFormat::Native3D, []() { return std::make_unique<NativeParser3D>(); },
+            { "syx" });
     }
 } // namespace Fio

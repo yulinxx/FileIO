@@ -24,7 +24,8 @@ namespace Fio
         PDF,
         AI,
 
-        Native,
+        Native,     // .sy  - 2D 原生格式
+        Native3D,   // .syx - 3D 原生格式
 
         BMP,
         PNG,

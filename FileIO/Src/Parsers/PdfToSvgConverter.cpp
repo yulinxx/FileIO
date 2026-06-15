@@ -77,15 +77,15 @@ namespace Fio
 
         std::string pathStr(pathEnv);
         std::string::size_type start = 0;
-        std::string::size_type end = pathStr.find(';');
-
 #ifdef _WIN32
-        char sep = ';';
+        const char sep = ';';
 #else
-        char sep = ':';
+        const char sep = ':';
 #endif
+        std::string::size_type end = pathStr.find(sep);
 
-        while (end != std::string::npos) {
+        while (end != std::string::npos)
+        {
             std::string dir = pathStr.substr(start, end - start);
             std::string result = findInDirectory(dir, exeName);
             if (!result.empty())
@@ -105,6 +105,10 @@ namespace Fio
         exeName += ".exe";
 #endif
 
+        // 外部工具发现策略（优先级从高到低）：
+        // 1. 应用程序同级目录（便携部署，最常见场景）
+        // 2. PATH 环境变量（系统级安装）
+        // 3. 常见安装路径（兜底查找）
         std::string appDir = getExecutableDir();
         std::string result = findInDirectory(appDir, exeName);
         if (!result.empty())
@@ -145,9 +149,9 @@ namespace Fio
     {
         std::vector<std::string> exeNames;
 #ifdef _WIN32
-        exeNames = {"gswin64c.exe", "gswin32c.exe", "gswin64.exe", "gswin32.exe"};
+        exeNames = { "gswin64c.exe", "gswin32c.exe", "gswin64.exe", "gswin32.exe" };
 #else
-        exeNames = {"gs", "ghostscript"};
+        exeNames = { "gs", "ghostscript" };
 #endif
 
         std::string appDir = getExecutableDir();
@@ -199,10 +203,13 @@ namespace Fio
 
     bool PdfToSvgConverter::isPdfFile(const std::string& filePath)
     {
-        std::ifstream file(filePath, std::ios::binary);
+        std::filesystem::path fsPath = std::filesystem::u8path(filePath);
+        std::ifstream file(fsPath, std::ios::binary);
         if (!file)
             return false;
 
+        // PDF 文件签名：前4字节必须为 "%PDF"
+        // 这是 PDF 规范 ISO 32000 定义的标准魔数
         char header[5];
         file.read(header, 5);
         file.close();
@@ -212,10 +219,13 @@ namespace Fio
 
     bool PdfToSvgConverter::isPostScriptFile(const std::string& filePath)
     {
-        std::ifstream file(filePath, std::ios::binary);
+        std::filesystem::path fsPath = std::filesystem::u8path(filePath);
+        std::ifstream file(fsPath, std::ios::binary);
         if (!file)
             return false;
 
+        // PostScript 文件签名：前4字节为 "%!PS"
+        // 旧版 AI (AI 7-) 使用此格式
         char header[5];
         file.read(header, 5);
         file.close();
@@ -223,21 +233,25 @@ namespace Fio
         return std::string(header, 5).substr(0, 4) == "%!PS";
     }
 
+    /// 跨平台进程执行封装
+    /// Windows: CreateProcessA + WaitForSingleObject — 阻塞等待进程结束
+    /// Unix:    fork + execvp + waitpid — 经典 fork-exec 模型
     bool executeProcess(const std::string& program, const std::vector<std::string>& args)
     {
 #ifdef _WIN32
         std::string command = program;
-        for (const std::string& arg : args) {
+        for (const std::string& arg : args)
+        {
             command += " \"" + arg + "\"";
         }
 
-        STARTUPINFO si = {0};
-        PROCESS_INFORMATION pi = {0};
+        STARTUPINFO si = { 0 };
+        PROCESS_INFORMATION pi = { 0 };
         si.cb = sizeof(STARTUPINFO);
 
         if (!CreateProcessA(nullptr, const_cast<char*>(command.c_str()),
-                            nullptr, nullptr, FALSE, 0, nullptr, nullptr,
-                            &si, &pi))
+            nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+            &si, &pi))
         {
             return false;
         }
@@ -253,17 +267,21 @@ namespace Fio
         return exitCode == 0;
 #else
         pid_t pid = fork();
-        if (pid == 0) {
+        if (pid == 0)
+        {
             std::vector<const char*> cargs;
             cargs.push_back(program.c_str());
-            for (const std::string& arg : args) {
+            for (const std::string& arg : args)
+            {
                 cargs.push_back(arg.c_str());
             }
             cargs.push_back(nullptr);
 
             execvp(program.c_str(), const_cast<char* const*>(cargs.data()));
             _exit(1);
-        } else if (pid > 0) {
+        }
+        else if (pid > 0)
+        {
             int status;
             waitpid(pid, &status, 0);
             return WIFEXITED(status) && WEXITSTATUS(status) == 0;
@@ -272,6 +290,10 @@ namespace Fio
 #endif
     }
 
+    /// PostScript → PDF 转换，通过 Ghostscript CLI
+    /// 参数含义：-dNOPAUSE（不分页暂停）-dBATCH（结束后退出）-dQUIET（静默模式）
+    ///   -sDEVICE=pdfwrite（输出设备为 PDF 写入器）
+    ///   -sOutputFile=（输出路径）-f（结束参数，后跟输入文件）
     bool PdfToSvgConverter::convertPsToPdf(const std::string& psPath, const std::string& pdfPath)
     {
         std::string gs = findGhostscriptPath();
@@ -293,6 +315,8 @@ namespace Fio
         return executeProcess(gs, args);
     }
 
+    /// PDF → SVG 转换：调用 pdftocairo 外部工具
+    /// pdftocairo 命令格式：pdftocairo -f <page> -l <page> -svg <input> <output>
     bool PdfToSvgConverter::convertToSvg(const std::string& pdfPath, const std::string& svgPath, int page)
     {
         std::string pdftocairo = findPdftocairoPath();
@@ -318,6 +342,8 @@ namespace Fio
         if (!result)
             return false;
 
+        // pdftocairo 可能在给定文件名后自动追加 .svg 后缀（如 "output.svg" → "output.svg.svg"）
+        // 如果发现这种情况，重命名为期望的文件名
         if (!std::filesystem::exists(svgPath))
         {
             std::string altPath = svgPath + ".svg";
@@ -330,6 +356,10 @@ namespace Fio
         return std::filesystem::exists(svgPath);
     }
 
+    /// 将 PDF/AI/PS 文件转为临时 SVG 文件的完整管道：
+    /// PostScript(.ps) → Ghostscript → PDF → pdftocairo → SVG
+    /// PDF(.pdf) / AI(.ai) → pdftocairo → SVG
+    /// 使用 hash 缓存已经转换过的文件，避免重复调用外部工具
     std::string PdfToSvgConverter::convertToTempSvg(const std::string& filePath, int page)
     {
         std::string hash = generateHash(filePath + std::to_string(page));
@@ -337,6 +367,7 @@ namespace Fio
         std::filesystem::path tempDir = std::filesystem::temp_directory_path();
         std::string tempSvg = (tempDir / ("sanyi_pdf_" + hash + ".svg")).string();
 
+        // 命中缓存：该文件已经转换过，直接返回
         if (std::filesystem::exists(tempSvg))
         {
             return tempSvg;
@@ -344,6 +375,7 @@ namespace Fio
 
         std::string actualPdfPath = filePath;
 
+        // PostScript 格式需要两步转换：PS → PDF → SVG
         if (isPostScriptFile(filePath))
         {
             std::string tempPdf = (tempDir / ("sanyi_ps_" + hash + ".pdf")).string();
@@ -374,7 +406,7 @@ namespace Fio
     std::string PdfToSvgConverter::getInstallHint()
     {
 #ifdef _WIN32
-        return 
+        return
             "pdftocairo and Ghostscript are required to import PDF/AI files.\n\n"
             "=== Option 1: Copy to application folder (Recommended) ===\n\n"
             "1. Download pdftocairo (poppler):\n"
@@ -388,7 +420,7 @@ namespace Fio
             "2. Ensure they are in PATH or Program Files.\n\n"
             "Restart the application after installation.";
 #else
-        return 
+        return
             "pdftocairo and Ghostscript are required to import PDF/AI files.\n\n"
             "=== Option 1: Copy to application folder (Recommended) ===\n\n"
             "1. Linux: sudo apt install poppler-utils ghostscript\n"

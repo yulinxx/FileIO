@@ -1,165 +1,378 @@
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/FileIOUtils.h"
 
-#include "Engine/SyEntity/SyLine.h"
-#include "Engine/SyEntity/SyCircle.h"
+#include "Engine2D/SyEntity/SyLine.h"
+#include "Engine2D/SyEntity/SyCircle.h"
 #include "Ut/Vec.h"
 
 #define NANOSVG_IMPLEMENTATION
-#include "nanosvg.h"
+#include "nanosvg/nanosvg.h"
 
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <algorithm>
+#include <numeric>
+#include <fstream>
+
+#ifdef FILEIO_HAS_ZLIB
+#include <zlib.h>
+#endif
 
 namespace Fio
 {
-
-class NsvgInterpreter
-{
-public:
-    NsvgInterpreter(VecSyEntityPtr& outEntities, std::vector<std::string>& warnings)
-        : m_outEntities(outEntities)
-        , m_warnings(warnings)
+    namespace
     {
-    }
-
-    void parseFile(const std::string& filePath)
-    {
-        TempFileCopy tempCopy(filePath, "svg");
-        if (!tempCopy.isValid())
+        // RAII wrapper for NSVGimage to ensure exception safety
+        struct NsvgImageDeleter
         {
-            m_warnings.push_back(tempCopy.error());
-            return;
+            void operator()(NSVGimage* image) const
+            {
+                if (image)
+                    nsvgDelete(image);
+            }
+        };
+        using NsvgImagePtr = std::unique_ptr<NSVGimage, NsvgImageDeleter>;
+
+#ifdef FILEIO_HAS_ZLIB
+        // Decompress gzip data (for .svgz files)
+        std::vector<char> decompressGzip(const std::vector<char>& compressedData)
+        {
+            std::vector<char> decompressed;
+
+            z_stream strm = {};
+            strm.zalloc = Z_NULL;
+            strm.zfree = Z_NULL;
+            strm.opaque = Z_NULL;
+            strm.avail_in = static_cast<uInt>(compressedData.size());
+            strm.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(compressedData.data()));
+
+            // 15 + 16 = gzip decoding
+            int ret = inflateInit2(&strm, 15 + 16);
+            if (ret != Z_OK)
+                return decompressed;
+
+            constexpr size_t CHUNK_SIZE = 16384;
+            char outBuffer[CHUNK_SIZE];
+
+            do
+            {
+                strm.avail_out = CHUNK_SIZE;
+                strm.next_out = reinterpret_cast<Bytef*>(outBuffer);
+
+                ret = inflate(&strm, Z_NO_FLUSH);
+
+                if (ret != Z_OK && ret != Z_STREAM_END)
+                {
+                    inflateEnd(&strm);
+                    return {};
+                }
+
+                size_t have = CHUNK_SIZE - strm.avail_out;
+                decompressed.insert(decompressed.end(), outBuffer, outBuffer + have);
+            } while (ret != Z_STREAM_END);
+
+            inflateEnd(&strm);
+            return decompressed;
+        }
+#endif // FILEIO_HAS_ZLIB
+
+        // Check if data starts with gzip magic number (0x1f, 0x8b)
+        bool isGzipData(const std::vector<char>& data)
+        {
+            return data.size() >= 2 &&
+                static_cast<unsigned char>(data[0]) == 0x1f &&
+                static_cast<unsigned char>(data[1]) == 0x8b;
         }
 
-        NSVGimage* image = nsvgParseFromFile(tempCopy.path().c_str(), "px", 96.0f);
+        // Read file into memory
+        std::vector<char> readFileContent(const std::filesystem::path& filePath)
+        {
+            std::ifstream file(filePath, std::ios::binary | std::ios::ate);
+            if (!file)
+                return {};
 
-        if (!image) {
-            m_warnings.push_back("Failed to parse SVG file: " + filePath);
-            return;
+            std::streamsize size = file.tellg();
+            if (size <= 0)
+                return {};
+
+            file.seekg(0, std::ios::beg);
+            std::vector<char> buffer(static_cast<size_t>(size));
+
+            if (!file.read(buffer.data(), size))
+                return {};
+
+            return buffer;
         }
 
-        int shapeCount = 0;
-        int pathCount = 0;
-
-        for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next) {
-            shapeCount++;
-
-            bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
-            bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
-            bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
-
-            if (!visible) {
-                continue;
+        // Extract SVG color from nanosvg paint, returns normalized RGB (0-1)
+        Ut::Vec3f extractSvgColor(const NSVGpaint& paint)
+        {
+            if (paint.type == NSVG_PAINT_COLOR)
+            {
+                unsigned int color = paint.color;
+                float r = ((color >> 16) & 0xFF) / 255.0f;
+                float g = ((color >> 8) & 0xFF) / 255.0f;
+                float b = (color & 0xFF) / 255.0f;
+                return Ut::Vec3f(r, g, b);
             }
-            if (!hasFill && !hasStroke) {
-                continue;
-            }
-
-            for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next) {
-                pathCount++;
-                convertPathToEntity(svgPath, shape);
-            }
+            // For gradients or unknown types, return default color
+            return Ut::Vec3f(0.0f, 0.0f, 0.0f);
         }
 
-        nsvgDelete(image);
+        // Adaptive bezier sampling based on chord error
+        // Returns number of segments needed for the given cubic bezier curve
+        int computeAdaptiveSegments(const Ut::Vec2d& p0, const Ut::Vec2d& c1,
+            const Ut::Vec2d& c2, const Ut::Vec2d& p1,
+            double tolerance = 0.1)
+        {
+            // Calculate chord length
+            double chordLen = (p1 - p0).length();
+            if (chordLen < 1e-10)
+                return 1;
+
+            // Calculate maximum distance from curve to chord (flatness test)
+            // Sample at t=0.5 and measure distance to chord
+            double t = 0.5;
+            double t1 = 1.0 - t;
+            Ut::Vec2d mid = t1 * t1 * t1 * p0 + 3 * t1 * t1 * t * c1 + 3 * t1 * t * t * c2 + t * t * t * p1;
+            Ut::Vec2d chordMid = (p0 + p1) * 0.5;
+            double flatness = (mid - chordMid).length();
+
+            // Estimate segments needed based on flatness
+            if (flatness < tolerance)
+                return 1;
+
+            // Use empirical formula: segments = ceil(sqrt(flatness / tolerance))
+            int segs = static_cast<int>(std::ceil(std::sqrt(flatness / tolerance)));
+            return std::clamp(segs, 2, 32);
+        }
     }
 
-private:
-    VecSyEntityPtr& m_outEntities;
-    std::vector<std::string>& m_warnings;
-
-    void convertPathToEntity(NSVGpath* svgPath, NSVGshape* shape)
+    class NsvgInterpreter
     {
-        if (!svgPath || svgPath->npts < 4)
-            return;
+    public:
+        NsvgInterpreter(VecSyEntityPtr& outEntities, std::vector<std::string>& warnings)
+            : m_outEntities(outEntities)
+            , m_warnings(warnings)
+            , m_success(false)
+        {
+        }
 
-        float* pts = svgPath->pts;
-        int npts = svgPath->npts;
+        bool succeeded() const
+        {
+            return m_success;
+        }
 
-        std::vector<Ut::Vec2d> points;
+        void parseFile(const std::string& filePath)
+        {
+            // Read file content
+            std::filesystem::path fsPath = std::filesystem::u8path(filePath);
+            std::vector<char> fileContent = readFileContent(fsPath);
 
-        points.emplace_back(pts[0], -pts[1]);
+            if (fileContent.empty())
+            {
+                m_warnings.push_back("Cannot read file: " + filePath);
+                return;
+            }
 
-        for (int i = 0; i + 3 < npts; i += 3) {
-            float p0x = pts[i * 2];
-            float p0y = -pts[i * 2 + 1];
-            float c1x = pts[i * 2 + 2];
-            float c1y = -pts[i * 2 + 3];
-            float c2x = pts[i * 2 + 4];
-            float c2y = -pts[i * 2 + 5];
-            float p1x = pts[i * 2 + 6];
-            float p1y = -pts[i * 2 + 7];
+            // Check if it's gzip compressed (.svgz)
+            std::vector<char> svgData;
+            if (isGzipData(fileContent))
+            {
+#ifdef FILEIO_HAS_ZLIB
+                svgData = decompressGzip(fileContent);
+                if (svgData.empty())
+                {
+                    m_warnings.push_back("Failed to decompress SVGZ file: " + filePath);
+                    return;
+                }
+#else
+                m_warnings.push_back(
+                    "SVGZ file detected but zlib not available. "
+                    "Please install zlib to support .svgz files: " + filePath);
+                return;
+#endif
+            }
+            else
+            {
+                svgData = std::move(fileContent);
+            }
 
-            const int segs = 16;
-            for (int s = 1; s <= segs; ++s) {
-                double t = (double)s / segs;
-                double t1 = 1.0 - t;
-                double x = t1*t1*t1*p0x + 3*t1*t1*t*c1x + 3*t1*t*t*c2x + t*t*t*p1x;
-                double y = t1*t1*t1*p0y + 3*t1*t1*t*c1y + 3*t1*t*t*c2y + t*t*t*p1y;
-                points.emplace_back(x, y);
+            // Parse SVG from memory (null-terminated string)
+            svgData.push_back('\0');
+
+            NSVGimage* rawImage = nsvgParse(svgData.data(), "px", 96.0f);
+            if (!rawImage)
+            {
+                m_warnings.push_back("Failed to parse SVG file: " + filePath);
+                return;
+            }
+
+            // Wrap in RAII pointer for exception safety
+            NsvgImagePtr image(rawImage);
+
+            for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next)
+            {
+                bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
+                bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
+                bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
+
+                if (!visible)
+                    continue;
+                if (!hasFill && !hasStroke)
+                    continue;
+
+                // Extract color from shape (prefer stroke color for lines, fill for closed shapes)
+                Ut::Vec3f shapeColor = Ut::Vec3f(0.0f, 0.0f, 0.0f);
+                if (hasStroke)
+                    shapeColor = extractSvgColor(shape->stroke);
+                else if (hasFill)
+                    shapeColor = extractSvgColor(shape->fill);
+
+                // Extract layer name from shape id
+                std::string layerName;
+                if (shape->id && shape->id[0] != '\0')
+                    layerName = shape->id;
+
+                for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
+                {
+                    convertPathToEntity(svgPath, shapeColor, layerName);
+                }
+            }
+
+            m_success = !m_outEntities.empty();
+        }
+
+    private:
+        VecSyEntityPtr& m_outEntities;
+        std::vector<std::string>& m_warnings;
+        bool m_success;
+
+        Ut::Vec2d evalCubicBezier(const Ut::Vec2d& p0, const Ut::Vec2d& c1,
+            const Ut::Vec2d& c2, const Ut::Vec2d& p1, double t)
+        {
+            double t1 = 1.0 - t;
+            double t1t1t1 = t1 * t1 * t1;
+            double t1t1t = t1 * t1 * t;
+            double t1tt = t1 * t * t;
+            double ttt = t * t * t;
+
+            return Ut::Vec2d(
+                t1t1t1 * p0.x() + 3.0 * t1t1t * c1.x() + 3.0 * t1tt * c2.x() + ttt * p1.x(),
+                t1t1t1 * p0.y() + 3.0 * t1t1t * c1.y() + 3.0 * t1tt * c2.y() + ttt * p1.y()
+            );
+        }
+
+        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& shapeColor,
+            const std::string& layerName)
+        {
+            if (!svgPath || svgPath->npts < 4)
+                return;
+
+            float* pts = svgPath->pts;
+            int npts = svgPath->npts;
+
+            std::vector<Ut::Vec2d> points;
+            points.reserve(static_cast<size_t>(npts));
+
+            // First point (Y axis flip: SVG Y down -> system Y up)
+            points.emplace_back(pts[0], -pts[1]);
+
+            // Process cubic bezier segments
+            // nanosvg pts layout: [x0,y0, cpx1,cpy1, cpx2,cpy2, x1,y1, ...]
+            // Step through in groups of 3 control points (6 floats per segment)
+            for (int i = 0; i + 3 < npts; i += 3)
+            {
+                Ut::Vec2d p0(pts[i * 2], -pts[i * 2 + 1]);
+                Ut::Vec2d c1(pts[i * 2 + 2], -pts[i * 2 + 3]);
+                Ut::Vec2d c2(pts[i * 2 + 4], -pts[i * 2 + 5]);
+                Ut::Vec2d p1(pts[i * 2 + 6], -pts[i * 2 + 7]);
+
+                // Adaptive sampling based on curve flatness
+                int segs = computeAdaptiveSegments(p0, c1, c2, p1);
+
+                for (int s = 1; s <= segs; ++s)
+                {
+                    double t = static_cast<double>(s) / segs;
+                    points.push_back(evalCubicBezier(p0, c1, c2, p1, t));
+                }
+            }
+
+            // Close path if needed
+            if (svgPath->closed && points.size() >= 2)
+            {
+                double dx = points.front().x() - points.back().x();
+                double dy = points.front().y() - points.back().y();
+                if (std::hypot(dx, dy) > 1e-6)
+                    points.push_back(points.front());
+            }
+
+            if (points.size() < 2)
+                return;
+
+            // Remove duplicate consecutive points
+            std::vector<Ut::Vec2d> cleaned;
+            cleaned.reserve(points.size());
+            cleaned.push_back(points[0]);
+            for (size_t i = 1; i < points.size(); ++i)
+            {
+                if ((points[i] - cleaned.back()).length() > 1e-6)
+                    cleaned.push_back(points[i]);
+            }
+            if (cleaned.size() < 2)
+                return;
+
+            // Create SyLine entity
+            auto syLine = std::make_unique<Eg::SyLine>();
+            syLine->vPoints = std::move(cleaned);
+            syLine->basePoint = syLine->vPoints.front();
+            syLine->bClosed = svgPath->closed != 0;
+            syLine->color = shapeColor;
+
+            m_outEntities.push_back(std::move(syLine));
+        }
+    };
+
+    ParseResult SvgParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
+    {
+        std::vector<std::string> warnings;
+
+        try
+        {
+            NsvgInterpreter interpreter(outEntities, warnings);
+            interpreter.parseFile(filePath);
+            if (!interpreter.succeeded())
+            {
+                const std::string message = warnings.empty()
+                    ? "Failed to parse SVG file: " + filePath
+                    : warnings.back();
+                return ParseResult::fail(message, warnings);
             }
         }
-
-        if (svgPath->closed && points.size() >= 2) {
-            double dx = points.front().x() - points.back().x();
-            double dy = points.front().y() - points.back().y();
-            if (std::hypot(dx, dy) > 1e-6)
-                points.push_back(points.front());
+        catch (const std::exception& ex)
+        {
+            return ParseResult::fail(
+                std::string("Exception during SVG parsing: ") + ex.what(), warnings);
         }
 
-        if (points.size() < 2)
-            return;
-
-        std::vector<Ut::Vec2d> cleaned;
-        cleaned.reserve(points.size());
-        cleaned.push_back(points[0]);
-        for (size_t i = 1; i < points.size(); ++i) {
-            if ((points[i] - cleaned.back()).length() > 1e-6)
-                cleaned.push_back(points[i]);
-        }
-        if (cleaned.size() < 2)
-            return;
-
-        auto syLine = std::make_unique<Eg::SyLine>();
-        syLine->vPoints = std::move(cleaned);
-        syLine->basePoint = syLine->vPoints.front();
-        syLine->bClosed = svgPath->closed != 0;
-        m_outEntities.push_back(std::move(syLine));
-    }
-};
-
-ParseResult SvgParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
-{
-    std::vector<std::string> warnings;
-
-    try {
-        NsvgInterpreter interpreter(outEntities, warnings);
-        interpreter.parseFile(filePath);
-    } catch (const std::exception& ex) {
-        return ParseResult::fail(
-            std::string("Exception during SVG parsing: ") + ex.what(), warnings);
+        ParseResult result = ParseResult::ok();
+        result.warnings = warnings;
+        return result;
     }
 
-    ParseResult result = ParseResult::ok();
-    result.warnings = warnings;
-    return result;
-}
+    FileFormat SvgParser::format() const
+    {
+        return FileFormat::SVG;
+    }
 
-FileFormat SvgParser::format() const
-{
-    return FileFormat::SVG;
-}
+    std::string SvgParser::formatName() const
+    {
+        return "SVG";
+    }
 
-std::string SvgParser::formatName() const
-{
-    return "SVG";
-}
-
-std::vector<std::string> SvgParser::supportedExtensions() const
-{
-    return { "svg", "svgz" };
-}
-
+    std::vector<std::string> SvgParser::supportedExtensions() const
+    {
+        return { "svg", "svgz" };
+    }
 } // namespace Fio

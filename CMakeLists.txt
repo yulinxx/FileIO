@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-include(Config.txt)
+include(../Config.txt)
 
 if(DEFINED VCPKG_DIR AND EXISTS "${VCPKG_DIR}")
     set(CMAKE_TOOLCHAIN_FILE "${VCPKG_DIR}/scripts/buildsystems/vcpkg.cmake")

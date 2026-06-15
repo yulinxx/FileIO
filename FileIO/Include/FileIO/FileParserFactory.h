@@ -38,6 +38,15 @@ namespace Fio
     private:
         FileParserFactory() = default;
 
+        /// 批量注册一个解析器及其扩展名映射，消除 initDefaults 中的重复样板
+        void registerWithExtensions(FileFormat format, CreatorFunc creator,
+            std::vector<std::string> extensions)
+        {
+            registerParser(format, std::move(creator));
+            for (auto& ext : extensions)
+                m_extToFormat[std::move(ext)] = format;
+        }
+
     private:
         std::map<FileFormat, CreatorFunc> m_creators;
         std::map<std::string, FileFormat> m_extToFormat;

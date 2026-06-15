@@ -45,5 +45,50 @@ namespace Fio
     private:
         ImportCallback m_importCallback;
         ExportCallback m_exportCallback;
+
+        /// 通用文件操作管道模板 ——
+        /// 封装 import/export 共有的 "回调通知→工厂校验→创建→执行→回调反馈" 流程，
+        /// 通过策略函数参数消除两个几乎相同方法的重复代码。
+        ///
+        /// @param filePath   文件路径
+        /// @param callback   操作回调（import 用 m_importCallback，export 用 m_exportCallback）
+        /// @param typeLabel  处理器类型标签（如 "parser" / "writer"），用于错误消息
+        /// @param hasCreator  检查工厂是否支持该格式
+        /// @param create      创建处理器
+        /// @param execute     执行处理逻辑，返回 ResultT
+        template<typename ResultT, typename HasCreator, typename Create, typename Execute>
+        ResultT processFile(const std::string& filePath,
+            const ImportCallback& callback,
+            const char* typeLabel,
+            HasCreator&& hasCreator,
+            Create&& create,
+            Execute&& execute)
+        {
+            if (callback)
+                callback(filePath, true);
+
+            if (!hasCreator())
+            {
+                if (callback)
+                    callback(filePath, false);
+                return ResultT::fail(
+                    std::string("No ") + typeLabel + " registered for this format");
+            }
+
+            auto processor = create();
+            if (!processor)
+            {
+                if (callback)
+                    callback(filePath, false);
+                return ResultT::fail(
+                    std::string("Failed to create ") + typeLabel);
+            }
+
+            auto result = execute(processor.get());
+            if (callback)
+                callback(filePath, result.success);
+
+            return result;
+        }
     };
 } // namespace Fio

@@ -1,4 +1,10 @@
 #include "FileIO/FileWriterFactory.h"
+#include "FileIO/Writers/DxfWriter.h"
+#include "FileIO/Writers/SvgWriter.h"
+#include "FileIO/Writers/PltWriter.h"
+#include "FileIO/Writers/NativeWriter.h"
+#include "FileIO/Writers/NativeWriter3D.h"
+#include "FileIO/Writers/UgWriter.h"
 
 namespace Fio
 {
@@ -46,11 +52,11 @@ namespace Fio
 
     void FileWriterFactory::initDefaults()
     {
-        // TODO: 文件导出功能尚未实现，后续需要注册以下 Writer:
-        //   registerWriter(FileFormat::DXF,  []() { return std::make_unique<DxfWriter>(); }, "dxf");
-        //   registerWriter(FileFormat::SVG,  []() { return std::make_unique<SvgWriter>(); }, "svg");
-        //   registerWriter(FileFormat::Native, []() { return std::make_unique<NativeWriter>(); }, "sy");
-        //   registerWriter(FileFormat::BMP,    []() { return std::make_unique<BmpWriter>(); }, "bmp");
-        //   registerWriter(FileFormat::PNG,    []() { return std::make_unique<PngWriter>(); }, "png");
+        registerWriter(FileFormat::DXF, []() { return std::make_unique<DxfWriter>(); }, "dxf");
+        registerWriter(FileFormat::SVG, []() { return std::make_unique<SvgWriter>(); }, "svg");
+        registerWriter(FileFormat::PLT, []() { return std::make_unique<PltWriter>(); }, "plt");
+        registerWriter(FileFormat::UG, []() { return std::make_unique<UgWriter>(); }, "igs");
+        registerWriter(FileFormat::Native, []() { return std::make_unique<NativeWriter>(); }, "sy");
+        registerWriter(FileFormat::Native3D, []() { return std::make_unique<NativeWriter3D>(); }, "syx");
     }
 } // namespace Fio

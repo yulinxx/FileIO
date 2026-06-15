@@ -2,28 +2,47 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 namespace Fio
 {
+    /// DXF 图层定义信息
+    struct DxfLayerInfo
+    {
+        std::string name;       // 图层名称
+        int color{ 7 };           // ACI 颜色索引 (1-255)
+        bool visible{ true };     // 是否可见
+    };
+
     struct ParseResult
     {
         bool success = false;
         std::string errorMessage;
         std::vector<std::string> warnings;
 
+        /// DXF 图层定义（仅 DXF 导入时填充）
+        std::vector<DxfLayerInfo> dxfLayers;
+        /// 实体索引 -> DXF 图层名 映射（仅 DXF 导入时填充）
+        std::map<size_t, std::string> entityLayerMap;
+
         static ParseResult ok()
         {
-            return { true, {}, {} };
+            return { true, {}, {}, {}, {} };
+        }
+
+        static ParseResult ok(const std::vector<std::string>& warns)
+        {
+            return { true, {}, warns, {}, {} };
         }
 
         static ParseResult fail(const std::string& msg)
         {
-            return { false, msg, {} };
+            return { false, msg, {}, {}, {} };
         }
 
         static ParseResult fail(const std::string& msg, const std::vector<std::string>& warns)
         {
-            return { false, msg, warns };
+            return { false, msg, warns, {}, {} };
         }
     };
 
@@ -36,6 +55,7 @@ namespace Fio
         {
             return { true, {} };
         }
+
         static WriteResult fail(const std::string& msg)
         {
             return { false, msg };

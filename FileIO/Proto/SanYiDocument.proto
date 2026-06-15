@@ -1,0 +1,285 @@
+syntax = "proto3";
+
+package sanyi.proto;
+
+// ============================================================
+// SanYi Document 序列化协议定义
+// 版本: 1
+// 用于 .sy 文件的二进制序列化/反序列化
+//
+// 设计原则:
+//   1. 所有字段使用 proto3 语法，默认值自动处理
+//   2. 广泛使用 repeated/repeated map 支持扩展
+//   3. 保留 reserved 字段用于未来兼容
+//   4. oneof 用于区分图元类型，保证类型安全
+// ============================================================
+
+option optimize_for = LITE_RUNTIME;  // 减少生成代码体积，适合移动/嵌入式
+
+// ---------------------------- 基础类型 ----------------------------
+
+// 二维向量 (double)
+message Vec2d {
+    double x = 1;
+    double y = 2;
+}
+
+// RGB 颜色 (float)
+message Vec3f {
+    float r = 1;
+    float g = 2;
+    float b = 3;
+}
+
+// 三维向量 (float)
+message Vec3fData {
+    float x = 1;
+    float y = 2;
+    float z = 3;
+}
+
+// 二维浮点向量 (float)
+message Vec2fData {
+    float x = 1;
+    float y = 2;
+}
+
+// 可扩展的字符串键值对 (用于所有层级的 custom_properties)
+message PropertyEntry {
+    string key = 1;
+    string value = 2;
+}
+
+// ---------------------------- 文档元信息 ----------------------------
+
+message DocumentMetadata {
+    // === 版本信息 ===
+    int32  version           = 1;   // SY 文件格式版本 (当前: 1)
+    int32  file_version      = 2;   // 应用文件版本号
+
+    // === 作者/软件信息 ===
+    string author            = 3;   // 作者名称
+    string software_name     = 4;   // 软件名称 (如 "SanYi CAD")
+    string software_version  = 5;   // 软件版本 (如 "1.0.0")
+
+    // === 时间信息 (ISO 8601 格式) ===
+    string created_time      = 6;   // 创建时间，如 "2024-01-15T10:30:00+08:00"
+    string modified_time     = 7;   // 最后修改时间
+
+    // === 环境信息 ===
+    string operating_system  = 8;   // 操作系统，如 "Windows 10", "Ubuntu 22.04"
+
+    // === 文档描述 ===
+    string description       = 9;   // 文档描述/备注
+
+    // === 未来扩展 ===
+    repeated PropertyEntry custom_properties = 10;  // 任意键值对扩展
+    bytes  reserved          = 20;  // 保留用于未来结构扩展
+}
+
+// ---------------------------- 图层 ----------------------------
+
+message LayerData {
+    uint32 id               = 1;   // 图层唯一标识
+    string name             = 2;   // 图层名称 (UTF-8)
+    uint32 color            = 3;   // ARGB 颜色值
+    bool   visible          = 4;   // 可见性
+    bool   locked           = 5;   // 锁定状态
+    repeated PropertyEntry custom_properties = 6;  // 图层扩展属性
+}
+
+// ---------------------------- 硬件信息 ----------------------------
+
+message HardwareInfo {
+    string laser_type         = 1;   // 激光类型 (如 "CO2", "Fiber")
+    string controller_model   = 2;   // 控制器型号
+    double max_power          = 3;   // 最大功率 (瓦)
+    double work_area_width    = 4;   // 工作区域宽度 (mm)
+    double work_area_height   = 5;   // 工作区域高度 (mm)
+    repeated PropertyEntry custom_properties = 6;  // 硬件扩展属性
+    bytes  reserved           = 20;  // 保留
+}
+
+// ---------------------------- 图元类型枚举 ----------------------------
+
+enum EntityType {
+    ENTITY_UNKNOWN    = 0;
+    ENTITY_POINT      = 1;
+    ENTITY_LINE       = 2;
+    ENTITY_POLYGON    = 3;
+    ENTITY_ARC        = 4;
+    ENTITY_CIRCLE     = 5;
+    ENTITY_ELLIPSE    = 6;
+    ENTITY_BEZIER2    = 7;
+    ENTITY_BEZIER     = 8;
+    ENTITY_SPLINE     = 9;
+    ENTITY_NURBS      = 10;
+    ENTITY_SMARTLINE  = 11;
+    ENTITY_TEXT       = 12;
+    ENTITY_BAR_CODE   = 13;
+    ENTITY_QR_CODE    = 14;
+    ENTITY_IMAGE      = 15;
+    ENTITY_MESH       = 16;   // 3D 网格实体
+}
+
+// ---------------------------- 各图元特有数据 ----------------------------
+
+message PointData {
+    // 点图元没有额外数据，位置由父消息的 base_point 表示
+}
+
+message LineData {
+    repeated Vec2d points = 1;   // 顶点列表
+}
+
+message PolygonData {
+    repeated Vec2d vertices     = 1;   // 顶点列表
+    int32  sides                = 2;   // 边数
+    double circum_radius        = 3;   // 外接圆半径
+}
+
+message ArcData {
+    double radius       = 1;   // 半径
+    double start_angle  = 2;   // 起始角 (弧度)
+    double end_angle    = 3;   // 结束角 (弧度)
+}
+
+message CircleData {
+    double radius = 1;   // 半径
+}
+
+message EllipseData {
+    double radius_x  = 1;   // X 半轴
+    double radius_y  = 2;   // Y 半轴
+    double rotation  = 3;   // 旋转角 (弧度)
+}
+
+message Bezier2Data {
+    Vec2d ctrl = 1;   // 控制点
+    Vec2d end  = 2;   // 终点
+}
+
+message BezierData {
+    Vec2d ctrl0 = 1;   // 控制点 1
+    Vec2d ctrl1 = 2;   // 控制点 2
+    Vec2d end   = 3;   // 终点
+}
+
+message SplineData {
+    int32  degree          = 1;   // 曲线阶数
+    repeated double knots         = 2;   // 节点向量
+    repeated double weights       = 3;   // 权重向量
+    repeated Vec2d control_points = 4;   // 控制点向量
+}
+
+message NurbsData {
+    int32  degree          = 1;   // 曲线阶数
+    repeated double knots         = 2;   // 节点向量
+    repeated double weights       = 3;   // 权重向量
+    repeated Vec2d control_points = 4;   // 控制点向量
+}
+
+// SmartLine 递归包含子图元
+message SmartLineData {
+    repeated EntityData segments = 1;   // 子图元列表
+}
+
+message TextData {
+    string font_name   = 1;   // 字体名称
+    double height      = 2;   // 文本高度
+    double rotation    = 3;   // 旋转角 (弧度)
+    int32  h_align     = 4;   // 水平对齐: 0=Left, 1=Center, 2=Right
+    int32  v_align     = 5;   // 垂直对齐: 0=Baseline, 1=Top, 2=Middle, 3=Bottom
+    bool   bold        = 6;   // 加粗
+    bool   italic      = 7;   // 斜体
+    string text        = 8;   // 文本内容 (UTF-8)
+}
+
+message BarCodeData {
+    string data    = 1;   // 条码内容
+    double width   = 2;   // 条码宽度
+    double height  = 3;   // 条码高度
+}
+
+message QRCodeData {
+    string data         = 1;   // 二维码内容
+    double module_size  = 2;   // 模块尺寸
+}
+
+message ImageData {
+    int32  width        = 1;   // 图像宽度 (像素)
+    int32  height       = 2;   // 图像高度 (像素)
+    int32  pixel_format = 3;   // 像素格式: 0=Unknown, 1=Gray8, 2=RGB24, 3=RGBA32
+    bytes  pixel_data   = 4;   // 原始像素数据
+    Vec2d  top_left     = 5;   // 左上角
+    Vec2d  top_right    = 6;   // 右上角
+    Vec2d  bottom_left  = 7;   // 左下角
+    Vec2d  bottom_right = 8;   // 右下角
+}
+
+// 3D 网格实体数据
+message MeshData {
+    string name                  = 1;   // 网格名称
+    repeated Vec3fData vertices  = 2;   // 顶点位置
+    repeated Vec3fData normals   = 3;   // 顶点法线
+    // 材质属性
+    float  ambient_r = 10;
+    float  ambient_g = 11;
+    float  ambient_b = 12;
+    float  diffuse_r = 13;
+    float  diffuse_g = 14;
+    float  diffuse_b = 15;
+    float  specular_r = 16;
+    float  specular_g = 17;
+    float  specular_b = 18;
+    float  shininess = 19;
+    repeated PropertyEntry custom_properties = 20;  // 扩展属性
+}
+
+// ---------------------------- 图元通用结构 ----------------------------
+
+// 所有图元使用此消息，通过 oneof 区分具体类型
+message EntityData {
+    // === 通用属性 ===
+    EntityType type       = 1;    // 图元类型
+    uint64     id         = 2;    // 图元唯一标识
+    uint32     layer_id   = 3;    // 所属图层 ID
+    Vec2d      base_point = 4;    // 基点坐标
+    Vec3f      color      = 5;    // 图元颜色 (RGB)
+    bool       closed     = 6;    // 是否闭合
+    bool       ccw        = 7;    // 是否逆时针方向
+    repeated PropertyEntry custom_properties = 8;  // 扩展属性
+
+    // === 类型特有数据 (oneof 保证互斥，节省空间) ===
+    oneof type_specific {
+        PointData      point_data      = 10;
+        LineData       line_data       = 11;
+        PolygonData    polygon_data    = 12;
+        ArcData        arc_data        = 13;
+        CircleData     circle_data     = 14;
+        EllipseData    ellipse_data    = 15;
+        Bezier2Data    bezier2_data    = 16;
+        BezierData     bezier_data     = 17;
+        SplineData     spline_data     = 18;
+        NurbsData      nurbs_data      = 19;
+        SmartLineData  smartline_data  = 20;
+        TextData       text_data       = 21;
+        BarCodeData    barcode_data    = 22;
+        QRCodeData     qrcode_data     = 23;
+        ImageData      image_data      = 24;
+        MeshData       mesh_data       = 25;
+    }
+}
+
+// ---------------------------- 文档根消息 ----------------------------
+
+// .sy 文件的完整内容
+message SanYiDocument {
+    DocumentMetadata metadata = 1;   // 文档元信息
+    repeated LayerData layers  = 2;   // 图层列表
+    repeated EntityData entities = 3; // 图元列表
+    HardwareInfo hardware      = 4;   // 硬件信息
+
+    // === 扩展预留 ===
+    reserved 100 to 200;              // 为未来大版本扩展预留字段号
+}
