@@ -20,6 +20,7 @@ namespace Fio
         return std::string(buffer);
     }
 
+    ////////////////////////////////////////////////////////////////
     class TempFileCopy
     {
     public:

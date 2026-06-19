@@ -8,6 +8,7 @@ namespace Fio
         metadata = DocumentMetadata();
         layers.clear();
         entities.clear();
+        groups.clear();
         hardware = HardwareInfo();
         warnings.clear();
     }

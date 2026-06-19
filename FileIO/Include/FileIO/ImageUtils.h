@@ -12,6 +12,8 @@ namespace Fio
         Pixel
     };
 
+    ////////////////////////////////////////////////////////////////
+
     struct ImageInfo
     {
         int width = 0;

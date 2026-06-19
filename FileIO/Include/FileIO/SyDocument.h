@@ -5,7 +5,6 @@
 
 // 完整引入 Entity 类型，因为 unique_ptr 需析构完整类型
 #include "Engine2D/SyEntity/SyEntity.h"
-#include "Engine3D/SyEntity/SyMeshEntity.h"
 
 #include <cstdint>
 #include <map>
@@ -33,18 +32,19 @@ namespace Fio
 
     struct FILEIO_API DocumentMetadata
     {
-        int32_t  version = 1;    // SY 文件格式版本
-        int32_t  fileVersion = 1;    // 应用文件版本号
-        std::string author;               // 作者
-        std::string softwareName;         // 软件名称
-        std::string softwareVersion;      // 软件版本
-        std::string createdTime;          // 创建时间 (ISO 8601)
-        std::string modifiedTime;         // 修改时间 (ISO 8601)
-        std::string operatingSystem;      // 操作系统
-        std::string description;          // 描述
-        PropertyMap customProperties;     // 扩展属性
+        int32_t  version = 1;               // SY 文件格式版本
+        int32_t  fileVersion = 1;           // 应用文件版本号
+        std::string author;                 // 作者
+        std::string softwareName;           // 软件名称
+        std::string softwareVersion;        // 软件版本
+        std::string createdTime;            // 创建时间 (ISO 8601)
+        std::string modifiedTime;           // 修改时间 (ISO 8601)
+        std::string operatingSystem;        // 操作系统
+        std::string description;            // 描述
+        PropertyMap customProperties;       // 扩展属性
     };
 
+    ////////////////////////////////////////////////////////////////////
     // ---------------------------- 图层信息 ----------------------------
 
     struct FILEIO_API LayerInfo
@@ -57,6 +57,7 @@ namespace Fio
         PropertyMap customProperties; // 扩展属性
     };
 
+    ////////////////////////////////////////////////////////////////////
     // ---------------------------- 硬件信息 ----------------------------
 
     struct FILEIO_API HardwareInfo
@@ -69,6 +70,31 @@ namespace Fio
         PropertyMap customProperties;    // 扩展属性
     };
 
+    ////////////////////////////////////////////////////////////////////
+    // ---------------------------- 群组信息 ----------------------------
+
+    struct GroupInfo
+    {
+        uint64_t id = 0;                    // 群组 ID
+        std::string name;                   // 群组名称
+        std::vector<uint64_t> entityIds;    // 直接成员图元 ID 列表
+        std::vector<uint64_t> subGroupIds;  // 子群组 ID 列表
+        uint64_t parentGroupId = 0;         // 父群组 ID（0 表示顶层）
+
+        GroupInfo() = default;
+        ~GroupInfo() = default;
+        GroupInfo(const GroupInfo&) = default;
+        GroupInfo& operator=(const GroupInfo&) = default;
+        GroupInfo(GroupInfo&&) = default;
+        GroupInfo& operator=(GroupInfo&&) = default;
+
+        bool isEmpty() const
+        {
+            return entityIds.empty() && subGroupIds.empty();
+        }
+    };
+
+    ////////////////////////////////////////////////////////////////////
     // ---------------------------- 文档 ----------------------------
 
     struct FILEIO_API SyDocument
@@ -76,7 +102,7 @@ namespace Fio
         DocumentMetadata metadata;
         std::vector<LayerInfo> layers;
         std::vector<std::unique_ptr<Eg::SyEntity>> entities;
-        std::vector<std::unique_ptr<Eg::SyMeshEntity>> meshEntities;  // 3D 网格实体
+        std::vector<GroupInfo> groups;                                // 群组信息
         HardwareInfo hardware;
 
         /// 解析/转换过程中产生的警告信息
@@ -85,6 +111,7 @@ namespace Fio
         // ---- 构造函数 ----
 
         SyDocument() = default;
+        ~SyDocument() = default;
         SyDocument(const SyDocument&) = delete;
         SyDocument& operator=(const SyDocument&) = delete;
         SyDocument(SyDocument&&) = default;

@@ -9,7 +9,10 @@
 #include "Engine2D/SyEntity/SyBezier2.h"
 #include "Engine2D/SyEntity/SySpline.h"
 #include "Engine2D/SyEntity/SySmartLine.h"
+#include "Engine/Layer/SyLayer.h"
+
 #include "Ut/BBox2d.h"
+#include "Ut/Color.h"
 
 #include <algorithm>
 #include <cmath>
@@ -91,7 +94,9 @@ namespace Fio
                 continue;
             }
 
-            const std::string stroke = (entity->color.x() == 0.0f && entity->color.y() == 0.0f && entity->color.z() == 0.0f) ? "#000000" : colorToHex(entity->color);
+            const Ut::Color entityColor = entity->getColor();
+            const std::string stroke = (entityColor.r() == 0.0f && entityColor.g() == 0.0f && entityColor.b() == 0.0f) ? "#000000" :
+                colorToHex(Ut::Vec3f(entityColor.r(), entityColor.g(), entityColor.b()));
             const std::string attrs = "fill=\"none\" stroke=\"" + stroke + "\" stroke-width=\"2\""; // Increased stroke width for visibility
 
             switch (entity->eType)

@@ -328,7 +328,6 @@ namespace Fio
             syLine->vPoints = std::move(cleaned);
             syLine->basePoint = syLine->vPoints.front();
             syLine->bClosed = svgPath->closed != 0;
-            syLine->color = shapeColor;
 
             m_outEntities.push_back(std::move(syLine));
         }

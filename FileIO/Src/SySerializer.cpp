@@ -19,8 +19,9 @@
 #include "Engine2D/SyEntity/SySmartLine.h"
 #include "Engine2D/SyEntity/SySpline.h"
 #include "Engine2D/SyEntity/SyText.h"
+#include "Engine2D/SyEntity/SyGroup.h"
 #include "Engine2D/SyEntity/SyEntity.h"
-#include "Engine2D/Layer/SyLayer.h"
+#include "Engine/Layer/SyLayer.h"
 
 #include <algorithm>
 #include <chrono>
@@ -91,6 +92,7 @@ namespace Fio
                 case Eg::EType::BAR_CODE:   return sanyi::proto::ENTITY_BAR_CODE;
                 case Eg::EType::QR_CODE:    return sanyi::proto::ENTITY_QR_CODE;
                 case Eg::EType::IMAGE:      return sanyi::proto::ENTITY_IMAGE;
+                case Eg::EType::GROUP:      return sanyi::proto::ENTITY_GROUP;
                 default:                    return sanyi::proto::ENTITY_UNKNOWN;
             }
         }
@@ -114,6 +116,7 @@ namespace Fio
                 case sanyi::proto::ENTITY_BAR_CODE:  return Eg::EType::BAR_CODE;
                 case sanyi::proto::ENTITY_QR_CODE:   return Eg::EType::QR_CODE;
                 case sanyi::proto::ENTITY_IMAGE:     return Eg::EType::IMAGE;
+                case sanyi::proto::ENTITY_GROUP:     return Eg::EType::GROUP;
                 default:                             return Eg::EType::UNKNOWN;
             }
         }
@@ -276,9 +279,6 @@ namespace Fio
                 // base_point
                 toProtoVec2(entity->basePoint, e->mutable_base_point());
 
-                // color
-                toProtoVec3(entity->color, e->mutable_color());
-
                 // common flags
                 e->set_closed(entity->bClosed);
                 e->set_ccw(entity->bCCW);
@@ -426,6 +426,26 @@ namespace Fio
                     default:
                         break;
                 }
+            }
+
+            // -- groups --
+            for (const auto& groupInfo : doc.groups)
+            {
+                if (groupInfo.isEmpty())
+                    continue;
+
+                auto* g = protoDoc.add_groups();
+                g->set_id(groupInfo.id);
+                if (!groupInfo.name.empty())
+                    g->set_name(groupInfo.name);
+                if (groupInfo.parentGroupId != 0)
+                    g->set_parent_group_id(groupInfo.parentGroupId);
+
+                for (uint64_t entityId : groupInfo.entityIds)
+                    g->add_entity_ids(entityId);
+
+                for (uint64_t subGroupId : groupInfo.subGroupIds)
+                    g->add_sub_group_ids(subGroupId);
             }
 
             // -- hardware --
@@ -689,7 +709,6 @@ namespace Fio
                     // 恢复通用属性
                     entity->id = static_cast<Eg::EntityId>(ed.id());
                     entity->basePoint = fromProtoVec2(ed.base_point());
-                    entity->color = fromProtoVec3(ed.color());
                     entity->bClosed = ed.closed();
                     entity->bCCW = ed.ccw();
 
@@ -697,6 +716,24 @@ namespace Fio
 
                     doc.entities.push_back(std::move(entity));
                 }
+            }
+
+            // -- groups --
+            for (int i = 0; i < protoDoc.groups_size(); ++i)
+            {
+                const auto& gd = protoDoc.groups(i);
+                GroupInfo info;
+                info.id = gd.id();
+                info.name = gd.name();
+                info.parentGroupId = gd.parent_group_id();
+
+                for (int j = 0; j < gd.entity_ids_size(); ++j)
+                    info.entityIds.push_back(gd.entity_ids(j));
+
+                for (int j = 0; j < gd.sub_group_ids_size(); ++j)
+                    info.subGroupIds.push_back(gd.sub_group_ids(j));
+
+                doc.groups.push_back(std::move(info));
             }
 
             // -- hardware --

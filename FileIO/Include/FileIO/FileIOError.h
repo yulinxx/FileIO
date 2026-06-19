@@ -46,6 +46,7 @@ namespace Fio
         }
     };
 
+    ////////////////////////////////////////////////////////////////
     struct WriteResult
     {
         bool success = false;

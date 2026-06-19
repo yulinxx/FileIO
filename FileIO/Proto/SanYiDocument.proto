@@ -120,6 +120,7 @@ enum EntityType {
     ENTITY_QR_CODE    = 14;
     ENTITY_IMAGE      = 15;
     ENTITY_MESH       = 16;   // 3D 网格实体
+    ENTITY_GROUP      = 17;   // 群组
 }
 
 // ---------------------------- 各图元特有数据 ----------------------------
@@ -236,6 +237,15 @@ message MeshData {
     repeated PropertyEntry custom_properties = 20;  // 扩展属性
 }
 
+// 群组数据
+message GroupData {
+    uint64 id                = 1;   // 群组唯一标识
+    string name              = 2;   // 群组名称
+    repeated uint64 entity_ids = 3; // 直接成员图元 ID 列表
+    repeated uint64 sub_group_ids = 4; // 子群组 ID 列表
+    uint64 parent_group_id   = 5;   // 父群组 ID（0 表示顶层群组）
+}
+
 // ---------------------------- 图元通用结构 ----------------------------
 
 // 所有图元使用此消息，通过 oneof 区分具体类型
@@ -279,6 +289,7 @@ message SanYiDocument {
     repeated LayerData layers  = 2;   // 图层列表
     repeated EntityData entities = 3; // 图元列表
     HardwareInfo hardware      = 4;   // 硬件信息
+    repeated GroupData groups  = 5;   // 群组列表
 
     // === 扩展预留 ===
     reserved 100 to 200;              // 为未来大版本扩展预留字段号

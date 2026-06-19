@@ -1,4 +1,4 @@
-﻿#include "FileIO/Parsers/DxfParser.h"
+#include "FileIO/Parsers/DxfParser.h"
 #include "FileIO/FileIOUtils.h"
 
 #include "Engine2D/SyEntity/SyLine.h"
@@ -123,9 +123,39 @@ namespace Fio
         }
         void addLWPolyline(const DRW_LWPolyline& data) override
         {
+            if (data.vertlist.empty())
+                return;
+
+            auto syLine = std::make_unique<Eg::SyLine>();
+            for (const auto& vert : data.vertlist)
+            {
+                syLine->vPoints.push_back(Ut::Vec2d(vert->x, vert->y));
+            }
+            syLine->basePoint = syLine->vPoints.front();
+            syLine->bClosed = (data.flags & 1) != 0;
+            applyEntityStyle(syLine.get(), data);
+            m_outEntities.push_back(std::move(syLine));
         }
         void addSpline(const DRW_Spline* data) override
         {
+            if (!data || data->controllist.empty())
+                return;
+
+            auto sySpline = std::make_unique<Eg::SySpline>();
+            sySpline->nDegree = data->degree;
+            sySpline->vKnots = data->knotslist;
+            sySpline->vWeights = data->weightlist;
+
+            for (const auto& cp : data->controllist)
+            {
+                sySpline->vControlPoints.push_back(Ut::Vec2d(cp->x, cp->y));
+            }
+
+            if (!sySpline->vControlPoints.empty())
+                sySpline->basePoint = sySpline->vControlPoints.front();
+
+            applyEntityStyle(sySpline.get(), *data);
+            m_outEntities.push_back(std::move(sySpline));
         }
         void addKnot(const DRW_Entity& data) override
         {
@@ -144,6 +174,13 @@ namespace Fio
         }
         void addMText(const DRW_MText& data) override
         {
+            auto syText = std::make_unique<Eg::SyText>();
+            syText->basePoint = Ut::Vec2d(data.basePoint.x, data.basePoint.y);
+            syText->dHeight = data.height;
+            syText->strText = data.text;
+            syText->dRotation = data.angle * M_PI / 180.0;
+            applyEntityStyle(syText.get(), data);
+            m_outEntities.push_back(std::move(syText));
         }
         void addDimAlign(const DRW_DimAligned* data) override
         {
@@ -336,7 +373,6 @@ namespace Fio
 
             if (drwEntity.color >= 0 && drwEntity.color != 256)
             {
-                entity->color = aciToRgb(drwEntity.color);
                 m_entityColorMap[idx] = drwEntity.color;
             }
         }
