@@ -245,11 +245,14 @@ namespace Fio
             command += " \"" + arg + "\"";
         }
 
-        STARTUPINFO si = { 0 };
-        PROCESS_INFORMATION pi = { 0 };
-        si.cb = sizeof(STARTUPINFO);
+        std::vector<char> cmdBuf(command.begin(), command.end());
+        cmdBuf.push_back('\0');
 
-        if (!CreateProcessA(nullptr, const_cast<char*>(command.c_str()),
+        STARTUPINFOA si = { 0 };
+        PROCESS_INFORMATION pi = { 0 };
+        si.cb = sizeof(STARTUPINFOA);
+
+        if (!CreateProcessA(nullptr, cmdBuf.data(),
             nullptr, nullptr, FALSE, 0, nullptr, nullptr,
             &si, &pi))
         {

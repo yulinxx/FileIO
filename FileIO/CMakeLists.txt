@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.20)
 
 set(LIB_NAME "FileIO")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../CMake/Utils.cmake")
@@ -116,6 +116,14 @@ if(MSVC)
     target_compile_options(${LIB_NAME} PRIVATE /utf-8 /FS)
 endif()
 
+option(BUILD_FILEIO_TESTS "Build FileIO unit tests" OFF)
+
+if(BUILD_FILEIO_TESTS)
+    enable_testing()
+    find_package(GTest REQUIRED)
+    add_subdirectory(Test)
+endif()
+
 sanyi_add_version_info(${LIB_NAME} "${LIB_NAME}" "File IO Library")
 
 message(STATUS "[${LIB_NAME}]")
@@ -123,7 +131,11 @@ message(STATUS "  Library: ${LIB_NAME}")
 message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}(${CMAKE_SYSTEM_PROCESSOR})")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
-
+if(BUILD_FILEIO_TESTS)
+    message(STATUS "  Tests: ENABLED")
+else()
+    message(STATUS "  Tests: DISABLED")
+endif()
 message(STATUS "  C++ Standard: 17")
 message(STATUS "  Protobuf: Enabled (lite runtime)")
 message(STATUS "")

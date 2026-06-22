@@ -49,7 +49,7 @@ namespace Fio
         // 填充元信息默认值
         doc.metadata.version = SyFileConst::FILE_VERSION;
         doc.metadata.fileVersion = 1;
-        doc.metadata.softwareName = "SanYi CAD";
+        doc.metadata.softwareName = "SanYi CAD 2D";
         doc.metadata.softwareVersion = "1.0.0";
 
         {
