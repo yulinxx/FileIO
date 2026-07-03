@@ -11,9 +11,8 @@ namespace Fio
             "UG/NX file parsing is not yet implemented.\n\n"
             "Options:\n"
             "1. For .prt files: NX Open API (requires Siemens NX license)\n"
-            "2. For IGES/STEP: Integrate Open CASCADE (OCCT) library\n"
-            "   Install via vcpkg: vcpkg install opencascade\n"
-            "   Then add the parser implementation."
+            "2. For IGES: Integrate Open CASCADE IGES reader\n"
+            "3. For STEP/STP: use the dedicated STEP importer (File → Open *.stp)"
         );
     }
 } // namespace Fio

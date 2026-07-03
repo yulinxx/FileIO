@@ -3,6 +3,7 @@
 #include "FileIO/Parsers/PltParser.h"
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/Parsers/UgParser.h"
+#include "FileIO/Parsers/StepParser.h"
 #include "FileIO/Parsers/PdfParser.h"
 #include "FileIO/Parsers/AiParser.h"
 #include "FileIO/Parsers/NativeParser.h"
@@ -89,7 +90,10 @@ namespace Fio
             { "svg", "svgz" });
 
         registerWithExtensions(FileFormat::UG, []() { return std::make_unique<UgParser>(); },
-            { "prt", "igs", "iges", "stp", "step" });
+            { "prt", "igs", "iges" });
+
+        registerWithExtensions(FileFormat::STEP, []() { return std::make_unique<StepParser>(); },
+            { "stp", "step" });
 
         registerWithExtensions(FileFormat::PDF, []() { return std::make_unique<PdfParser>(); },
             { "pdf" });

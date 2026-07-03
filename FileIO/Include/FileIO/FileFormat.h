@@ -21,6 +21,7 @@ namespace Fio
         PLT,
         SVG,
         UG,
+        STEP,     // .stp / .step - ISO-10303 (Free3D, Open CASCADE, etc.)
         PDF,
         AI,
 

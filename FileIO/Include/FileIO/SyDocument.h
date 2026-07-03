@@ -1,7 +1,6 @@
 #pragma once
 
 #include "FileIO/FileIOAPI.h"
-#include "Engine/EngineAPI.h"
 
 // 完整引入 Entity 类型，因为 unique_ptr 需析构完整类型
 #include "Engine2D/SyEntity/SyEntity.h"
@@ -104,6 +103,9 @@ namespace Fio
         std::vector<std::unique_ptr<Eg::SyEntity>> entities;
         std::vector<GroupInfo> groups;                                // 群组信息
         HardwareInfo hardware;
+
+        /// entityId -> layerId 映射（反序列化时填充）
+        std::map<uint64_t, uint32_t> entityLayerMap;
 
         /// 解析/转换过程中产生的警告信息
         std::vector<std::string> warnings;

@@ -1,49 +1,64 @@
 cmake_minimum_required(VERSION 3.20)
 
+# --- 模块元信息 ---
 set(LIB_NAME "FileIO")
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../CMake/Utils.cmake")
-    include("${CMAKE_CURRENT_SOURCE_DIR}/../../CMake/Utils.cmake")
-endif()
+set(LIB_FOLDER "Modules")
+set(LIB_DESCRIPTION "File IO Library")
+set(LIB_EXPORT_MACRO "FILEIO_EXPORTS")
 
-# 版本号定义
+# --- 版本（按模块独立）---
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 0)
 set(VERSION_PATCH 0)
-set(PROJECT_VERSION_MAJOR ${VERSION_MAJOR})
-set(PROJECT_VERSION_MINOR ${VERSION_MINOR})
-set(PROJECT_VERSION_PATCH ${VERSION_PATCH})
 set(PROJECT_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 
-# ============================================================
-# 源文件收集（先于 protobuf_generate，因为需要先创建 target）
+# --- 路径 ---
+if(NOT SANYI_ROOT)
+    get_filename_component(SANYI_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+endif()
+include("${SANYI_ROOT}/CMake/SanYiPaths.cmake")
+include("${SANYI_ROOT}/CMake/Utils.cmake")
 
-file(GLOB_RECURSE FILEIO_SOURCES CONFIGURE_DEPENDS
+# --- 源文件 ---
+# 先于 protobuf_generate 收集,因为需要先创建 target
+file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cxx"
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cc"
 )
 
 file(GLOB_RECURSE LIB_DXFRW_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/ThirdParty/libdxfrw/src/*.cpp"
+    "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/*.cpp"
 )
 
-file(GLOB_RECURSE FILEIO_HEADERS CONFIGURE_DEPENDS
+file(GLOB_RECURSE LIB_HEADERS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/*.hpp"
 )
+list(FILTER LIB_SOURCES EXCLUDE REGEX "${SANYI_SOURCE_EXCLUDE_REGEX}")
+list(FILTER LIB_HEADERS EXCLUDE REGEX "${SANYI_HEADER_EXCLUDE_REGEX}")
+list(LENGTH LIB_SOURCES LIB_SOURCES_COUNT)
+list(LENGTH LIB_HEADERS LIB_HEADERS_COUNT)
 
-# ============================================================
-# 第三方库配置
-# ============================================================
+# --- 第三方依赖 ---
 find_package(protobuf CONFIG REQUIRED)
 find_package(NanoSVG CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 
 get_target_property(NANOSVG_INCLUDE_DIR NanoSVG::nanosvg INTERFACE_INCLUDE_DIRECTORIES)
 
-# zlib 可选：用于 SVGZ (gzip 压缩 SVG) 支持
+# zlib 可选:用于 SVGZ (gzip 压缩 SVG) 支持
 find_package(ZLIB QUIET)
 
+# --- 目标定义 (必须先于 protobuf_generate) ---
+add_library(${LIB_NAME} SHARED
+    ${LIB_SOURCES}
+    ${LIB_HEADERS}
+    ${LIB_DXFRW_SOURCES}
+)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${LIB_SOURCES} ${LIB_HEADERS})
+
+# --- Protobuf 代码生成 ---
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Proto")
 set(PROTO_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Generated/Proto")
 
@@ -51,16 +66,6 @@ if(NOT EXISTS "${PROTO_GEN_DIR}")
     set(PROTO_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/Generated/Proto")
     file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
 endif()
-
-# ============================================================
-# 创建目标（必须先于 protobuf_generate）
-add_library(${LIB_NAME} SHARED
-    ${FILEIO_SOURCES}
-    ${FILEIO_HEADERS}
-    ${LIB_DXFRW_SOURCES}
-)
-
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${FILEIO_SOURCES} ${FILEIO_HEADERS})
 
 set(PROTO_FILE "${PROTO_DIR}/SanYiDocument.proto")
 protobuf_generate(
@@ -70,30 +75,37 @@ protobuf_generate(
     PROTOS "${PROTO_FILE}"
 )
 
-# ============================================================
-# Include 目录
-# ============================================================
-
+# --- 包含目录 ---
 target_include_directories(${LIB_NAME}
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${CMAKE_SOURCE_DIR}/ThirdParty/libdxfrw/include"
-        "${CMAKE_SOURCE_DIR}/ThirdParty/libdxfrw/src"
-        "${CMAKE_SOURCE_DIR}/ThirdParty/libdxfrw/src/intern"
+        "${SANYI_THIRDPARTY_DIR}/libdxfrw/include"
+        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src"
+        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/intern"
         "${PROTO_GEN_DIR}"
         "${Stb_INCLUDE_DIR}"
         "${NANOSVG_INCLUDE_DIR}"
     PRIVATE
-        "${CMAKE_SOURCE_DIR}/Engine/3D/Include"
+        "${SANYI_ENGINE_3D_DIR}/Include"
 )
-
-# ============================================================
-# 编译选项
-# ============================================================
 
 target_compile_features(${LIB_NAME} PUBLIC cxx_std_17)
 
+# --- 目标属性 ---
+set_target_properties(${LIB_NAME} PROPERTIES
+    FOLDER "${LIB_FOLDER}"
+    DEBUG_POSTFIX "_d"
+)
+
+# --- 编译选项 ---
+if(MSVC)
+    target_compile_options(${LIB_NAME} PRIVATE /utf-8 /FS)
+else()
+    target_compile_options(${LIB_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# --- 链接 ---
 target_link_libraries(${LIB_NAME}
     PUBLIC
         EngineCommon
@@ -102,21 +114,31 @@ target_link_libraries(${LIB_NAME}
         NanoSVG::nanosvg
     PRIVATE
         Engine3D
+        Log
 )
 
-# 如果找到 zlib，链接并启用 SVGZ 支持
+# --- 可选模块条件块 ---
+if(BUILD_GEOMODELCORE)
+    if(NOT TARGET GeoModelCore)
+        message(FATAL_ERROR "[${LIB_NAME}] BUILD_GEOMODELCORE=ON but GeoModelCore target is missing.")
+    endif()
+    target_link_libraries(${LIB_NAME} PRIVATE GeoModelCore)
+    target_compile_definitions(${LIB_NAME} PRIVATE FILEIO_HAS_GEOMODELCORE=1)
+    message(STATUS "  GeoModelCore (STEP import): ENABLED")
+else()
+    message(STATUS "  GeoModelCore (STEP import): DISABLED")
+endif()
+
+# 如果找到 zlib,链接并启用 SVGZ 支持
 if(ZLIB_FOUND)
     target_link_libraries(${LIB_NAME} PUBLIC ZLIB::ZLIB)
     target_compile_definitions(${LIB_NAME} PRIVATE FILEIO_HAS_ZLIB)
 endif()
 
-target_compile_definitions(${LIB_NAME} PRIVATE FILEIO_EXPORTS)
+target_compile_definitions(${LIB_NAME} PRIVATE ${LIB_EXPORT_MACRO})
 
-if(MSVC)
-    target_compile_options(${LIB_NAME} PRIVATE /utf-8 /FS)
-endif()
-
-option(BUILD_FILEIO_TESTS "Build FileIO unit tests" OFF)
+# --- 单元测试 ---
+option(BUILD_FILEIO_TESTS "Build FileIO unit tests" ON)
 
 if(BUILD_FILEIO_TESTS)
     enable_testing()
@@ -124,11 +146,13 @@ if(BUILD_FILEIO_TESTS)
     add_subdirectory(Test)
 endif()
 
-sanyi_add_version_info(${LIB_NAME} "${LIB_NAME}" "File IO Library")
+# --- 版本信息 ---
+sanyi_add_version_info(${LIB_NAME} "${LIB_NAME}" "${LIB_DESCRIPTION}")
 
+# --- 构建信息 ---
 message(STATUS "[${LIB_NAME}]")
-message(STATUS "  Library: ${LIB_NAME}")
 message(STATUS "  Version: ${PROJECT_VERSION}")
+# message(STATUS "  Sources: ${LIB_SOURCES_COUNT}  Headers: ${LIB_HEADERS_COUNT}")
 message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}(${CMAKE_SYSTEM_PROCESSOR})")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
 if(BUILD_FILEIO_TESTS)
@@ -138,5 +162,4 @@ else()
 endif()
 message(STATUS "  C++ Standard: 17")
 message(STATUS "  Protobuf: Enabled (lite runtime)")
-message(STATUS "")
 message(STATUS "----------------------------------------")

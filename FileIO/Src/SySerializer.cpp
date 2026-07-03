@@ -28,6 +28,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 namespace Fio
 {
@@ -712,7 +713,10 @@ namespace Fio
                     entity->bClosed = ed.closed();
                     entity->bCCW = ed.ccw();
 
-                    // Note: pLayer 在调用者侧通过 layer_id 重新建立关联
+                    // 保存 layer_id 映射，调用者根据此重建 pLayer 关联
+                    // 注意：proto3 中 uint32 标量没有 has_ 方法，默认值为 0
+                    if (ed.layer_id() != 0)
+                        doc.entityLayerMap[entity->id] = ed.layer_id();
 
                     doc.entities.push_back(std::move(entity));
                 }
@@ -892,7 +896,7 @@ namespace Fio
         fileBuffer[crcOffset + 3] = static_cast<uint8_t>((crc >> 24) & 0xFF);
 
         // 5. 写入磁盘
-        std::ofstream out(filePath, std::ios::binary | std::ios::trunc);
+        std::ofstream out(std::filesystem::u8path(filePath), std::ios::binary | std::ios::trunc);
         if (!out)
         {
             return SerializeResult::fail("Cannot open file for writing: " + filePath);
@@ -917,7 +921,7 @@ namespace Fio
         doc.clear();
 
         // 1. 读取整个文件
-        std::ifstream in(filePath, std::ios::binary | std::ios::ate);
+        std::ifstream in(std::filesystem::u8path(filePath), std::ios::binary | std::ios::ate);
         if (!in)
         {
             return SerializeResult::fail("Cannot open file: " + filePath);

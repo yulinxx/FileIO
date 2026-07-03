@@ -4,24 +4,26 @@
 
 namespace Fio
 {
-    class UgParser : public IFileParser
+    /// ISO-10303 STEP/STP（含 Free3D / Open CASCADE 导出的 B-Rep 模型）
+    class StepParser : public IFileParser
     {
     public:
-        UgParser() = default;
-        ~UgParser() override = default;
+        StepParser() = default;
+        ~StepParser() override = default;
 
-    public:
         FileFormat format() const override
         {
-            return FileFormat::UG;
+            return FileFormat::STEP;
         }
+
         std::string formatName() const override
         {
-            return "Siemens NX / Unigraphics";
+            return "STEP (ISO-10303)";
         }
+
         std::vector<std::string> supportedExtensions() const override
         {
-            return { "prt", "igs", "iges" };
+            return { "stp", "step" };
         }
 
         ParseResult parse(const std::string& filePath, VecSyEntityPtr& outEntities) override;

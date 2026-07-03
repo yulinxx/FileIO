@@ -39,6 +39,8 @@ namespace Fio
     ParseResult FileIOManager::importFile(const std::string& filePath, FileFormat format, VecSyEntityPtr& outEntities)
     {
         SY_INFOF("[FileIO] Importing file: %s (format=%d)", filePath.c_str(), static_cast<int>(format));
+        if (format == FileFormat::STEP)
+            SY_INFOF("[FileIO] STEP/STP import requested: %s", filePath.c_str());
         auto& factory = FileParserFactory::instance();
         return processFile<ParseResult>(
             filePath, m_importCallback, "parser",
@@ -72,7 +74,7 @@ namespace Fio
 
     FileFormat FileIOManager::detectFormat(const std::string& filePath) const
     {
-        std::filesystem::path path(filePath);
+        std::filesystem::path path = std::filesystem::u8path(filePath);
         std::string ext = path.extension().string();
         if (!ext.empty() && ext[0] == '.')
             ext = ext.substr(1);
@@ -89,6 +91,8 @@ namespace Fio
             return FileFormat::PNG;
         if (ext == "igs" || ext == "iges")
             return FileFormat::UG;
+        if (ext == "stp" || ext == "step")
+            return FileFormat::STEP;
 
         return FileFormat::Unknown;
     }
