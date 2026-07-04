@@ -6,7 +6,7 @@
 #include "Engine2D/SyEntity/SyPolygon.h"
 #include "Engine2D/SyEntity/SyBezier.h"
 #include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SySpline.h"
+#include "Engine2D/SyEntity/SyNurbs.h"
 #include "Engine2D/SyEntity/SySmartLine.h"
 
 #ifndef _USE_MATH_DEFINES
@@ -193,7 +193,7 @@ namespace Fio
                 }
                 case Eg::EType::SPLINE:
                 {
-                    const auto* spline = static_cast<const Eg::SySpline*>(entity.get());
+                    const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
                     if (spline->vControlPoints.size() < 2)
                     {
                         break;

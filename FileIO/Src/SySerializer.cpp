@@ -17,7 +17,7 @@
 #include "Engine2D/SyEntity/SyPolygon.h"
 #include "Engine2D/SyEntity/SyQRCode.h"
 #include "Engine2D/SyEntity/SySmartLine.h"
-#include "Engine2D/SyEntity/SySpline.h"
+#include "Engine2D/SyEntity/SyNurbs.h"
 #include "Engine2D/SyEntity/SyText.h"
 #include "Engine2D/SyEntity/SyGroup.h"
 #include "Engine2D/SyEntity/SyEntity.h"
@@ -363,7 +363,7 @@ namespace Fio
 
                     case Eg::EType::SPLINE:
                     {
-                        const auto* spl = static_cast<const Eg::SySpline*>(entity.get());
+                        const auto* spl = static_cast<const Eg::SyNurbs*>(entity.get());
                         auto* data = e->mutable_spline_data();
                         data->set_degree(spl->nDegree);
                         for (double k : spl->vKnots)
@@ -618,7 +618,7 @@ namespace Fio
 
                     case Eg::EType::SPLINE:
                     {
-                        auto spl = std::make_unique<Eg::SySpline>();
+                        auto spl = std::make_unique<Eg::SyNurbs>();
                         if (ed.has_spline_data())
                         {
                             const auto& sd = ed.spline_data();

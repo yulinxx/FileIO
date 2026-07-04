@@ -7,7 +7,7 @@
 #include "Engine2D/SyEntity/SyEllipse.h"
 #include "Engine2D/SyEntity/SyPoint.h"
 #include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SySpline.h"
+#include "Engine2D/SyEntity/SyNurbs.h"
 #include "Engine2D/SyEntity/SyText.h"
 #include "Ut/Vec.h"
 
@@ -141,7 +141,7 @@ namespace Fio
             if (!data || data->controllist.empty())
                 return;
 
-            auto sySpline = std::make_unique<Eg::SySpline>();
+            auto sySpline = std::make_unique<Eg::SyNurbs>();
             sySpline->nDegree = data->degree;
             sySpline->vKnots = data->knotslist;
             sySpline->vWeights = data->weightlist;
