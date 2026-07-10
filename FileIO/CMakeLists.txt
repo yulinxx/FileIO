@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+﻿cmake_minimum_required(VERSION 4.3)
 
 # --- 模块元信息 ---
 set(LIB_NAME "FileIO")
