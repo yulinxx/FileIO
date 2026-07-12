@@ -3,10 +3,7 @@
 #include <vector>
 #include <memory>
 
-namespace Eg
-{
-    struct SyEntity;
-}
+#include "Engine/SyEntity/SyEntity.h"
 
 namespace Fio
 {

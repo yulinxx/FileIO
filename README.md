@@ -16,26 +16,34 @@ FileIO/
 └── FileIO/                           # 库源码目录
     ├── CMakeLists.txt                # 库构建配置
     ├── Include/FileIO/               # 头文件目录
-    │   ├── FileIOAPI.h               # DLL 导出宏定义
+    │   ├── FileIOAPI.h               # DLL 导出宏定义 (C++ API / C API)
+    │   ├── FileIOExport.h            # C 语言跨 IDE 接口 (extern "C")
     │   ├── FileFormat.h              # 文件格式枚举
     │   ├── FileIOError.h             # 解析/写出结果结构
+    │   ├── FileIOUtils.h             # 工具类 (TempFileCopy, generateHash)
     │   ├── IFileParser.h             # 文件解析器接口 (策略模式)
     │   ├── IFileWriter.h             # 文件写出器接口 (策略模式)
     │   ├── FileParserFactory.h       # 解析器工厂 (工厂模式)
     │   ├── FileWriterFactory.h       # 写出器工厂 (工厂模式)
     │   ├── FileIOManager.h           # 统一管理器 (外观模式)
+    │   ├── ImageUtils.h              # 图片工具函数
+    │   ├── SyDocument.h              # 文档数据模型
+    │   ├── SyDocument3D.h            # 3D 文档扩展
+    │   ├── SySerializer.h            # 序列化器
+    │   ├── SyCryptoProvider.h        # 加密策略
     │   └── Parsers/                  # 各格式解析器头文件
-    │       ├── DxfParser.h           # AutoCAD DXF 解析器
-    │       ├── PltParser.h           # HPGL PLT 解析器
-    │       └── UgParser.h            # Siemens NX/UG 解析器
+    │   ├── Writers/                  # 各格式写出器头文件
     └── Src/                          # 源文件目录
         ├── FileIOManager.cpp         # 管理器实现
         ├── FileParserFactory.cpp     # 解析器工厂实现
         ├── FileWriterFactory.cpp     # 写出器工厂实现
+        ├── FileIOExport.cpp          # C API 实现 (跨 IDE 接口)
+        ├── FileSerializer.cpp        # 序列化器
+        ├── SyDocument.cpp            # 文档模型
+        ├── ImageUtils.cpp            # 图片工具
+        ├── SyCryptoProvider.cpp      # 加密实现
         └── Parsers/                  # 各格式解析器实现
-            ├── DxfParser.cpp
-            ├── PltParser.cpp
-            └── UgParser.cpp
+        └── Writers/                  # 各格式写出器实现
 ```
 
 ---
@@ -495,6 +503,132 @@ cmake --build build
 - `FileIO.dll` (Windows)
 - `libFileIO.so` (Linux)
 - `libFileIO.dylib` (macOS)
+
+---
+
+## DLL 导出约定
+
+FileIO 使用两套导出宏，分别用于 **C++ API** 和 **C API**，确保跨 IDE / 跨编译器兼容性。
+
+### 导出宏
+
+| 宏 | 来源 | 用途 | 构建时 (DLL) | 使用时 (exe) | 跨编译器 |
+|----|------|------|-------------|-------------|---------|
+| `FILEIO_API` | `FileIOAPI.h` | C++ 类/函数导出 | `dllexport` / `visibility("default")` | `dllimport` | **否** |
+| `_FILEIO_C_API` | `FileIOExport.h` | C API 导出 | `dllexport` | `dllimport` | **是** (标准 C ABI) |
+
+### C++ API 导出 (`FILEIO_API`)
+
+定义在 `FileIO/FileIOAPI.h` 中，用于 C++ 类的导出/导入：
+- **Windows** (MSVC/Clang-CL/MinGW): `__declspec(dllexport)` / `__declspec(dllimport)`
+- **Linux/macOS** (GCC/Clang): `__attribute__((visibility("default")))`
+
+**限制**: C++ 名字修饰（name mangling）随编译器而异，因此 C++ API 要求使用者与 DLL 使用**同一编译器**（如 MSVC↔MSVC）。
+
+### C API 导出 (`_FILEIO_C_API`)
+
+定义在 `FileIO/FileIOExport.h` 中，用于与编译器无关的 C 语言函数：
+- **Windows**: `__declspec(dllexport)` / `__declspec(dllimport)`
+- **Linux/macOS**: `__attribute__((visibility("default")))`
+- 整个头文件包裹在 `extern "C"` 块中，保证 C 链接约定
+
+**优势**: 可在不同编译器/语言之间使用（MSVC↔MinGW、C#、Python 等）。
+
+### 构建检测
+
+`FILEIO_EXPORTS` 宏由 CMake 在构建 DLL 时通过 `target_compile_definitions(... PRIVATE FILEIO_EXPORTS)` 自动定义，库的使用者**无需**手动定义。`FileIOExport.h` 也依赖 `FILEIO_EXPORTS` 来切换导出/导入模式。
+
+---
+
+## C API 跨 IDE 使用
+
+`FileIOExport.h` 提供与编译器无关的 C 语言接口，使 DLL 可在不同 IDE / 编译器 / 语言之间使用。
+
+### 支持的场景
+
+| 场景 | 支持 | 说明 |
+|------|------|------|
+| MSVC ↔ MSVC (VS, CLion, Qt Creator) | ✅ | C++ API / C API 均可 |
+| MSVC 构建 → MinGW 使用 | ✅ | 仅 C API |
+| MinGW 构建 → MSVC 使用 | ✅ | 仅 C API |
+| C# P/Invoke | ✅ | C API |
+| Python ctypes | ✅ | C API |
+| Rust FFI | ✅ | C API |
+
+### C API 快速入门
+
+```c
+#include "FileIO/FileIOExport.h"
+#include <stdio.h>
+
+int main()
+{
+    FioManager* mgr = fio_manager_create();
+    if (!mgr) { fprintf(stderr, "Failed to create manager\n"); return 1; }
+
+    // 检测文件格式
+    FioFileFormat fmt = fio_manager_detect_format(mgr, "drawing.dxf");
+    printf("Format: %s\n", fio_format_string(fmt));
+
+    // 导入文件
+    FioResult res = fio_manager_import(mgr, "drawing.dxf");
+    if (res.success)
+    {
+        printf("Import OK, %d entities\n", fio_entity_count(mgr));
+        // 导出为 SVG
+        res = fio_manager_export(mgr, "output.svg", FIO_FORMAT_SVG);
+        printf("Export: %s\n", res.success ? "OK" : res.error_message);
+    }
+    else
+    {
+        printf("Import failed: %s\n", res.error_message);
+    }
+
+    // 一步转换
+    res = fio_manager_convert(mgr, "input.dxf", "output.svg", FIO_FORMAT_SVG);
+
+    fio_manager_destroy(mgr);
+    return 0;
+}
+```
+
+### C API 参考
+
+| 函数 | 说明 |
+|------|------|
+| `fio_manager_create()` | 创建管理器句柄 |
+| `fio_manager_destroy()` | 销毁句柄 |
+| `fio_manager_import()` | 导入文件 |
+| `fio_manager_export()` | 导出文件 |
+| `fio_manager_convert()` | 一步转换格式 |
+| `fio_manager_detect_format()` | 检测文件格式 |
+| `fio_manager_can_import()` | 检查导入支持 |
+| `fio_manager_can_export()` | 检查导出支持 |
+| `fio_manager_supported_import_extensions()` | 支持的导入扩展名 |
+| `fio_manager_supported_export_extensions()` | 支持的导出扩展名 |
+| `fio_manager_set_import_callback()` | 设置导入进度回调 |
+| `fio_manager_set_export_callback()` | 设置导出进度回调 |
+| `fio_format_string()` | 格式枚举 → 可读名称 |
+| `fio_format_extension()` | 格式枚举 → 扩展名 |
+| `fio_format_from_extension()` | 扩展名 → 格式枚举 |
+| `fio_version()` | 获取 DLL 版本号 |
+
+### 显式链接 (LoadLibrary)
+
+```c
+#include <windows.h>
+
+typedef FioManager* (*CreateFn)();
+typedef FioResult (*ImportFn)(FioManager*, const char*);
+
+HMODULE dll = LoadLibraryA("FileIO.dll");
+CreateFn create = (CreateFn)GetProcAddress(dll, "fio_manager_create");
+ImportFn import = (ImportFn)GetProcAddress(dll, "fio_manager_import");
+
+FioManager* mgr = create();
+import(mgr, "file.dxf");
+FreeLibrary(dll);
+```
 
 ---
 

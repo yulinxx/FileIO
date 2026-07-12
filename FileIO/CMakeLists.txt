@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 4.3)
+cmake_minimum_required(VERSION 4.3)
 
 # --- 模块元信息 ---
 set(LIB_NAME "FileIO")
@@ -26,6 +26,8 @@ file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cxx"
     "${CMAKE_CURRENT_SOURCE_DIR}/Src/*.cc"
 )
+
+
 
 file(GLOB_RECURSE LIB_DXFRW_SOURCES CONFIGURE_DEPENDS
     "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/*.cpp"
@@ -56,7 +58,14 @@ add_library(${LIB_NAME} SHARED
     ${LIB_HEADERS}
     ${LIB_DXFRW_SOURCES}
 )
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${LIB_SOURCES} ${LIB_HEADERS})
+set(LIB_SOURCES_FOR_SOURCE_GROUP ${LIB_SOURCES})
+if(VERSION_RESOURCE)
+    list(REMOVE_ITEM LIB_SOURCES_FOR_SOURCE_GROUP "${VERSION_RESOURCE}")
+endif()
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${LIB_SOURCES_FOR_SOURCE_GROUP} ${LIB_HEADERS})
+if(VERSION_RESOURCE)
+    source_group("Resources" FILES "${VERSION_RESOURCE}")
+endif()
 
 # --- Protobuf 代码生成 ---
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Proto")
@@ -86,6 +95,10 @@ target_include_directories(${LIB_NAME}
         "${PROTO_GEN_DIR}"
         "${Stb_INCLUDE_DIR}"
         "${NANOSVG_INCLUDE_DIR}"
+        "${SANYI_ENGINE_COMMON_DIR}/Include"
+        "${SANYI_ENGINE_COMMON_DIR}/Include/Engine"
+        "${SANYI_ENGINE_2D_DIR}/Include"
+        "${SANYI_ENGINE_2D_DIR}/Include/Engine2D"
     PRIVATE
         "${SANYI_ENGINE_3D_DIR}/Include"
 )
@@ -109,10 +122,10 @@ endif()
 target_link_libraries(${LIB_NAME}
     PUBLIC
         EngineCommon
-        Engine2D
         protobuf::libprotobuf-lite
         NanoSVG::nanosvg
     PRIVATE
+        Engine2D
         Engine3D
         Log
 )

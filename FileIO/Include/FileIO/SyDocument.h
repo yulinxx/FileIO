@@ -2,8 +2,10 @@
 
 #include "FileIO/FileIOAPI.h"
 
-// 完整引入 Entity 类型，因为 unique_ptr 需析构完整类型
-#include "Engine2D/SyEntity/SyEntity.h"
+namespace Eg
+{
+    struct SyEntity;
+}
 
 #include <cstdint>
 #include <map>
@@ -113,7 +115,7 @@ namespace Fio
         // ---- 构造函数 ----
 
         SyDocument() = default;
-        ~SyDocument() = default;
+        ~SyDocument();
         SyDocument(const SyDocument&) = delete;
         SyDocument& operator=(const SyDocument&) = delete;
         SyDocument(SyDocument&&) = default;

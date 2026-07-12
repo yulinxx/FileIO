@@ -3,6 +3,8 @@
 
 namespace Fio
 {
+    SyDocument::~SyDocument() = default;
+
     void SyDocument::clear()
     {
         metadata = DocumentMetadata();

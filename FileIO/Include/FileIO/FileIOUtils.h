@@ -4,6 +4,7 @@
 #include <fstream>
 #include <filesystem>
 #include <cstdint>
+#include <cstdio>
 
 namespace Fio
 {
