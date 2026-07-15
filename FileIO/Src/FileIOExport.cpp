@@ -4,7 +4,7 @@
 #include "FileIO/FileFormat.h"
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/FileWriterFactory.h"
-#include "Engine2D/SyEntity/SyEntity.h"
+#include "Engine/SyEntity/SyEntity.h"
 
 #include <cstring>
 #include <cstdlib>

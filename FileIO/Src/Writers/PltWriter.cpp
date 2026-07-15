@@ -121,16 +121,17 @@ namespace Fio
                 case Eg::EType::POLYGON:
                 {
                     const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
-                    if (polygon->vVertices.size() < 2)
+                    const auto& verts = polygon->vertices();
+                    if (verts.size() < 2)
                     {
                         break;
                     }
-                    const auto& first = polygon->vVertices.front();
+                    const auto& first = verts.front();
                     hpgl << "PU" << toPlu(first.x()) << ',' << toPlu(first.y()) << ";\n";
-                    for (size_t i = 1; i < polygon->vVertices.size(); ++i)
+                    for (size_t i = 1; i < verts.size(); ++i)
                     {
-                        hpgl << "PD" << toPlu(polygon->vVertices[i].x())
-                            << ',' << toPlu(polygon->vVertices[i].y()) << ";\n";
+                        hpgl << "PD" << toPlu(verts[i].x())
+                            << ',' << toPlu(verts[i].y()) << ";\n";
                     }
                     if (polygon->bClosed)
                     {

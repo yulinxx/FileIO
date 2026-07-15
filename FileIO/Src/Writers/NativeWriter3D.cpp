@@ -1,7 +1,7 @@
 #include "FileIO/Writers/NativeWriter3D.h"
 #include "FileIO/SySerializer.h"
 
-#include "Engine2D/SyEntity/SyEntity.h"
+#include "Engine/SyEntity/SyEntity.h"
 #include <chrono>
 #include <iomanip>
 #include <sstream>

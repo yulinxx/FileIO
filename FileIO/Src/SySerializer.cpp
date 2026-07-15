@@ -20,7 +20,7 @@
 #include "Engine2D/SyEntity/SyNurbs.h"
 #include "Engine2D/SyEntity/SyText.h"
 #include "Engine2D/SyEntity/SyGroup.h"
-#include "Engine2D/SyEntity/SyEntity.h"
+#include "Engine/SyEntity/SyEntity.h"
 #include "Engine/Layer/SyLayer.h"
 
 #include <algorithm>
@@ -274,8 +274,8 @@ namespace Fio
                 e->set_id(entity->id);
 
                 // layer_id
-                if (entity->pLayer)
-                    e->set_layer_id(static_cast<uint32_t>(entity->pLayer->getId()));
+                if (entity->layer())
+                    e->set_layer_id(static_cast<uint32_t>(entity->layer()->getId()));
 
                 // base_point
                 toProtoVec2(entity->basePoint, e->mutable_base_point());
@@ -308,7 +308,8 @@ namespace Fio
                     {
                         const auto* poly = static_cast<const Eg::SyPolygon*>(entity.get());
                         auto* data = e->mutable_polygon_data();
-                        for (const auto& v : poly->vVertices)
+                        const auto& verts = poly->vertices();
+                        for (const auto& v : verts)
                             toProtoVec2(v, data->add_vertices());
                         data->set_sides(poly->nSides);
                         data->set_circum_radius(poly->dCircumRadius);
@@ -545,13 +546,14 @@ namespace Fio
                         if (ed.has_polygon_data())
                         {
                             const auto& pd = ed.polygon_data();
+                            auto& verts = poly->verticesMutable();
                             for (int j = 0; j < pd.vertices_size(); ++j)
-                                poly->vVertices.push_back(fromProtoVec2(pd.vertices(j)));
+                                verts.push_back(fromProtoVec2(pd.vertices(j)));
                             poly->nSides = pd.sides();
                             poly->dCircumRadius = pd.circum_radius();
                         }
-                        if (!poly->vVertices.empty())
-                            poly->basePoint = poly->vVertices[0];
+                        if (!poly->vertices().empty())
+                            poly->basePoint = poly->vertices()[0];
                         entity = std::move(poly);
                         break;
                     }

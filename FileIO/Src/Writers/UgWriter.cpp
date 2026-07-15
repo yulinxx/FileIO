@@ -266,14 +266,15 @@ namespace Fio
                 case Eg::EType::POLYGON:
                 {
                     const auto* polygon = static_cast<const Eg::SyPolygon*>(entity);
-                    if (polygon->vVertices.size() < 2)
+                    const auto& verts = polygon->vertices();
+                    if (verts.size() < 2)
                         break;
                     // 折线 (106): 参数 = 连续性, 顶点数, x1,y1, x2,y2, ...
                     std::ostringstream params;
                     const bool closed = polygon->bClosed;
                     params << "," << (closed ? 1 : 0) << ","
-                        << polygon->vVertices.size();
-                    for (const auto& pt : polygon->vVertices)
+                        << verts.size();
+                    for (const auto& pt : verts)
                     {
                         params << "," << igesDouble(pt.x()) << ","
                             << igesDouble(pt.y());
@@ -613,12 +614,13 @@ namespace Fio
                     case Eg::EType::POLYGON:
                     {
                         const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
-                        if (polygon->vVertices.size() < 2)
+                        const auto& verts = polygon->vertices();
+                        if (verts.size() < 2)
                             break;
                         std::ostringstream params;
                         params << "," << (polygon->bClosed ? 1 : 0) << ","
-                            << polygon->vVertices.size();
-                        for (const auto& pt : polygon->vVertices)
+                            << verts.size();
+                        for (const auto& pt : verts)
                         {
                             params << "," << igesDouble(pt.x()) << ","
                                 << igesDouble(pt.y());

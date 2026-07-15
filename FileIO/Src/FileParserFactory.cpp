@@ -8,7 +8,7 @@
 #include "FileIO/Parsers/AiParser.h"
 #include "FileIO/Parsers/NativeParser.h"
 #include "FileIO/Parsers/NativeParser3D.h"
-#include "Engine2D/SyEntity/SyEntity.h"
+#include "Engine/SyEntity/SyEntity.h"
 
 #include <algorithm>
 #include <cctype>

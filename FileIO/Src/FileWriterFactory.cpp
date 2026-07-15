@@ -5,7 +5,7 @@
 #include "FileIO/Writers/NativeWriter.h"
 #include "FileIO/Writers/NativeWriter3D.h"
 #include "FileIO/Writers/UgWriter.h"
-#include "Engine2D/SyEntity/SyEntity.h"
+#include "Engine/SyEntity/SyEntity.h"
 
 namespace Fio
 {

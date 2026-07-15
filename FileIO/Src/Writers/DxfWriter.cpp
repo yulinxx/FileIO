@@ -146,14 +146,15 @@ namespace Fio
                 case Eg::EType::POLYGON:
                 {
                     const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
-                    if (polygon->vVertices.size() < 2)
+                    const auto& verts = polygon->vertices();
+                    if (verts.size() < 2)
                     {
                         break;
                     }
                     writeEntityHeader(out, "LWPOLYLINE");
-                    writePair(out, 90, static_cast<int>(polygon->vVertices.size()));
+                    writePair(out, 90, static_cast<int>(verts.size()));
                     writePair(out, 70, polygon->bClosed ? 1 : 0);
-                    for (const auto& pt : polygon->vVertices)
+                    for (const auto& pt : verts)
                     {
                         writePair(out, 10, pt.x());
                         writePair(out, 20, pt.y());

@@ -169,18 +169,19 @@ namespace Fio
                 case Eg::EType::POLYGON:
                 {
                     const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
-                    if (polygon->vVertices.size() < 2)
+                    const auto& verts = polygon->vertices();
+                    if (verts.size() < 2)
                     {
                         break;
                     }
                     body << "<polygon " << attrs << " points=\"";
-                    for (const auto& pt : polygon->vVertices)
+                    for (const auto& pt : verts)
                     {
                         body << (pt.x() + offsetX) << ',' << (offsetY - pt.y()) << ' ';
                     }
                     if (polygon->bClosed)
                     {
-                        const auto& first = polygon->vVertices.front();
+                        const auto& first = verts.front();
                         body << (first.x() + offsetX) << ',' << (offsetY - first.y()) << ' ';
                     }
                     body << "\"/>\n";
