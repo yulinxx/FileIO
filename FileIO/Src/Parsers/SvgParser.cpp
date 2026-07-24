@@ -1,6 +1,8 @@
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/FileIOUtils.h"
 
+#include "Log/SyLogger.h"
+
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyCircle.h"
 #include "Ut/Vec.h"
@@ -323,11 +325,13 @@ namespace Fio
             if (cleaned.size() < 2)
                 return;
 
-            // Create SyLine entity
+            // 创建 SyLine 实体
             auto syLine = std::make_unique<Eg::SyLine>();
             syLine->vPoints = std::move(cleaned);
             syLine->basePoint = syLine->vPoints.front();
             syLine->bClosed = svgPath->closed != 0;
+            // 应用SVG形状颜色
+            syLine->setOverrideColor(Ut::Color(shapeColor.x(), shapeColor.y(), shapeColor.z()));
 
             m_outEntities.push_back(std::move(syLine));
         }
@@ -335,6 +339,7 @@ namespace Fio
 
     ParseResult SvgParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
     {
+        SY_INFOF("[SvgParser] Start parsing: %s", filePath.c_str());
         std::vector<std::string> warnings;
 
         try
@@ -346,14 +351,19 @@ namespace Fio
                 const std::string message = warnings.empty()
                     ? "Failed to parse SVG file: " + filePath
                     : warnings.back();
+                SY_ERRORF("[SvgParser] Parse failed: %s", message.c_str());
                 return ParseResult::fail(message, warnings);
             }
         }
         catch (const std::exception& ex)
         {
+            SY_CRITICALF("[SvgParser] Parse exception: %s - %s", filePath.c_str(), ex.what());
             return ParseResult::fail(
                 std::string("Exception during SVG parsing: ") + ex.what(), warnings);
         }
+
+        size_t entityCount = outEntities.size();
+        SY_INFOF("[SvgParser] Parse completed: %zu entities", entityCount);
 
         ParseResult result = ParseResult::ok();
         result.warnings = warnings;

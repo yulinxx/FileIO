@@ -39,9 +39,12 @@ namespace Fio
     ParseResult FileIOManager::importFile(const std::string& filePath, FileFormat format, VecSyEntityPtr& outEntities)
     {
         SY_INFOF("[FileIO] Importing file: %s (format=%d)", filePath.c_str(), static_cast<int>(format));
+
         if (format == FileFormat::STEP)
             SY_INFOF("[FileIO] STEP/STP import requested: %s", filePath.c_str());
+
         auto& factory = FileParserFactory::instance();
+
         return processFile<ParseResult>(
             filePath, m_importCallback, "parser",
             [&]() { return factory.hasParser(format); },

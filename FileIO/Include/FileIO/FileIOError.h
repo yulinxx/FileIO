@@ -24,25 +24,27 @@ namespace Fio
         std::vector<DxfLayerInfo> dxfLayers;
         /// 实体索引 -> DXF 图层名 映射（仅 DXF 导入时填充）
         std::map<size_t, std::string> entityLayerMap;
+        /// 实体索引 -> DXF 颜色索引 映射（仅 DXF 导入时填充）
+        std::map<size_t, int> entityColorMap;
 
         static ParseResult ok()
         {
-            return { true, {}, {}, {}, {} };
+            return { true, {}, {}, {}, {}, {} };
         }
 
         static ParseResult ok(const std::vector<std::string>& warns)
         {
-            return { true, {}, warns, {}, {} };
+            return { true, {}, warns, {}, {}, {} };
         }
 
         static ParseResult fail(const std::string& msg)
         {
-            return { false, msg, {}, {}, {} };
+            return { false, msg, {}, {}, {}, {} };
         }
 
         static ParseResult fail(const std::string& msg, const std::vector<std::string>& warns)
         {
-            return { false, msg, warns, {}, {} };
+            return { false, msg, warns, {}, {}, {} };
         }
     };
 
