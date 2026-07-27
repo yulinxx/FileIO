@@ -60,7 +60,7 @@ namespace Fio
         return std::isfinite(v) && v > 0.0;
     }
 
-    // 统一构造跳过实体时的 warning 文本
+    // 统一构造跳过图元时的 warning 文本
     static std::string makeWarning(const char* entityName, const char* reason)
     {
         std::ostringstream oss;
@@ -554,7 +554,7 @@ namespace Fio
         }
 
     private:
-        // 统一记录非法实体被跳过的 warning
+        // 统一记录非法图元被跳过的 warning
         void warnSkip(const char* entityName, const char* reason)
         {
             m_warnings.push_back(makeWarning(entityName, reason));
@@ -562,7 +562,7 @@ namespace Fio
 
         void applyEntityStyle(Eg::SyEntity* entity, const DRW_Entity& drwEntity)
         {
-            // applyEntityStyle 在 push_back 之前调用，因此当前 size 即为新实体即将占用的索引
+            // applyEntityStyle 在 push_back 之前调用，因此当前 size 即为新图元即将占用的索引
             size_t idx = m_outEntities.size();
 
             if (!drwEntity.layer.empty())

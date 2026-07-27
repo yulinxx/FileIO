@@ -32,7 +32,7 @@ FileIO/
     │   ├── SySerializer.h            # 序列化器
     │   ├── SyCryptoProvider.h        # 加密策略
     │   └── Parsers/                  # 各格式解析器头文件
-    │   ├── Writers/                  # 各格式写出器头文件
+    │   └── Writers/                  # 各格式写出器头文件
     └── Src/                          # 源文件目录
         ├── FileIOManager.cpp         # 管理器实现
         ├── FileParserFactory.cpp     # 解析器工厂实现
@@ -57,6 +57,7 @@ FileIO/
 | **策略模式** | `IFileParser` / `IFileWriter` | 每种文件格式独立实现解析/写出逻辑，互不干扰 |
 | **工厂模式** | `FileParserFactory` / `FileWriterFactory` | 通过注册表动态创建解析器/写出器实例 |
 | **外观模式** | `FileIOManager` | 对外提供统一简洁的 API，隐藏内部复杂性 |
+| **模板方法模式** | `PdfBasedParser` | PDF/AI 族解析器共用转换管道，子类仅覆写钩子方法 |
 
 ### 类关系图
 
@@ -76,71 +77,238 @@ FileIO/
     ┌────────┼────────┬──────────┐            │
     ▼        ▼        ▼          ▼            ▼
 ┌───────┐┌───────┐┌───────┐┌──────────┐  ┌──────────┐
-│ Dxf   ││ Plt   ││ Ug    ││ 未来扩展  │  │ 未来扩展  │
-│Parser ││Parser ││Parser ││ SvgParser│  │ DxfWriter│  ← 策略模式
-└───────┘└───────┘└───────┘└──────────┘  └──────────┘   (Strategy)
+│ Dxf   ││ Plt   ││ Svg   ││ Pdf      │  │ DxfWriter│  ← 策略模式
+│Parser ││Parser ││Parser ││Parser    │  │ SvgWriter│   (Strategy)
+└───────┘└───────┘└───────┘└──────────┘  └──────────┘
 ```
 
-### 核心接口
+### 两层架构说明
 
-#### IFileParser - 文件解析器接口
+FileIO 模块分为两层：
 
-```cpp
-class IFileParser
-{
-public:
-    virtual FileFormat format() const = 0;                    // 返回格式类型
-    virtual QString formatName() const = 0;                   // 返回格式名称
-    virtual QStringList supportedExtensions() const = 0;      // 返回支持的扩展名
-    virtual ParseResult parse(const QString& filePath, 
-                              VecSyEntityPtr& outEntities) = 0;  // 解析文件
-};
+| 层级 | 位置 | 职责 |
+|------|------|------|
+| **FileIO 核心层** | `FileIO/FileIO/` | 纯 C++ 解析/写出逻辑，不依赖 Qt Widgets、不依赖 Main 模块 |
+| **Main 桥接层** | `Main/Src/Import/Readers/`、`Main/Src/Export/Writers/` | 实现 `IImportReader` / `IExportWriter` 接口，桥接 FileIO 核心层与 Main 的导入导出框架 |
+
+**注意**: 新增格式时需要在两层都做相应实现：FileIO 层添加 Parser/Writer，Main 层添加 ImportReader/ExportWriter 并注册。
+
+---
+
+## 支持的文件格式
+
+### 2D 矢量格式
+
+| 格式 | 扩展名 | FileIO层导入 | FileIO层导出 | Main层导入 | Main层导出 | 依赖外部工具 | 说明 |
+|------|--------|:------------:|:------------:|:----------:|:----------:|:------------:|------|
+| **DXF** | .dxf | ✅ | ✅ | ✅ | ✅ | - | AutoCAD DXF 格式，支持 ASCII 和 Binary |
+| **PLT/HPGL** | .plt, .hpgl | ✅ | ✅ | ✅ | ❌ | - | HPGL 绘图仪控制语言 |
+| **SVG** | .svg, .svgz | ✅ | ✅ | ✅ | ✅ | - | SVG 矢量图形格式 |
+| **PDF** | .pdf | ✅ | ❌ | ✅ | ✅ | pdftocairo | PDF 文档格式（导入需外部工具） |
+| **AI** | .ai | ✅ | ❌ | ❌ | ❌ | pdftocairo + Ghostscript | Adobe Illustrator 格式（PDF 基 + PS 基） |
+| **UG/NX** | .prt, .igs, .iges | ⏳ | ✅ | ❌ | ❌ | - | Siemens NX 格式（导出仅 IGS） |
+| **STEP** | .stp, .step | ⏳ | ❌ | ✅ | ✅ | - | ISO-10303 STEP 格式 |
+| **Native 2D** | .sy | ✅ | ✅ | ❌ | ❌ | - | SanYi 原生 2D 格式 |
+| **Native 3D** | .syx | ✅ | ✅ | ❌ | ❌ | - | SanYi 原生 3D 格式 |
+
+### 位图格式
+
+| 格式 | 扩展名 | 导入 | 导出 | 说明 |
+|------|--------|:----:|:----:|------|
+| **BMP** | .bmp | ❌ | ✅ | 位图格式（导出走 Main 层 BmpExportWriter） |
+| **PNG** | .png | ❌ | ✅ | PNG 无损压缩格式（导出走 Main 层 PngExportWriter） |
+| **OBJ (3D)** | .obj | ✅ | ✅ | Wavefront OBJ 3D 模型格式（走 Main 层） |
+
+### 位图导入说明
+
+位图文件（PNG/JPG/BMP 等）的导入不经过 FileIO 模块，而是由 UI 层直接处理：
+
+| 格式 | 扩展名 | 导入方式 | 说明 |
+|------|--------|----------|------|
+| PNG | .png | UI层 | 通过 `QImage` 加载 |
+| JPG/JPEG | .jpg, .jpeg | UI层 | 通过 `QImage` 加载 |
+| BMP | .bmp | UI层 | 通过 `QImage` 加载 |
+| TGA | .tga | UI层 | 通过 `QImage` 加载 |
+| TIFF | .tiff, .tif | UI层 | 通过 `QImage` 加载 |
+| GIF | .gif | UI层 | 通过 `QImage` 加载 |
+| WebP | .webp | UI层 | 通过 `QImage` 加载 |
+
+---
+
+## 外部工具依赖
+
+部分格式的导入/导出需要依赖外部命令行工具。这些工具不是程序内置的，但项目提供了**自动部署机制**。
+
+### 推荐方式：ThirdParty 自动部署（零配置）
+
+项目已集成 **CMake 自动部署机制**，只需将外部工具的二进制文件放入 `ThirdParty/` 对应目录，编译时会自动复制到输出目录，程序启动即可使用，无需任何人工配置。
+
+**目录结构**（跨平台统一规范）：
+```
+ThirdParty/
+├── poppler/                          # PDF → SVG 转换工具
+│   ├── windows/
+│   │   └── x64/
+│   │       └── bin/                  # Windows: exe + dll 都放 bin/
+│   ├── linux/
+│   │   ├── x86_64/
+│   │   │   ├── bin/                  # 可执行文件 (pdftocairo 等)
+│   │   │   └── lib/                  # 依赖库 (.so)
+│   │   └── arm64/
+│   │       ├── bin/
+│   │       └── lib/
+│   └── macos/
+│       ├── arm64/                    # Apple Silicon
+│       │   ├── bin/
+│       │   └── lib/
+│       └── x86_64/                   # Intel
+│           ├── bin/
+│           └── lib/
+├── ghostscript/                      # PS → PDF 转换（旧版 AI）
+│   ├── windows/x64/bin/
+│   ├── linux/{x86_64,arm64}/{bin,lib}/
+│   └── macos/{arm64,x86_64}/{bin,lib}/
+├── download_tools.ps1                # Windows 自动下载脚本
+└── download_tools.sh                 # Linux/macOS 自动下载脚本
 ```
 
-#### IFileWriter - 文件写出器接口
+**一键下载脚本**：
 
-```cpp
-class IFileWriter
-{
-public:
-    virtual FileFormat format() const = 0;                    // 返回格式类型
-    virtual QString formatName() const = 0;                   // 返回格式名称
-    virtual QString defaultExtension() const = 0;            // 返回默认扩展名
-    virtual WriteResult write(const QString& filePath,
-                              const VecSyEntityPtr& entities) = 0;  // 写出文件
-};
+```powershell
+# Windows
+cd ThirdParty
+.\download_tools.ps1 -Tool all
 ```
 
-#### FileIOManager - 统一管理器
-
-```cpp
-class FileIOManager : public QObject
-{
-public:
-    // 导入文件
-    ParseResult importFile(const QString& filePath, VecSyEntityPtr& outEntities);
-    ParseResult importFile(const QString& filePath, FileFormat format, VecSyEntityPtr& outEntities);
-    
-    // 导出文件
-    WriteResult exportFile(const QString& filePath, const VecSyEntityPtr& entities);
-    WriteResult exportFile(const QString& filePath, FileFormat format, const VecSyEntityPtr& entities);
-    
-    // 格式检测
-    FileFormat detectFormat(const QString& filePath) const;
-    
-    // 查询
-    QStringList supportedImportExtensions() const;
-    QStringList supportedExportExtensions() const;
-    bool canImport(const QString& filePath) const;
-    bool canExport(FileFormat format) const;
-
-signals:
-    void sigImportStarted(const QString& filePath);
-    void sigImportFinished(const QString& filePath, bool success);
-    void sigExportStarted(const QString& filePath);
-    void sigExportFinished(const QString& filePath, bool success);
-};
+```bash
+# Linux / macOS
+cd ThirdParty
+chmod +x download_tools.sh
+./download_tools.sh all
 ```
+
+**工作原理**：
+
+CMake 构建时自动检测并部署：
+- **Windows**: `ThirdParty/<tool>/windows/<arch>/bin/` → 输出目录（exe + dll 同级）
+- **Linux/macOS**: `ThirdParty/<tool>/<platform>/<arch>/` 下的 `bin/` + `lib/` → 输出目录的 `tools/<tool>/bin/` + `tools/<tool>/lib/`
+
+代码层运行时查找优先级：
+1. `SANYI_TOOLS_DIR` 环境变量（用户显式指定，最高优先级）
+2. 应用程序同级目录（Windows 便携部署）
+3. 结构化 `tools/<tool>/bin/` 目录（Linux/macOS 便携部署）
+4. 应用程序同级 `tools/` 扁平目录（兼容旧版）
+5. 系统 `PATH` 环境变量
+6. 常见安装路径兜底查找
+
+Linux/macOS 调用时会自动设置：
+- `LD_LIBRARY_PATH`（Linux）
+- `DYLD_LIBRARY_PATH`（macOS）
+
+指向对应的 `tools/<tool>/lib/` 目录，确保依赖库正确加载。
+
+**优点**：
+- ✅ **零配置**：放入文件即可，不需要设置环境变量
+- ✅ **跨平台**：Windows / Linux / macOS / x86_64 / arm64 全覆盖
+- ✅ **可移植**：打包发布时工具随程序一起分发
+- ✅ **不污染**：不修改系统 PATH，不影响其他程序
+- ✅ **降级友好**：系统已安装工具时自动使用系统版本
+
+---
+
+### pdftocairo (Poppler)
+
+| 项目 | 说明 |
+|------|------|
+| **用途** | PDF → SVG 转换（PDF/AI 导入的前置步骤） |
+| **来源** | Poppler 工具集 |
+| **影响格式** | PDF 导入、AI 导入 |
+| **缺少时表现** | 导入 PDF/AI 时弹出错误提示，告知需要安装 pdftocairo |
+
+**Windows 下载地址**:
+- https://github.com/oschwartz10612/poppler-windows/releases
+
+**查找顺序**（优先级从高到低）：
+1. `SANYI_TOOLS_DIR` 环境变量（用户显式指定）
+2. 应用程序同级目录（CMake 自动部署目标位置，推荐）
+3. 应用程序同级 `tools/` 子目录
+4. PATH 环境变量
+5. 常见安装路径：
+   - `C:/Program Files/poppler/bin/pdftocairo.exe`
+   - `C:/Program Files (x86)/poppler/bin/pdftocairo.exe`
+   - `C:/poppler/bin/pdftocairo.exe`
+   - `C:/tools/poppler/bin/pdftocairo.exe`
+
+**ThirdParty 部署（推荐）**:
+1. 下载 poppler-windows 的 Release 压缩包
+2. 解压后找到 `Library/bin/` 目录
+3. 将该目录下的**所有文件**（`.dll` 和 `.exe`）复制到 `ThirdParty/poppler/windows/x64/bin/`
+4. 重新编译项目 → 自动复制到输出目录
+
+**Linux 安装**:
+```bash
+sudo apt install poppler-utils
+```
+
+**macOS 安装**:
+```bash
+brew install poppler
+```
+
+---
+
+### Ghostscript
+
+| 项目 | 说明 |
+|------|------|
+| **用途** | PostScript → PDF 转换（旧版 AI 文件导入） |
+| **来源** | Ghostscript / GhostPDL |
+| **影响格式** | AI 导入（仅 PostScript 基的旧版 AI 文件） |
+| **缺少时表现** | 导入 PS 格式 AI 文件时失败；PDF 格式 AI 文件不受影响 |
+
+> **注意**: 新版 AI 文件（AI 8+）基于 PDF 格式，只需 pdftocairo 即可导入，不需要 Ghostscript。
+
+**Windows 下载地址**:
+- https://github.com/ArtifexSoftware/ghostpdl-downloads/releases
+
+**查找顺序**（优先级从高到低）：
+1. `SANYI_TOOLS_DIR` 环境变量（用户显式指定）
+2. 应用程序同级目录（CMake 自动部署目标位置，推荐）
+3. 应用程序同级 `tools/` 子目录
+4. PATH 环境变量
+5. `C:/Program Files/gs/` 下的各版本 `bin/` 目录
+
+**需要的文件**:
+- `gswin64c.exe`（64位控制台版本）
+- `gsdll64.dll`（64位核心 dll）
+
+**ThirdParty 部署（推荐）**:
+1. 下载 Ghostscript 安装包或便携版
+2. 将 `gswin64c.exe` 和 `gsdll64.dll` 复制到 `ThirdParty/ghostscript/windows/x64/bin/`
+3. 重新编译项目 → 自动复制到输出目录
+
+**Linux 安装**:
+```bash
+sudo apt install ghostscript
+```
+
+**macOS 安装**:
+```bash
+brew install ghostscript
+```
+
+---
+
+### 外部工具检查与提示
+
+代码中通过 `PdfToSvgConverter::isPdftocairoAvailable()` 和 `PdfToSvgConverter::isGhostscriptAvailable()` 进行可用性检查。
+
+如果工具不可用，`PdfBasedParser` 会返回包含安装提示的错误信息，用户可根据提示进行安装。
+
+相关文件：
+- [PdfToSvgConverter.h](FileIO/Include/FileIO/Parsers/PdfToSvgConverter.h)
+- [PdfToSvgConverter.cpp](FileIO/Src/Parsers/PdfToSvgConverter.cpp)
+- [PdfBasedParser.h](FileIO/Include/FileIO/Parsers/PdfBasedParser.h)
 
 ---
 
@@ -151,7 +319,13 @@ signals:
 ```
 用户操作 (菜单/工具栏)
         ↓
-   FileManager.openFile() / importFile()
+   FileOperationRegistry 触发导入操作
+        ↓
+   ImportService.importFile()
+        ↓
+   ImportDispatcher.dispatch()
+        ↓
+   对应格式的 ImportReader.read()
         ↓
    FileIOManager.importFile()
         ↓
@@ -178,7 +352,7 @@ signals:
    │    - 失败: 返回错误信息                │
    └─────────────────────────────────────────┘
         ↓
-   SceneManager.addEntities()
+   SceneEditService.addEntities() (带 Undo)
         ↓
    RenderWidget.update()
 ```
@@ -204,15 +378,15 @@ signals:
 - **颜色转换**: DXF 颜色索引 → RGB 值
 - **块引用**: 支持 INSERT 实体，递归展开块定义
 
-### PLT 格式导入流程
+### PLT/HPGL 格式导入流程
 
 **文件结构**: HPGL (Hewlett-Packard Graphics Language) 是绘图仪控制语言。
 
 **解析流程**:
 ```
-1. 逐行读取 HPGL 命令
+1. 逐字符读取 HPGL 命令流
 2. 解析命令参数 (如 PA, PD, PU, CI 等)
-3. 维护当前画笔位置状态
+3. PltHpglInterpreter 维护画笔状态机
 4. 转换命令为图形实体：
    - PA (Plot Absolute): 移动画笔
    - PD (Pen Down): 开始绘制
@@ -220,6 +394,7 @@ signals:
    - CI (Circle): 绘制圆
    - AR (Arc): 绘制圆弧
    - LT (Line Type): 设置线型
+   - SP (Select Pen): 选择画笔
 ```
 
 **技术实现细节**:
@@ -228,104 +403,117 @@ signals:
 - **圆弧逼近**: HPGL AR 命令使用中心+角度，转换为圆弧实体
 - **多笔处理**: 支持多画笔切换，映射到不同图层
 
-### 位图格式导入流程 (PNG/JPG/BMP 等)
+**相关文件**:
+- [PltParser.h](FileIO/Include/FileIO/Parsers/PltParser.h) / [PltParser.cpp](FileIO/Src/Parsers/PltParser.cpp)
+- [PltHpglInterpreter.h](FileIO/Include/FileIO/Parsers/PltHpglInterpreter.h)
 
-**特殊说明**: 位图导入不经过 FileIO 模块，直接由 UI 层处理。
+### SVG 格式导入流程
 
-**流程**:
+**文件结构**: SVG (Scalable Vector Graphics) 是基于 XML 的矢量图形格式。
+
+**解析流程**:
 ```
-FileMenuAdapter::sigImportImage / BitmapInputTool
-        ↓
-   QFileDialog 选择文件
-        ↓
-   QImage 加载图片
-        ↓
-   转换为 RGBA8888 格式
-        ↓
-   RenderWidget.setBitmapRGBA()
-        ↓
-   OpenGL 纹理上传与渲染
+1. 使用 XML 解析器读取 SVG 文件
+2. 解析 <defs> 段 - 定义、渐变、图案、标记
+3. 解析 <g> 分组 - 维护变换矩阵栈
+4. 解析图形元素:
+   - <line>, <polyline>, <polygon>
+   - <circle>, <ellipse>
+   - <rect>
+   - <path> (贝塞尔曲线)
+   - <text>
+5. 应用样式 (fill, stroke, stroke-width 等)
+6. 应用坐标变换 (translate, rotate, scale 等)
+```
+
+### PDF 格式导入流程
+
+**特殊说明**: PDF 导入采用"外部工具转换 + SVG 解析"的方案，不直接解析 PDF 内容。
+
+**解析流程**（模板方法模式，见 `PdfBasedParser`）:
+```
+1. 验证源文件格式 (检查 %PDF 魔数)
+2. 检查 pdftocairo 外部工具是否可用
+3. 调用 pdftocairo 将指定页转换为临时 SVG 文件
+4. 委托给 SvgParser 解析生成的 SVG
+5. 返回解析结果（实体列表）
 ```
 
 **技术实现细节**:
-- **格式支持**: 支持 PNG, JPG, JPEG, BMP, TGA, TIFF, GIF, WebP 等
-- **颜色空间**: 统一转换为 RGBA 格式
-- **渲染方式**: 使用 OpenGL 纹理贴图，作为背景层显示
-- **坐标映射**: 图片左下角对齐到视图原点
-- **自动适配**: 导入后自动 zoomToFit 适配视图
+- **外部工具**: 依赖 `pdftocairo`（Poppler 工具集）
+- **临时文件**: 转换后的 SVG 存放在系统临时目录，使用 hash 命名
+- **缓存机制**: 同一文件同一页会缓存，避免重复转换
+- **页数**: 默认只导入第 1 页
 
-### 导入流程时序图
+**相关文件**:
+- [PdfParser.h](FileIO/Include/FileIO/Parsers/PdfParser.h) / [PdfParser.cpp](FileIO/Src/Parsers/PdfParser.cpp)
+- [PdfBasedParser.h](FileIO/Include/FileIO/Parsers/PdfBasedParser.h)
+- [PdfToSvgConverter.h](FileIO/Include/FileIO/Parsers/PdfToSvgConverter.h) / [PdfToSvgConverter.cpp](FileIO/Src/Parsers/PdfToSvgConverter.cpp)
 
+### AI 格式导入流程
+
+**文件结构**: AI (Adobe Illustrator) 文件有两种格式：
+- **新版 (AI 8+)**: 基于 PDF 格式，文件头为 `%PDF`
+- **旧版 (AI 7-)**: 基于 PostScript 格式，文件头为 `%!PS`
+
+**解析流程**:
 ```
-用户      FileManager   FileIOManager   ParserFactory    Parser      SceneManager
-  │           │               │                │             │             │
-  │  openFile │               │                │             │             │
-  │──────────>│               │                │             │             │
-  │           │  importFile   │                │             │             │
-  │           │──────────────>│                │             │             │
-  │           │               │  detectFormat  │             │             │
-  │           │               │───────────────>│             │             │
-  │           │               │   format       │             │             │
-  │           │               │<───────────────│             │             │
-  │           │               │  createParser  │             │             │
-  │           │               │───────────────>│             │             │
-  │           │               │   parser       │             │             │
-  │           │               │<───────────────│             │             │
-  │           │               │    parse()     │             │             │
-  │           │               │──────────────────────────────>│             │
-  │           │               │                │             │  解析文件   │
-  │           │               │                │             │─────────────>│
-  │           │               │                │             │   entities  │
-  │           │               │                │             │<─────────────│
-  │           │               │   result       │             │             │
-  │           │               │<──────────────────────────────│             │
-  │           │   result      │                │             │             │
-  │           │<──────────────│                │             │             │
-  │           │ addEntities   │                │             │             │
-  │           │────────────────────────────────────────────────────────────>│
-  │ success   │               │                │             │             │
-  │<──────────│               │                │             │             │
+1. 检测文件格式 (PDF 基 or PS 基)
+2. PS 基 → 调用 Ghostscript 转为临时 PDF
+3. PDF → 调用 pdftocairo 转为临时 SVG
+4. 委托给 SvgParser 解析 SVG
+5. 返回解析结果
 ```
+
+**依赖工具**:
+- PDF 基 AI: 仅需 pdftocairo
+- PS 基 AI: 需要 pdftocairo + Ghostscript
+
+### STEP 格式导入流程
+
+**文件结构**: STEP (ISO-10303) 是工业标准的产品模型数据交换格式，通常用于 3D CAD 数据交换。
+
+**当前状态**: Main 层已注册 `StepImportReader` 和 `StepExportWriter`，FileIO 层有 `StepParser` 定义，具体实现程度需视实际代码而定。
 
 ---
 
-## 支持的文件格式
+## 文件导出流程
 
-| 格式 | 扩展名 | 导入 | 导出 | 解析器 | 说明 |
-|------|--------|------|------|--------|------|
-| DXF | .dxf | ✅ | ❌ | `DxfParser` | AutoCAD DXF 格式，支持 ASCII 和 Binary |
-| PLT | .plt, .hpgl | ✅ | ❌ | `PltParser` | HPGL 绘图仪控制语言 |
-| UG/NX | .prt, .igs, .iges, .stp, .step | ⏳ | ❌ | - | Siemens NX 格式 (待实现) |
-| SVG | .svg | ⏳ | ❌ | - | SVG 矢量图形格式 (待实现) |
-| PDF | .pdf | ⏳ | ❌ | - | PDF 文档格式 (待实现) |
-| AI | .ai | ⏳ | ❌ | - | Adobe Illustrator 格式 (待实现) |
-| Native | .sy | ❌ | ❌ | - | SanYi 原生格式 (待实现) |
-| BMP | .bmp | ❌ | ⏳ | - | 位图格式 |
-| PNG | .png | ❌ | ⏳ | - | PNG 无损压缩格式 |
+### 整体导出流程
 
-### 位图支持说明
+```
+用户操作 (菜单/工具栏)
+        ↓
+   FileOperationRegistry 触发导出操作
+        ↓
+   ExportService.exportFile()
+        ↓
+   ExportDispatcher.dispatch()
+        ↓
+   对应格式的 ExportWriter.write()
+        ↓
+   FileIOManager.exportFile()
+        ↓
+   FileWriterFactory.createWriter()
+        ↓
+   Writer.write() 写出文件
+```
 
-位图文件（PNG/JPG/BMP 等）的导入不经过 FileIO 模块，而是由 UI 层直接处理：
+### 已支持的导出格式
 
-| 格式 | 扩展名 | 导入方式 | 说明 |
-|------|--------|----------|------|
-| PNG | .png | UI层 | 通过 `QImage` 加载 |
-| JPG/JPEG | .jpg, .jpeg | UI层 | 通过 `QImage` 加载 |
-| BMP | .bmp | UI层 | 通过 `QImage` 加载 |
-| TGA | .tga | UI层 | 通过 `QImage` 加载 |
-| TIFF | .tiff, .tif | UI层 | 通过 `QImage` 加载 |
-| GIF | .gif | UI层 | 通过 `QImage` 加载 |
-| WebP | .webp | UI层 | 通过 `QImage` 加载 |
-
-**位图导入入口**:
-- 菜单: `File > Import > Import Image` → `FileMenuAdapter::sigImportImage`
-- 工具栏: `Bitmap` 按钮 → `BitmapInputTool`
-
-**位图渲染机制**:
-1. 使用 `QImage` 读取图片文件
-2. 转换为 `RGBA8888` 格式
-3. 通过 `RenderWidget::setBitmapRGBA()` 上传到 OpenGL 纹理
-4. 作为背景层渲染，不参与图形实体运算
+| 格式 | FileIO层 | Main层 | 说明 |
+|------|:--------:|:------:|------|
+| DXF | ✅ | ✅ | AutoCAD DXF 格式 |
+| SVG | ✅ | ✅ | SVG 矢量图形 |
+| PLT | ✅ | ❌ | HPGL 绘图语言（FileIO层有PltWriter，Main层未桥接） |
+| PDF | ❌ | ✅ | PDF 格式（Main层直接渲染导出） |
+| BMP | ❌ | ✅ | 位图（Main层直接渲染导出） |
+| PNG | ❌ | ✅ | PNG 图片（Main层直接渲染导出） |
+| UG/IGES | ✅ | ❌ | 导出为 IGS 格式 |
+| Native 2D (.sy) | ✅ | ❌ | SanYi 原生 2D 格式 |
+| Native 3D (.syx) | ✅ | ❌ | SanYi 原生 3D 格式 |
+| OBJ | ❌ | ✅ | Wavefront OBJ 3D 模型 |
+| STEP | ❌ | ✅ | STEP 3D 模型格式 |
 
 ---
 
@@ -336,45 +524,62 @@ FileMenuAdapter::sigImportImage / BitmapInputTool
 ```cpp
 #include "FileIO/FileIOManager.h"
 
-// 创建管理器
+// 创建管理器（构造时自动初始化工厂默认注册）
 Fio::FileIOManager ioManager;
 
 // 导入文件
-VecSyEntityPtr entities;
-auto result = ioManager.importFile("example.dxf", entities);
+Fio::VecSyEntityPtr entities;
+Fio::ParseResult result = ioManager.importFile("example.dxf", entities);
 if (result.success) {
     qDebug() << "导入成功，共" << entities.size() << "个图元";
 } else {
-    qDebug() << "导入失败:" << result.errorMessage;
+    qDebug() << "导入失败:" << QString::fromStdString(result.errorMessage);
 }
 
-// 导出文件 (需要先实现对应的 Writer)
-auto writeResult = ioManager.exportFile("output.dxf", entities);
+// 导出文件
+Fio::WriteResult writeResult = ioManager.exportFile("output.svg", entities);
+if (writeResult.success) {
+    qDebug() << "导出成功";
+}
 ```
 
-### 使用信号槽监听进度
+### 指定格式导入
 
 ```cpp
-Fio::FileIOManager* ioManager = new Fio::FileIOManager(this);
+// 显式指定格式，跳过扩展名检测
+Fio::ParseResult result = ioManager.importFile(
+    "example.plt",
+    Fio::FileFormat::PLT,
+    entities);
+```
 
-connect(ioManager, &Fio::FileIOManager::sigImportStarted, 
-        this, [](const QString& path) {
-    qDebug() << "开始导入:" << path;
-});
+### 检查是否可导入
 
-connect(ioManager, &Fio::FileIOManager::sigImportFinished,
-        this, [](const QString& path, bool success) {
-    qDebug() << "导入完成:" << path << "成功:" << success;
-});
+```cpp
+if (ioManager.canImport("file.pdf")) {
+    qDebug() << "支持导入该格式";
+} else {
+    qDebug() << "不支持或缺少外部工具";
+}
 ```
 
 ---
 
 ## 扩展指南
 
-### 新增文件格式 (3 步)
+### 新增文件格式 (FileIO 层)
 
-**步骤 1**: 创建解析器头文件 `Include/FileIO/Parsers/XxxParser.h`
+**步骤 1**: 在 `FileFormat.h` 中添加枚举值
+
+```cpp
+enum class FileFormat
+{
+    // ...
+    XXX,  // 新增格式
+};
+```
+
+**步骤 2**: 创建解析器头文件 `Include/FileIO/Parsers/XxxParser.h`
 
 ```cpp
 #pragma once
@@ -386,21 +591,21 @@ class XxxParser : public IFileParser
 {
 public:
     FileFormat format() const override { return FileFormat::XXX; }
-    QString formatName() const override { return QStringLiteral("XXX Format"); }
-    QStringList supportedExtensions() const override { return {QStringLiteral("xxx")}; }
-    ParseResult parse(const QString& filePath, VecSyEntityPtr& outEntities) override;
+    std::string formatName() const override { return "XXX Format"; }
+    std::vector<std::string> supportedExtensions() const override { return { "xxx" }; }
+    ParseResult parse(const std::string& filePath, VecSyEntityPtr& outEntities) override;
 };
 }
 ```
 
-**步骤 2**: 创建解析器源文件 `Src/Parsers/XxxParser.cpp`
+**步骤 3**: 创建解析器源文件 `Src/Parsers/XxxParser.cpp`
 
 ```cpp
 #include "FileIO/Parsers/XxxParser.h"
 
 namespace Fio
 {
-ParseResult XxxParser::parse(const QString& filePath, VecSyEntityPtr& outEntities)
+ParseResult XxxParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
 {
     // 实现解析逻辑
     // ...
@@ -409,73 +614,59 @@ ParseResult XxxParser::parse(const QString& filePath, VecSyEntityPtr& outEntitie
 }
 ```
 
-**步骤 3**: 在 `FileParserFactory.cpp` 中注册
+**步骤 4**: 在 `FileParserFactory.cpp` 中注册
 
 ```cpp
-// 添加头文件
 #include "FileIO/Parsers/XxxParser.h"
 
-// 在 initDefaults() 中添加注册
 void FileParserFactory::initDefaults()
 {
     // ... 其他注册 ...
     
-    registerParser(FileFormat::XXX, []() {
+    registerWithExtensions(FileFormat::XXX, []() {
         return std::make_unique<XxxParser>();
-    });
-    m_extToFormat[QStringLiteral("xxx")] = FileFormat::XXX;
+    }, { "xxx" });
 }
 ```
 
-**步骤 4**: 在 `FileFormat.h` 中添加枚举值
+**步骤 5**: （可选）如果需要导出，按同样方式添加 Writer 并在 `FileWriterFactory.cpp` 注册。
+
+### 新增文件格式 (Main 桥接层)
+
+**步骤 1**: 创建 ImportReader
+
+在 `Main/Src/Import/Readers/` 下创建 `XxxImportReader.h` 和 `XxxImportReader.cpp`，参考 `DxfImportReader` 实现。
+
+**步骤 2**: 在 `ApplicationCompositionRoot.cpp` 中注册
 
 ```cpp
-enum class FileFormat
-{
-    // ...
-    XXX,  // 新增格式
-};
+#include "Import/Readers/XxxImportReader.h"
+
+// 在 initDefaults() 中添加
+m_importDispatcher->registerReader(std::make_unique<XxxImportReader>());
 ```
 
-### 删除文件格式 (2 步)
-
-1. 删除对应的 `.h` 和 `.cpp` 文件
-2. 在 `FileParserFactory.cpp` 中移除 `#include` 和 `registerParser` 行
-
----
-
-## 删除整个模块
-
-### 步骤 1: 移除 CMake 配置
-
-编辑根目录 `CMakeLists.txt`，删除以下行：
-
-```cmake
-add_subdirectory(FileIO)
-```
-
-### 步骤 2: 移除 Main 模块的链接
-
-编辑 `Main/CMakeLists.txt`：
-
-1. 从 `target_link_libraries` 中移除 `FileIO`
-2. 从 DLL 复制命令中移除 `"$<TARGET_FILE:FileIO>"`
-
-### 步骤 3: 删除源码目录
-
-删除整个 `FileIO/` 目录。
+**步骤 3**: （可选）如果需要导出，按同样方式添加 ExportWriter 并注册。
 
 ---
 
 ## 第三方库
 
-当前实现使用纯代码解析，无需额外第三方库。后续扩展可集成以下库：
+### 当前依赖
+
+| 库名 | 用途 | 说明 |
+|------|------|------|
+| Qt Core | 字符串、文件IO、信号槽 | 项目全局依赖 |
+| Clipper2 | 多边形布尔运算 | 位于 ThirdParty/ 目录 |
+
+### 可选集成（未来扩展）
 
 | 库名 | 用途 | 安装方式 |
 |------|------|----------|
-| Open CASCADE (OCCT) | STEP/IGES 解析 | `vcpkg install opencascade` |
-| libdxfrw | DXF 读写 | 手动集成到 ThirdParty/ |
+| Open CASCADE (OCCT) | STEP/IGES 3D 解析 | `vcpkg install opencascade` |
+| libdxfrw | DXF 读写替代方案 | 手动集成到 ThirdParty/ |
 | Siemens NX Open | .prt 文件解析 | 需要 NX 许可证 |
+| PDFium / Poppler | 原生 PDF 解析 | 替代外部工具方案 |
 
 第三方库应放置在项目根目录的 `ThirdParty/` 下，与现有 `Clipper2`、`QrCodeGen` 等同级。
 
@@ -487,7 +678,7 @@ add_subdirectory(FileIO)
 
 - CMake 3.20+
 - C++17
-- Qt 5.15 (QtCore)
+- Qt 5.15 / Qt 6 (QtCore)
 - Engine 模块 (SyEntity 图元类型)
 
 ### 编译
@@ -547,7 +738,7 @@ FileIO 使用两套导出宏，分别用于 **C++ API** 和 **C API**，确保�
 ### 支持的场景
 
 | 场景 | 支持 | 说明 |
-|------|------|------|
+|------|:----:|------|
 | MSVC ↔ MSVC (VS, CLion, Qt Creator) | ✅ | C++ API / C API 均可 |
 | MSVC 构建 → MinGW 使用 | ✅ | 仅 C API |
 | MinGW 构建 → MSVC 使用 | ✅ | 仅 C API |
@@ -634,10 +825,12 @@ FreeLibrary(dll);
 
 ## 注意事项
 
-1. **内存管理**: 解析器创建的 `SyEntity` 对象使用裸指针返回，调用方负责管理生命周期
+1. **内存管理**: 解析器创建的 `SyEntity` 对象使用 `unique_ptr` 管理，通过 `VecSyEntityPtr` 传递所有权
 2. **线程安全**: `FileIOManager` 不是线程安全的，多线程环境需自行加锁
-3. **错误处理**: 所有操作返回 `ParseResult` 或 `WriteResult`，包含详细错误信息
+3. **错误处理**: 所有操作返回 `ParseResult` 或 `WriteResult`，包含详细错误信息和警告列表
 4. **扩展性**: 新增格式无需修改现有代码，只需实现接口并注册
+5. **外部工具**: PDF/AI 导入依赖 `pdftocairo`，旧版 AI 还需 `Ghostscript`，需确保工具可用
+6. **临时文件**: PDF→SVG 转换产生的临时文件存放在系统临时目录，使用 hash 缓存避免重复转换
 
 ---
 
@@ -645,4 +838,5 @@ FreeLibrary(dll);
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| 1.1.0 | 2026-07-24 | 新增 SVG、PDF、AI、STEP、Native 解析器；新增 PLT/SVG/DXF/UG/Native 写出器；PDF 导入依赖 pdftocairo 外部工具；新增模板方法模式的 PdfBasedParser |
 | 1.0.0 | 2026-06-06 | 初始版本，支持 DXF、PLT 导入 |

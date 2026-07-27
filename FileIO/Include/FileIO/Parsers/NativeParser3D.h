@@ -9,7 +9,7 @@ namespace Fio
     // NativeParser3D —— .syx 文件读取器
     //
     // 基于 SySerializer 实现 Protobuf 二进制反序列化
-    // 支持同时读取 2D 图元和 3D 网格实体
+    // 支持同时读取 2D 图元和 3D 网格图元
     // 兼容现有 IFileParser 接口，附加 SyDocument 读取能力
     // ============================================================
     class FILEIO_API NativeParser3D : public IFileParser
@@ -18,7 +18,7 @@ namespace Fio
         NativeParser3D();
         ~NativeParser3D() override;
 
-        // ---- IFileParser 接口 (仅返回 2D 实体) ----
+        // ---- IFileParser 接口 (仅返回 2D 图元) ----
         FileFormat format() const override;
         std::string formatName() const override;
         std::vector<std::string> supportedExtensions() const override;

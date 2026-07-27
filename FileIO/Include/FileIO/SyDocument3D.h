@@ -17,7 +17,7 @@ namespace Fio
 
     struct FILEIO_API SyDocument3D
     {
-        std::vector<std::unique_ptr<Eg::SyMeshEntity>> meshEntities;  // 3D 网格实体
+        std::vector<std::unique_ptr<Eg::SyMeshEntity>> meshEntities;  // 3D 网格图元
 
         SyDocument3D() = default;
         ~SyDocument3D();

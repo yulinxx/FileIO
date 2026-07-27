@@ -22,9 +22,9 @@ namespace Fio
 
         /// DXF 图层定义（仅 DXF 导入时填充）
         std::vector<DxfLayerInfo> dxfLayers;
-        /// 实体索引 -> DXF 图层名 映射（仅 DXF 导入时填充）
+        /// 图元索引 -> DXF 图层名 映射（仅 DXF 导入时填充）
         std::map<size_t, std::string> entityLayerMap;
-        /// 实体索引 -> DXF 颜色索引 映射（仅 DXF 导入时填充）
+        /// 图元索引 -> DXF 颜色索引 映射（仅 DXF 导入时填充）
         std::map<size_t, int> entityColorMap;
 
         static ParseResult ok()

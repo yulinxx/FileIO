@@ -45,7 +45,7 @@ namespace Fio
             return ParseResult::fail(result.errorMessage, result.warnings);
         }
 
-        // 返回 2D 实体
+        // 返回 2D 图元
         outEntities.reserve(doc.entities.size());
         for (auto& entity : doc.entities)
         {

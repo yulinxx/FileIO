@@ -23,5 +23,10 @@ namespace Fio
         static std::string getExecutableDir();
         static std::string findInDirectory(const std::string& dir, const std::string& exeName);
         static std::string findInPathEnv(const std::string& exeName);
+        static std::string findToolExe(const std::string& toolName, const std::string& exeName);
+        static std::string findToolLibDir(const std::string& toolName);
+        static bool executeProcessWithEnv(const std::string& program,
+            const std::vector<std::string>& args,
+            const std::string& libDir = "");
     };
 } // namespace Fio

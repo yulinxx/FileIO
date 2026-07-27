@@ -48,7 +48,7 @@ namespace Fio
             return ParseResult::fail(result.errorMessage, result.warnings);
         }
 
-        // 将 SyDocument 中的实体移动到 outEntities
+        // 将 SyDocument 中的图元移动到 outEntities
         outEntities.reserve(doc.entities.size());
         for (auto& entity : doc.entities)
         {

@@ -7,7 +7,7 @@
 
 namespace Fio
 {
-    /// 实体指针向量（使用智能指针管理内存）
+    /// 图元指针向量（使用智能指针管理内存）
     using VecSyEntityPtr = std::vector<std::unique_ptr<Eg::SyEntity>>;
 
     enum class FileFormat
@@ -27,5 +27,9 @@ namespace Fio
 
         BMP,
         PNG,
+
+        // 3D 格式
+        OBJ,        // .obj - Wavefront OBJ
+        STL,        // .stl - Stereolithography
     };
 } // namespace Fio

@@ -69,7 +69,7 @@ namespace Fio
     WriteResult NativeWriter3D::write(const std::string& filePath,
         const VecSyEntityPtr& entities)
     {
-        // 构建文档并克隆 2D 实体
+        // 构建文档并克隆 2D 图元
         SyDocument doc;
         fillMetadata(doc);
         doc.entities.reserve(entities.size());

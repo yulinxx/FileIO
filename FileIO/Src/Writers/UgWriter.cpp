@@ -71,7 +71,7 @@ namespace Fio
             std::string pStr = params.str();
 
             // Global 段目录行 (G)
-            // 格式: G{参数指针}{参数长度}{文件描述符}{编码}{最高实体ID}{参数段编号}{精度}{最大坐标宽}{最大坐标数}{线宽因子}{文件版本号}{审阅结束标记}
+            // 格式: G{参数指针}{参数长度}{文件描述符}{编码}{最高图元ID}{参数段编号}{精度}{最大坐标宽}{最大坐标数}{线宽因子}{文件版本号}{审阅结束标记}
             std::ostringstream gLine;
             gLine << "1H,"                        // 参数定界符
                 << padField("1H,")                // 记录定界符
@@ -106,15 +106,15 @@ namespace Fio
             out << gStr << '\n';
         }
 
-        // 写目录段条目 (D) - 每个实体占2行 (共160字符)
-        // 第1行 (D): 实体类型, 参数数据指针, 结构, 线型, 层, 视图, 变换矩阵, 标签显示, 顺序号
-        // 第2行 (D): 颜色, 参数行数, 实体类型(备用), 格式, 相关性, 重量, 根号, 标签, 顺序号
+        // 写目录段条目 (D) - 每个图元占2行 (共160字符)
+        // 第1行 (D): 图元类型, 参数数据指针, 结构, 线型, 层, 视图, 变换矩阵, 标签显示, 顺序号
+        // 第2行 (D): 颜色, 参数行数, 图元类型(备用), 格式, 相关性, 重量, 根号, 标签, 顺序号
         void writeDirectoryEntry(std::ostream& out, int& dirSeq,
             int entityType, int paramPointer, int paramCount, int color = 256)
         {
             // 第1行 (DE1)
             std::ostringstream de1;
-            de1 << std::setw(8) << entityType           // 1-8:   实体类型号
+            de1 << std::setw(8) << entityType           // 1-8:   图元类型号
                 << std::setw(8) << paramPointer          // 9-16:  参数数据指针
                 << std::setw(8) << 0                     // 17-24: 结构
                 << std::setw(8) << 1                     // 25-32: 线型 (0=ByLayer, 1=Solid)
@@ -134,7 +134,7 @@ namespace Fio
             std::ostringstream de2;
             de2 << std::setw(8) << color                 // 1-8:   颜色号 (256=ByLayer)
                 << std::setw(8) << paramCount            // 9-16:  参数行数
-                << std::setw(8) << entityType            // 17-24: 实体类型号(备用)
+                << std::setw(8) << entityType            // 17-24: 图元类型号(备用)
                 << std::setw(8) << 0                     // 25-32: 格式号
                 << std::setw(8) << 0                     // 33-40: 相关性
                 << std::setw(8) << 0                     // 41-48: 重量
@@ -151,7 +151,7 @@ namespace Fio
 
         // 写参数段条目 (P) - 每行80字符
         // 每行最后1字符: 最后一行 'T', 其他 ';'
-        // 每行开头: 实体类型号(1-8), 参数数据(9-72), 序列号(73-80)
+        // 每行开头: 图元类型号(1-8), 参数数据(9-72), 序列号(73-80)
         void writeParameterLine(std::ostream& out, int entityType,
             const std::string& params, int& paramSeq, bool isLast)
         {
@@ -214,7 +214,7 @@ namespace Fio
                     // 参数: DE序号, 圆弧数量=1, 圆弧类型
                     std::ostringstream params;
                     params << ",0,2,1,0,"  // DE pointer(占位), 2个子参数, 类型=圆, 关联=0
-                        << "1,100,1,"   // 起始实体=100, 类型=1
+                        << "1,100,1,"   // 起始图元=100, 类型=1
                         << "0,"         // 平面标识
                         << igesDouble(circle->basePoint.x()) << ","
                         << igesDouble(circle->basePoint.y()) << ","
@@ -448,7 +448,7 @@ namespace Fio
             return WriteResult::fail("No supported entities to export as IGES");
         }
 
-        // dirLineCount = dirSeq (每个实体2行，dirSeq每次+2)
+        // dirLineCount = dirSeq (每个图元2行，dirSeq每次+2)
         // 但 dirSeq 是递增的序列号，实际行数 = dirSeq
         dirLineCount = dirSeq;
         int paramLineCount = paramSeq;

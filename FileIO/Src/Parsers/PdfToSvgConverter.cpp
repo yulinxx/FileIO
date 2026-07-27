@@ -98,6 +98,54 @@ namespace Fio
         return findInDirectory(dir, exeName);
     }
 
+    std::string PdfToSvgConverter::findToolExe(const std::string& toolName, const std::string& exeName)
+    {
+        std::string appDir = getExecutableDir();
+
+        // 结构化部署: tools/<toolName>/bin/<exe>
+        std::string toolBinDir = (std::filesystem::path(appDir) / "tools" / toolName / "bin").string();
+        std::string result = findInDirectory(toolBinDir, exeName);
+        if (!result.empty())
+            return result;
+
+        // SANYI_TOOLS_DIR 环境变量指定的目录 + 工具名
+        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        if (toolsDirEnv)
+        {
+            std::string envToolBin = (std::filesystem::path(toolsDirEnv) / toolName / "bin").string();
+            result = findInDirectory(envToolBin, exeName);
+            if (!result.empty())
+                return result;
+        }
+
+        return "";
+    }
+
+    std::string PdfToSvgConverter::findToolLibDir(const std::string& toolName)
+    {
+        std::string appDir = getExecutableDir();
+
+        // 结构化部署: tools/<toolName>/lib/
+        std::string toolLibDir = (std::filesystem::path(appDir) / "tools" / toolName / "lib").string();
+        if (std::filesystem::exists(toolLibDir) && std::filesystem::is_directory(toolLibDir))
+        {
+            return toolLibDir;
+        }
+
+        // SANYI_TOOLS_DIR 环境变量
+        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        if (toolsDirEnv)
+        {
+            std::string envToolLib = (std::filesystem::path(toolsDirEnv) / toolName / "lib").string();
+            if (std::filesystem::exists(envToolLib) && std::filesystem::is_directory(envToolLib))
+            {
+                return envToolLib;
+            }
+        }
+
+        return "";
+    }
+
     std::string PdfToSvgConverter::findPdftocairoPath()
     {
         std::string exeName = "pdftocairo";
@@ -106,11 +154,32 @@ namespace Fio
 #endif
 
         // 外部工具发现策略（优先级从高到低）：
-        // 1. 应用程序同级目录（便携部署，最常见场景）
-        // 2. PATH 环境变量（系统级安装）
-        // 3. 常见安装路径（兜底查找）
+        // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
+        // 2. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
+        // 3. 结构化 tools/poppler/bin/ 目录（Linux/macOS 便携部署）
+        // 4. 应用程序同级目录的 tools/ 子目录（扁平结构）
+        // 5. PATH 环境变量（系统级安装）
+        // 6. 常见安装路径（兜底查找）
+        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        if (toolsDirEnv)
+        {
+            std::string result = findInDirectory(toolsDirEnv, exeName);
+            if (!result.empty())
+                return result;
+        }
+
         std::string appDir = getExecutableDir();
         std::string result = findInDirectory(appDir, exeName);
+        if (!result.empty())
+            return result;
+
+        // 结构化部署: tools/poppler/bin/ （Linux/macOS）
+        result = findToolExe("poppler", exeName);
+        if (!result.empty())
+            return result;
+
+        std::string toolsSubDir = (std::filesystem::path(appDir) / "tools").string();
+        result = findInDirectory(toolsSubDir, exeName);
         if (!result.empty())
             return result;
 
@@ -154,10 +223,44 @@ namespace Fio
         exeNames = { "gs", "ghostscript" };
 #endif
 
+        // 外部工具发现策略（优先级从高到低）：
+        // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
+        // 2. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
+        // 3. 结构化 tools/ghostscript/bin/ 目录（Linux/macOS 便携部署）
+        // 4. 应用程序同级目录的 tools/ 子目录（扁平结构）
+        // 5. PATH 环境变量（系统级安装）
+        // 6. 常见安装路径（兜底查找）
+        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        if (toolsDirEnv)
+        {
+            for (const std::string& exeName : exeNames)
+            {
+                std::string result = findInDirectory(toolsDirEnv, exeName);
+                if (!result.empty())
+                    return result;
+            }
+        }
+
         std::string appDir = getExecutableDir();
         for (const std::string& exeName : exeNames)
         {
             std::string result = findInDirectory(appDir, exeName);
+            if (!result.empty())
+                return result;
+        }
+
+        // 结构化部署: tools/ghostscript/bin/ （Linux/macOS）
+        for (const std::string& exeName : exeNames)
+        {
+            std::string result = findToolExe("ghostscript", exeName);
+            if (!result.empty())
+                return result;
+        }
+
+        std::string toolsSubDir = (std::filesystem::path(appDir) / "tools").string();
+        for (const std::string& exeName : exeNames)
+        {
+            std::string result = findInDirectory(toolsSubDir, exeName);
             if (!result.empty())
                 return result;
         }
@@ -233,13 +336,15 @@ namespace Fio
         return std::string(header, 5).substr(0, 4) == "%!PS";
     }
 
-    /// 跨平台进程执行封装
-    /// Windows: CreateProcessA + WaitForSingleObject — 阻塞等待进程结束
-    /// Unix:    fork + execvp + waitpid — 经典 fork-exec 模型
-    bool executeProcess(const std::string& program, const std::vector<std::string>& args)
+    /// 跨平台进程执行封装（带可选库路径环境变量）
+    /// Windows: CreateProcessA + WaitForSingleObject
+    /// Unix:    fork + execvpe + waitpid，设置 LD_LIBRARY_PATH / DYLD_LIBRARY_PATH
+    bool PdfToSvgConverter::executeProcessWithEnv(const std::string& program,
+        const std::vector<std::string>& args,
+        const std::string& libDir)
     {
 #ifdef _WIN32
-        std::string command = program;
+        std::string command = "\"" + program + "\"";
         for (const std::string& arg : args)
         {
             command += " \"" + arg + "\"";
@@ -272,6 +377,29 @@ namespace Fio
         pid_t pid = fork();
         if (pid == 0)
         {
+            if (!libDir.empty())
+            {
+#ifdef __APPLE__
+                const char* existing = std::getenv("DYLD_LIBRARY_PATH");
+                std::string newValue = libDir;
+                if (existing && strlen(existing) > 0)
+                {
+                    newValue += ":";
+                    newValue += existing;
+                }
+                setenv("DYLD_LIBRARY_PATH", newValue.c_str(), 1);
+#else
+                const char* existing = std::getenv("LD_LIBRARY_PATH");
+                std::string newValue = libDir;
+                if (existing && strlen(existing) > 0)
+                {
+                    newValue += ":";
+                    newValue += existing;
+                }
+                setenv("LD_LIBRARY_PATH", newValue.c_str(), 1);
+#endif
+            }
+
             std::vector<const char*> cargs;
             cargs.push_back(program.c_str());
             for (const std::string& arg : args)
@@ -315,7 +443,7 @@ namespace Fio
         args.push_back("-f");
         args.push_back(psPath);
 
-        return executeProcess(gs, args);
+        return executeProcessWithEnv(gs, args, findToolLibDir("ghostscript"));
     }
 
     /// PDF → SVG 转换：调用 pdftocairo 外部工具
@@ -340,7 +468,7 @@ namespace Fio
         args.push_back(pdfPath);
         args.push_back(svgPath);
 
-        bool result = executeProcess(pdftocairo, args);
+        bool result = executeProcessWithEnv(pdftocairo, args, findToolLibDir("poppler"));
 
         if (!result)
             return false;

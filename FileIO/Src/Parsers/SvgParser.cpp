@@ -325,7 +325,7 @@ namespace Fio
             if (cleaned.size() < 2)
                 return;
 
-            // 创建 SyLine 实体
+            // 创建 SyLine 图元
             auto syLine = std::make_unique<Eg::SyLine>();
             syLine->vPoints = std::move(cleaned);
             syLine->basePoint = syLine->vPoints.front();
