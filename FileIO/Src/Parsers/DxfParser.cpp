@@ -1,4 +1,4 @@
-#include "FileIO/Parsers/DxfParser.h"
+﻿#include "FileIO/Parsers/DxfParser.h"
 #include "FileIO/FileIOUtils.h"
 
 #include "Log/SyLogger.h"
@@ -29,14 +29,20 @@ namespace Fio
         return FileFormat::DXF;
     }
 
-    std::string DxfParser::formatName() const
+    size_t DxfParser::formatName(char* buffer, size_t bufferSize) const
     {
-        return "AutoCAD DXF";
+        const char* name = "AutoCAD DXF";
+        const size_t len = std::strlen(name);
+
+        if (buffer != nullptr && bufferSize > len)
+            std::strcpy(buffer, name);
+
+        return len;
     }
 
-    std::vector<std::string> DxfParser::supportedExtensions() const
+    void DxfParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
     {
-        return { "dxf" };
+        visitor("dxf", ctx);
     }
 
     static bool isFinite2(const Ut::Vec2d& p)
@@ -54,13 +60,11 @@ namespace Fio
         return std::isfinite(v);
     }
 
-    // 有限且为正数的标量校验，用于半径/长度等必须为正的几何量
     static bool isPositiveFinite(double v)
     {
         return std::isfinite(v) && v > 0.0;
     }
 
-    // 统一构造跳过图元时的 warning 文本
     static std::string makeWarning(const char* entityName, const char* reason)
     {
         std::ostringstream oss;
@@ -170,24 +174,23 @@ namespace Fio
                     continue;
 
                 Ut::Vec2d p(vert->x, vert->y);
-                // 任一顶点非法即放弃整条多段线，避免部分顶点导致渲染异常
+
                 if (!isFinite2(p))
                 {
                     warnSkip("LWPOLYLINE", "non-finite vertex");
                     return;
                 }
 
-                syLine->vPoints.push_back(p);
+                syLine->addPoint(p);
             }
 
-            // 有效顶点少于 2 个无法构成线段，跳过
-            if (syLine->vPoints.size() < 2)
+            if (syLine->pointRef().size() < 2)
             {
                 warnSkip("LWPOLYLINE", "less than 2 valid vertices");
                 return;
             }
 
-            syLine->basePoint = syLine->vPoints.front();
+            syLine->basePoint = syLine->pointRef().front();
             syLine->bClosed = (data.flags & 1) != 0;
             applyEntityStyle(syLine.get(), data);
             m_outEntities.push_back(std::move(syLine));
@@ -202,8 +205,8 @@ namespace Fio
 
             auto sySpline = std::make_unique<Eg::SyNurbs>();
             sySpline->nDegree = data->degree;
-            sySpline->vKnots = data->knotslist;
-            sySpline->vWeights = data->weightlist;
+            sySpline->setKnotVector(data->knotslist);
+            sySpline->setWeightVector(data->weightlist);
 
             for (const auto& cp : data->controllist)
             {
@@ -211,25 +214,22 @@ namespace Fio
                     continue;
 
                 Ut::Vec2d p(cp->x, cp->y);
-                // 控制点非法即放弃整条样条，避免曲线退化
                 if (!isFinite2(p))
                 {
                     warnSkip("SPLINE", "non-finite control point");
                     return;
                 }
 
-                sySpline->vControlPoints.push_back(p);
+                sySpline->addControlPoint(p);
             }
 
-            // 没有任何有效控制点时跳过
-            if (sySpline->vControlPoints.empty())
+            if (sySpline->controlPointCount() == 0)
             {
                 warnSkip("SPLINE", "no valid control points");
                 return;
             }
 
-            // 校验节点值
-            for (double k : sySpline->vKnots)
+            for (double k : sySpline->knotRef())
             {
                 if (!isFiniteScalar(k))
                 {
@@ -238,8 +238,7 @@ namespace Fio
                 }
             }
 
-            // 校验权重值，权重必须为有限正数
-            for (double w : sySpline->vWeights)
+            for (double w : sySpline->weightRef())
             {
                 if (!isFiniteScalar(w) || w <= 0.0)
                 {
@@ -248,7 +247,7 @@ namespace Fio
                 }
             }
 
-            sySpline->basePoint = sySpline->vControlPoints.front();
+            sySpline->basePoint = sySpline->controlPointAt(0);
             applyEntityStyle(sySpline.get(), *data);
             m_outEntities.push_back(std::move(sySpline));
         }
@@ -273,7 +272,6 @@ namespace Fio
         {
             Ut::Vec2d p(data.basePoint.x, data.basePoint.y);
 
-            // 位置或字高非法时跳过
             if (!isFinite2(p) || !isFiniteScalar(data.height))
             {
                 warnSkip("MTEXT", "invalid position or height");
@@ -283,7 +281,7 @@ namespace Fio
             auto syText = std::make_unique<Eg::SyText>();
             syText->basePoint = p;
             syText->dHeight = data.height;
-            syText->strText = data.text;
+            syText->setText(data.text.c_str());
             syText->dRotation = data.angle * M_PI / 180.0;
             applyEntityStyle(syText.get(), data);
             m_outEntities.push_back(std::move(syText));
@@ -374,7 +372,6 @@ namespace Fio
         {
             Ut::Vec2d p(point.basePoint.x, point.basePoint.y);
 
-            // 位置非有限值时跳过
             if (!isFinite2(p))
             {
                 warnSkip("POINT", "non-finite position");
@@ -392,7 +389,6 @@ namespace Fio
             Ut::Vec2d p0(line.basePoint.x, line.basePoint.y);
             Ut::Vec2d p1(line.secPoint.x, line.secPoint.y);
 
-            // 端点存在非有限值时直接跳过，避免脏数据进入场景
             if (!isFinite2(p0) || !isFinite2(p1))
             {
                 warnSkip("LINE", "non-finite endpoint");
@@ -400,9 +396,9 @@ namespace Fio
             }
 
             auto syLine = std::make_unique<Eg::SyLine>();
-            syLine->vPoints.push_back(p0);
-            syLine->vPoints.push_back(p1);
-            syLine->basePoint = syLine->vPoints.front();
+            syLine->addPoint(p0);
+            syLine->addPoint(p1);
+            syLine->basePoint = syLine->pointRef().front();
             applyEntityStyle(syLine.get(), line);
             m_outEntities.push_back(std::move(syLine));
         }
@@ -412,7 +408,6 @@ namespace Fio
             Ut::Vec2d c(circle.basePoint.x, circle.basePoint.y);
             double r = circle.radious;
 
-            // 圆心或半径非法（非有限或半径非正）时跳过
             if (!isFinite2(c) || !isPositiveFinite(r))
             {
                 warnSkip("CIRCLE", "invalid center or radius");
@@ -431,7 +426,6 @@ namespace Fio
             Ut::Vec2d c(arc.basePoint.x, arc.basePoint.y);
             double r = arc.radious;
 
-            // 圆心、半径或起止角度非法时跳过
             if (!isFinite2(c) || !isPositiveFinite(r) ||
                 !isFiniteScalar(arc.staangle) || !isFiniteScalar(arc.endangle))
             {
@@ -457,7 +451,6 @@ namespace Fio
             double ratio = ellipse.ratio;
             double rotation = std::atan2(ellipse.secPoint.y, ellipse.secPoint.x);
 
-            // 圆心、长轴端点、长轴长度、比例或参数非法时跳过
             if (!isFinite2(c) ||
                 !isFiniteScalar(ellipse.secPoint.x) || !isFiniteScalar(ellipse.secPoint.y) ||
                 !isPositiveFinite(majorLen) ||
@@ -495,24 +488,22 @@ namespace Fio
                     continue;
 
                 Ut::Vec2d p(vert->basePoint.x, vert->basePoint.y);
-                // 任一顶点非法即放弃整条多段线
                 if (!isFinite2(p))
                 {
                     warnSkip("POLYLINE", "non-finite vertex");
                     return;
                 }
 
-                syLine->vPoints.push_back(p);
+                syLine->addPoint(p);
             }
 
-            // 有效顶点少于 2 个无法构成线段，跳过
-            if (syLine->vPoints.size() < 2)
+            if (syLine->pointRef().size() < 2)
             {
                 warnSkip("POLYLINE", "less than 2 valid vertices");
                 return;
             }
 
-            syLine->basePoint = syLine->vPoints.front();
+            syLine->basePoint = syLine->pointRef().front();
             syLine->bClosed = (polyline.flags & 1) != 0;
             applyEntityStyle(syLine.get(), polyline);
             m_outEntities.push_back(std::move(syLine));
@@ -522,7 +513,6 @@ namespace Fio
         {
             Ut::Vec2d p(text.basePoint.x, text.basePoint.y);
 
-            // 位置或字高非法时跳过
             if (!isFinite2(p) || !isFiniteScalar(text.height))
             {
                 warnSkip("TEXT", "invalid position or height");
@@ -532,7 +522,7 @@ namespace Fio
             auto syText = std::make_unique<Eg::SyText>();
             syText->basePoint = p;
             syText->dHeight = text.height;
-            syText->strText = text.text;
+            syText->setText(text.text.c_str());
             syText->dRotation = text.angle * M_PI / 180.0;
             applyEntityStyle(syText.get(), text);
             m_outEntities.push_back(std::move(syText));
@@ -554,7 +544,6 @@ namespace Fio
         }
 
     private:
-        // 统一记录非法图元被跳过的 warning
         void warnSkip(const char* entityName, const char* reason)
         {
             m_warnings.push_back(makeWarning(entityName, reason));
@@ -562,7 +551,6 @@ namespace Fio
 
         void applyEntityStyle(Eg::SyEntity* entity, const DRW_Entity& drwEntity)
         {
-            // applyEntityStyle 在 push_back 之前调用，因此当前 size 即为新图元即将占用的索引
             size_t idx = m_outEntities.size();
 
             if (!drwEntity.layer.empty())
@@ -584,73 +572,634 @@ namespace Fio
         std::map<size_t, int> m_entityColorMap;
     };
 
-    ParseResult DxfParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
-{
-    SY_INFOF("[DxfParser] parse START: filePath=%s", filePath.c_str());
-    std::vector<std::string> warnings;
-
-    TempFileCopy tempCopy(filePath, "dxf");
-
-
-    if (!tempCopy.isValid())
+    class DxfIrConverter : public DRW_Interface
     {
-        SY_ERRORF("[DxfParser] Temp file copy failed: %s", tempCopy.error().c_str());
-        return ParseResult::fail(tempCopy.error());
-    }
-
-
-    try
-    {
-        dxfRW reader(tempCopy.path().c_str());
-
-        DxfConverter converter(outEntities, warnings);
-
-        bool readResult = reader.read(&converter, false);
-
-        if (!readResult)
+    public:
+        DxfIrConverter(std::vector<EntityInfo>& outEntities,
+            std::vector<uint8_t>& outExtensionBlob,
+            std::vector<std::string>& warnings)
+            : m_outEntities(outEntities)
+            , m_outExtensionBlob(outExtensionBlob)
+            , m_warnings(warnings)
         {
-            SY_ERRORF("[DxfParser] libdxfrw read failed: %s", filePath.c_str());
-            return ParseResult::fail("Failed to read DXF file: " + filePath);
         }
 
-        size_t entityCount = outEntities.size();
-        size_t layerCount = converter.getLayerDefs().size();
-        SY_INFOF("[DxfParser] Parse completed: %zu entities, %zu layers", entityCount, layerCount);
-
-        ParseResult result = ParseResult::ok();
-        result.warnings = warnings;
-
-        SY_INFOF("[DxfParser] Processing layers: count=%zu", layerCount);
-        for (const auto& dl : converter.getLayerDefs())
+        void addHeader(const DRW_Header*) override
         {
-            DxfLayerInfo info;
-            info.name = dl.name;
-            info.color = dl.color;
-            info.visible = (dl.flags & 1) == 0;
-            result.dxfLayers.push_back(info);
+        }
+        void addLType(const DRW_LType&) override
+        {
+        }
+        void addDimStyle(const DRW_Dimstyle&) override
+        {
+        }
+        void addVport(const DRW_Vport&) override
+        {
+        }
+        void addTextStyle(const DRW_Textstyle&) override
+        {
+        }
+        void addAppId(const DRW_AppId&) override
+        {
+        }
+        void addBlock(const DRW_Block&) override
+        {
+        }
+        void setBlock(const int) override
+        {
+        }
+        void endBlock() override
+        {
+        }
+        void addRay(const DRW_Ray&) override
+        {
+        }
+        void addXline(const DRW_Xline&) override
+        {
+        }
+        void addKnot(const DRW_Entity&) override
+        {
+        }
+        void addInsert(const DRW_Insert&) override
+        {
+        }
+        void addTrace(const DRW_Trace&) override
+        {
+        }
+        void add3dFace(const DRW_3Dface&) override
+        {
+        }
+        void addSolid(const DRW_Solid&) override
+        {
+        }
+        void addDimAlign(const DRW_DimAligned*) override
+        {
+        }
+        void addDimLinear(const DRW_DimLinear*) override
+        {
+        }
+        void addDimRadial(const DRW_DimRadial*) override
+        {
+        }
+        void addDimDiametric(const DRW_DimDiametric*) override
+        {
+        }
+        void addDimAngular(const DRW_DimAngular*) override
+        {
+        }
+        void addDimAngular3P(const DRW_DimAngular3p*) override
+        {
+        }
+        void addDimOrdinate(const DRW_DimOrdinate*) override
+        {
+        }
+        void addLeader(const DRW_Leader*) override
+        {
+        }
+        void addHatch(const DRW_Hatch*) override
+        {
+        }
+        void addViewport(const DRW_Viewport&) override
+        {
+        }
+        void addImage(const DRW_Image*) override
+        {
+        }
+        void linkImage(const DRW_ImageDef*) override
+        {
+        }
+        void addComment(const char*) override
+        {
+        }
+        void addPlotSettings(const DRW_PlotSettings*) override
+        {
+        }
+        void writeHeader(DRW_Header&) override
+        {
+        }
+        void writeBlocks() override
+        {
+        }
+        void writeBlockRecords() override
+        {
+        }
+        void writeEntities() override
+        {
+        }
+        void writeLTypes() override
+        {
+        }
+        void writeLayers() override
+        {
+        }
+        void writeTextstyles() override
+        {
+        }
+        void writeVports() override
+        {
+        }
+        void writeDimstyles() override
+        {
+        }
+        void writeObjects() override
+        {
+        }
+        void writeAppId() override
+        {
         }
 
-        result.entityLayerMap = converter.getEntityLayerMap();
-        result.entityColorMap = converter.getEntityColorMap();
+        void addLayer(const DRW_Layer& layer) override
+        {
+            m_layerDefs.push_back(layer);
+        }
 
-        SY_INFOF("[DxfParser] parse END: success, entities=%zu", entityCount);
-        return result;
-    }
-    catch (const std::exception& ex)
+        void addPoint(const DRW_Point& point) override
+        {
+            Ut::Vec2d p(point.basePoint.x, point.basePoint.y);
+            if (!isFinite2(p))
+            {
+                warnSkip("POINT", "non-finite position");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Point;
+            info.line.x1 = p.x();
+            info.line.y1 = p.y();
+            applyEntityMeta(info, point);
+            m_outEntities.push_back(info);
+        }
+
+        void addLine(const DRW_Line& line) override
+        {
+            Ut::Vec2d p0(line.basePoint.x, line.basePoint.y);
+            Ut::Vec2d p1(line.secPoint.x, line.secPoint.y);
+            if (!isFinite2(p0) || !isFinite2(p1))
+            {
+                warnSkip("LINE", "non-finite endpoint");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Line;
+            info.line.x1 = p0.x();
+            info.line.y1 = p0.y();
+            info.line.x2 = p1.x();
+            info.line.y2 = p1.y();
+            applyEntityMeta(info, line);
+            m_outEntities.push_back(info);
+        }
+
+        void addCircle(const DRW_Circle& circle) override
+        {
+            Ut::Vec2d c(circle.basePoint.x, circle.basePoint.y);
+            double r = circle.radious;
+            if (!isFinite2(c) || !isPositiveFinite(r))
+            {
+                warnSkip("CIRCLE", "invalid center or radius");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Circle;
+            info.circle.cx = c.x();
+            info.circle.cy = c.y();
+            info.circle.r = r;
+            applyEntityMeta(info, circle);
+            m_outEntities.push_back(info);
+        }
+
+        void addArc(const DRW_Arc& arc) override
+        {
+            Ut::Vec2d c(arc.basePoint.x, arc.basePoint.y);
+            double r = arc.radious;
+            if (!isFinite2(c) || !isPositiveFinite(r) ||
+                !isFiniteScalar(arc.staangle) || !isFiniteScalar(arc.endangle))
+            {
+                warnSkip("ARC", "invalid center, radius, or angle");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Arc;
+            info.arc.cx = c.x();
+            info.arc.cy = c.y();
+            info.arc.r = r;
+            info.arc.sa = arc.staangle;
+            info.arc.ea = arc.endangle;
+            applyEntityMeta(info, arc);
+            m_outEntities.push_back(info);
+        }
+
+        void addEllipse(const DRW_Ellipse& ellipse) override
+        {
+            Ut::Vec2d c(ellipse.basePoint.x, ellipse.basePoint.y);
+            double majorLen = std::sqrt(ellipse.secPoint.x * ellipse.secPoint.x +
+                ellipse.secPoint.y * ellipse.secPoint.y);
+            double ratio = ellipse.ratio;
+            double rotation = std::atan2(ellipse.secPoint.y, ellipse.secPoint.x);
+
+            if (!isFinite2(c) ||
+                !isFiniteScalar(ellipse.secPoint.x) || !isFiniteScalar(ellipse.secPoint.y) ||
+                !isPositiveFinite(majorLen) ||
+                !isFiniteScalar(ratio) || ratio <= 0.0 ||
+                !isFiniteScalar(ellipse.staparam) || !isFiniteScalar(ellipse.endparam) ||
+                !isFiniteScalar(rotation))
+            {
+                warnSkip("ELLIPSE", "invalid geometry");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Ellipse;
+            info.ellipse.cx = c.x();
+            info.ellipse.cy = c.y();
+            info.ellipse.rx = majorLen;
+            info.ellipse.ry = majorLen * ratio;
+            info.ellipse.rot = rotation;
+            info.ellipse.sa = ellipse.staparam;
+            info.ellipse.ea = ellipse.endparam;
+            applyEntityMeta(info, ellipse);
+            m_outEntities.push_back(info);
+        }
+
+        void addText(const DRW_Text& text) override
+        {
+            Ut::Vec2d p(text.basePoint.x, text.basePoint.y);
+            if (!isFinite2(p) || !isFiniteScalar(text.height))
+            {
+                warnSkip("TEXT", "invalid position or height");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Text;
+            info.text.x = p.x();
+            info.text.y = p.y();
+            info.text.h = text.height;
+            info.text.a = text.angle * M_PI / 180.0;
+
+            std::strncpy(info.text.text, text.text.c_str(), sizeof(info.text.text) - 1);
+            info.text.text[sizeof(info.text.text) - 1] = '\0';
+            applyEntityMeta(info, text);
+            m_outEntities.push_back(info);
+        }
+
+        void addMText(const DRW_MText& data) override
+        {
+            Ut::Vec2d p(data.basePoint.x, data.basePoint.y);
+            if (!isFinite2(p) || !isFiniteScalar(data.height))
+            {
+                warnSkip("MTEXT", "invalid position or height");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Text;
+            info.text.x = p.x();
+            info.text.y = p.y();
+            info.text.h = data.height;
+            info.text.a = data.angle * M_PI / 180.0;
+            std::strncpy(info.text.text, data.text.c_str(), sizeof(info.text.text) - 1);
+            info.text.text[sizeof(info.text.text) - 1] = '\0';
+            applyEntityMeta(info, data);
+            m_outEntities.push_back(info);
+        }
+
+        void addLWPolyline(const DRW_LWPolyline& data) override
+        {
+            if (data.vertlist.empty())
+            {
+                warnSkip("LWPOLYLINE", "empty vertex list");
+                return;
+            }
+
+            std::vector<double> verts;
+            verts.reserve(data.vertlist.size() * 2);
+            for (const auto& vert : data.vertlist)
+            {
+                if (!vert)
+                    continue;
+                Ut::Vec2d p(vert->x, vert->y);
+                if (!isFinite2(p))
+                {
+                    warnSkip("LWPOLYLINE", "non-finite vertex");
+                    return;
+                }
+                verts.push_back(p.x());
+                verts.push_back(p.y());
+            }
+
+            if (verts.size() < 4)
+            {
+                warnSkip("LWPOLYLINE", "less than 2 valid vertices");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Polyline;
+            info.vertexCount = static_cast<uint32_t>(verts.size() / 2);
+            info.extensionDataOffset = static_cast<uint32_t>(m_outExtensionBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
+            appendExtensionData(verts.data(), info.extensionDataSize);
+            applyEntityMeta(info, data);
+            m_outEntities.push_back(info);
+        }
+
+        void addPolyline(const DRW_Polyline& polyline) override
+        {
+            if (polyline.vertlist.empty())
+            {
+                warnSkip("POLYLINE", "empty vertex list");
+                return;
+            }
+
+            std::vector<double> verts;
+            verts.reserve(polyline.vertlist.size() * 2);
+            for (const auto& vert : polyline.vertlist)
+            {
+                if (!vert)
+                    continue;
+                Ut::Vec2d p(vert->basePoint.x, vert->basePoint.y);
+                if (!isFinite2(p))
+                {
+                    warnSkip("POLYLINE", "non-finite vertex");
+                    return;
+                }
+                verts.push_back(p.x());
+                verts.push_back(p.y());
+            }
+
+            if (verts.size() < 4)
+            {
+                warnSkip("POLYLINE", "less than 2 valid vertices");
+                return;
+            }
+
+            EntityInfo info;
+            info.type = EntityType::Polyline;
+            info.vertexCount = static_cast<uint32_t>(verts.size() / 2);
+            info.extensionDataOffset = static_cast<uint32_t>(m_outExtensionBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
+            appendExtensionData(verts.data(), info.extensionDataSize);
+            applyEntityMeta(info, polyline);
+            m_outEntities.push_back(info);
+        }
+
+        void addSpline(const DRW_Spline* data) override
+        {
+            if (!data || data->controllist.empty())
+            {
+                warnSkip("SPLINE", "empty control points");
+                return;
+            }
+
+            // 扩展数据布局: [控制点(double*N*2)] [节点(double*K)] [权重(double*W)]
+            uint32_t degree = static_cast<uint32_t>(data->degree);
+            uint32_t cpCount = 0;
+            std::vector<double> cpCoords;
+
+            for (const auto& cp : data->controllist)
+            {
+                if (!cp)
+                    continue;
+                Ut::Vec2d p(cp->x, cp->y);
+                if (!isFinite2(p))
+                {
+                    warnSkip("SPLINE", "non-finite control point");
+                    return;
+                }
+                cpCoords.push_back(p.x());
+                cpCoords.push_back(p.y());
+                cpCount++;
+            }
+
+            if (cpCount == 0)
+            {
+                warnSkip("SPLINE", "no valid control points");
+                return;
+            }
+
+            // 校验节点值
+            for (double k : data->knotslist)
+            {
+                if (!isFiniteScalar(k))
+                {
+                    warnSkip("SPLINE", "non-finite knot value");
+                    return;
+                }
+            }
+            // 校验权重值，权重必须为有限正数
+            for (double w : data->weightlist)
+            {
+                if (!isFiniteScalar(w) || w <= 0.0)
+                {
+                    warnSkip("SPLINE", "invalid weight value");
+                    return;
+                }
+            }
+
+            const uint32_t knotCount = static_cast<uint32_t>(data->knotslist.size());
+            const size_t byteSize =
+                cpCoords.size() * sizeof(double) +
+                data->knotslist.size() * sizeof(double) +
+                data->weightlist.size() * sizeof(double);
+
+            EntityInfo info;
+            info.type = EntityType::Nurbs;
+            info.nurbsDegree = static_cast<int32_t>(degree);
+            info.nurbsCtrlPtCount = cpCount;
+            info.nurbsKnotCount = knotCount;
+            info.extensionDataOffset = static_cast<uint32_t>(m_outExtensionBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(byteSize);
+            appendExtensionData(cpCoords.data(), cpCoords.size() * sizeof(double));
+            if (!data->knotslist.empty())
+                appendExtensionData(data->knotslist.data(), data->knotslist.size() * sizeof(double));
+            if (!data->weightlist.empty())
+                appendExtensionData(data->weightlist.data(), data->weightlist.size() * sizeof(double));
+            applyEntityMeta(info, *data);
+            m_outEntities.push_back(info);
+        }
+
+        const std::vector<DRW_Layer>& getLayerDefs() const
+        {
+            return m_layerDefs;
+        }
+        const std::map<size_t, std::string>& getEntityLayerMap() const
+        {
+            return m_entityLayerMap;
+        }
+        const std::map<size_t, int>& getEntityColorMap() const
+        {
+            return m_entityColorMap;
+        }
+
+    private:
+        void warnSkip(const char* entityName, const char* reason)
+        {
+            m_warnings.push_back(makeWarning(entityName, reason));
+        }
+
+        void applyEntityMeta(EntityInfo& info, const DRW_Entity& drwEntity)
+        {
+            size_t idx = m_outEntities.size();
+            info.sourceId = idx;
+            if (!drwEntity.layer.empty())
+                m_entityLayerMap[idx] = drwEntity.layer;
+            if (drwEntity.color >= 0 && drwEntity.color != 256)
+                m_entityColorMap[idx] = drwEntity.color;
+        }
+
+        void appendExtensionData(const void* data, size_t byteSize)
+        {
+            const auto* p = static_cast<const uint8_t*>(data);
+            m_outExtensionBlob.insert(m_outExtensionBlob.end(), p, p + byteSize);
+        }
+
+    private:
+        std::vector<EntityInfo>& m_outEntities;
+        std::vector<uint8_t>& m_outExtensionBlob;
+        std::vector<std::string>& m_warnings;
+        std::vector<DRW_Layer> m_layerDefs;
+        std::map<size_t, std::string> m_entityLayerMap;
+        std::map<size_t, int> m_entityColorMap;
+    };
+
+    FioParseResult DxfParser::parseToIR(const char* filePath)
     {
-        SY_CRITICALF("[DxfParser] Parse exception: %s - %s", filePath.c_str(), ex.what());
-        return ParseResult::fail(
-            std::string("Exception during DXF parsing: ") + ex.what(),
-            warnings
-        );
+        SY_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath);
+
+        thread_local std::vector<EntityInfo> s_entities;
+        thread_local std::vector<uint8_t> s_extensionBlob;
+        thread_local std::vector<IrLayerInfo> s_layers;
+        s_entities.clear();
+        s_extensionBlob.clear();
+        s_layers.clear();
+
+        std::vector<std::string> warnings;
+
+        TempFileCopy tempCopy(filePath, "dxf");
+        if (!tempCopy.isValid())
+        {
+            SY_ERRORF("[DxfParser] parseToIR: Temp file copy failed: %s", tempCopy.error().c_str());
+            return FioParseResult{};
+        }
+
+        try
+        {
+            dxfRW reader(tempCopy.path().c_str());
+            DxfIrConverter converter(s_entities, s_extensionBlob, warnings);
+            bool readResult = reader.read(&converter, false);
+
+            if (!readResult)
+            {
+                SY_ERRORF("[DxfParser] parseToIR: libdxfrw read failed: %s", filePath);
+                return FioParseResult{};
+            }
+
+            for (const auto& dl : converter.getLayerDefs())
+            {
+                IrLayerInfo li;
+                li.sourceId = static_cast<uint32_t>(s_layers.size());
+                std::strncpy(li.name, dl.name.c_str(), sizeof(li.name) - 1);
+                li.name[sizeof(li.name) - 1] = '\0';
+                li.color = 0xFF000000 | ((dl.color & 0xFF) << 16) |
+                    (((dl.color >> 8) & 0xFF) << 8) | ((dl.color >> 16) & 0xFF);
+                li.visible = (dl.flags & 1) == 0;
+                s_layers.push_back(li);
+            }
+
+            FioParseResult result;
+            result.entities = s_entities.data();
+            result.entityCount = static_cast<uint32_t>(s_entities.size());
+            result.layers = s_layers.data();
+            result.layerCount = static_cast<uint32_t>(s_layers.size());
+            result.extensionBlob.data = s_extensionBlob.data();
+            result.extensionBlob.size = s_extensionBlob.size();
+            result.warningCount = static_cast<uint32_t>(warnings.size());
+            std::strncpy(result.sourceFormat, "DXF", sizeof(result.sourceFormat) - 1);
+
+            SY_INFOF("[DxfParser] parseToIR END: %u entities, %u layers",
+                result.entityCount, result.layerCount);
+            return result;
+        }
+        catch (const std::exception& ex)
+        {
+            SY_CRITICALF("[DxfParser] parseToIR exception: %s - %s", filePath, ex.what());
+            return FioParseResult{};
+        }
+        catch (...)
+        {
+            SY_CRITICALF("[DxfParser] parseToIR unknown exception: %s", filePath);
+            return FioParseResult{};
+        }
     }
-    catch (...)
+
+    ParseResult DxfParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
     {
-        SY_CRITICALF("[DxfParser] Parse unknown exception: %s", filePath.c_str());
-        return ParseResult::fail(
-            std::string("Unknown exception during DXF parsing"),
-            warnings
-        );
+        SY_INFOF("[DxfParser] parse START: filePath=%s", filePath);
+        std::vector<std::string> warnings;
+
+        TempFileCopy tempCopy(filePath, "dxf");
+
+        if (!tempCopy.isValid())
+        {
+            SY_ERRORF("[DxfParser] Temp file copy failed: %s", tempCopy.error().c_str());
+            return ParseResult::fail(tempCopy.error());
+        }
+
+        try
+        {
+            dxfRW reader(tempCopy.path().c_str());
+
+            DxfConverter converter(outEntities, warnings);
+
+            bool readResult = reader.read(&converter, false);
+
+            if (!readResult)
+            {
+                SY_ERRORF("[DxfParser] libdxfrw read failed: %s", filePath);
+                return ParseResult::fail(std::string("Failed to read DXF file: ") + filePath);
+            }
+
+            size_t entityCount = outEntities.size();
+            size_t layerCount = converter.getLayerDefs().size();
+            SY_INFOF("[DxfParser] Parse completed: %zu entities, %zu layers", entityCount, layerCount);
+
+            ParseResult result = ParseResult::ok();
+            result.warnings = warnings;
+
+            SY_INFOF("[DxfParser] Processing layers: count=%zu", layerCount);
+            for (const auto& dl : converter.getLayerDefs())
+            {
+                DxfLayerInfo info;
+                info.name = dl.name;
+                info.color = dl.color;
+                info.visible = (dl.flags & 1) == 0;
+                result.dxfLayers.push_back(info);
+            }
+
+            result.entityLayerMap = converter.getEntityLayerMap();
+            result.entityColorMap = converter.getEntityColorMap();
+
+            SY_INFOF("[DxfParser] parse END: success, entities=%zu", entityCount);
+            return result;
+        }
+        catch (const std::exception& ex)
+        {
+            SY_CRITICALF("[DxfParser] Parse exception: %s - %s", filePath, ex.what());
+            return ParseResult::fail(
+                std::string("Exception during DXF parsing: ") + ex.what(),
+                warnings
+            );
+        }
+        catch (...)
+        {
+            SY_CRITICALF("[DxfParser] Parse unknown exception: %s", filePath);
+            return ParseResult::fail(
+                std::string("Unknown exception during DXF parsing"),
+                warnings
+            );
+        }
     }
-}
 } // namespace Fio

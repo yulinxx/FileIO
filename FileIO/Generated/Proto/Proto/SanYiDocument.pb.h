@@ -5822,6 +5822,7 @@ class EntityData final : public ::google::protobuf::MessageLite
   // accessors -------------------------------------------------------
   enum : int {
     kCustomPropertiesFieldNumber = 8,
+    kNameFieldNumber = 9,
     kBasePointFieldNumber = 4,
     kColorFieldNumber = 5,
     kIdFieldNumber = 2,
@@ -5863,6 +5864,21 @@ class EntityData final : public ::google::protobuf::MessageLite
   const ::sanyi::proto::PropertyEntry& custom_properties(int index) const;
   ::sanyi::proto::PropertyEntry* PROTOBUF_NONNULL add_custom_properties();
   const ::google::protobuf::RepeatedPtrField<::sanyi::proto::PropertyEntry>& custom_properties() const;
+  // string name = 9;
+  void clear_name() ;
+  const ::std::string& name() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_name(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_name();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_name();
+  void set_allocated_name(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_name() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_name(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_name();
+
+  public:
   // .sanyi.proto.Vec2d base_point = 4;
   bool has_base_point() const;
   void clear_base_point() ;
@@ -6271,8 +6287,8 @@ class EntityData final : public ::google::protobuf::MessageLite
   inline bool has_type_specific() const;
   inline void clear_has_type_specific();
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 24,
-                                   19, 0,
+  static const ::google::protobuf::internal::TcParseTable<4, 25,
+                                   19, 59,
                                    2>
       _table_;
 
@@ -6294,6 +6310,7 @@ class EntityData final : public ::google::protobuf::MessageLite
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::RepeatedPtrField< ::sanyi::proto::PropertyEntry > custom_properties_;
+    ::google::protobuf::internal::ArenaStringPtr name_;
     ::sanyi::proto::Vec2d* PROTOBUF_NULLABLE base_point_;
     ::sanyi::proto::Vec3f* PROTOBUF_NULLABLE color_;
     ::uint64_t id_;
@@ -11415,7 +11432,7 @@ inline void EntityData::clear_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000010U);
+                  0x00000020U);
 }
 inline ::sanyi::proto::EntityType EntityData::type() const {
   // @@protoc_insertion_point(field_get:sanyi.proto.EntityData.type)
@@ -11423,7 +11440,7 @@ inline ::sanyi::proto::EntityType EntityData::type() const {
 }
 inline void EntityData::set_type(::sanyi::proto::EntityType value) {
   _internal_set_type(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:sanyi.proto.EntityData.type)
 }
 inline ::sanyi::proto::EntityType EntityData::_internal_type() const {
@@ -11440,7 +11457,7 @@ inline void EntityData::clear_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.id_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000008U);
+                  0x00000010U);
 }
 inline ::uint64_t EntityData::id() const {
   // @@protoc_insertion_point(field_get:sanyi.proto.EntityData.id)
@@ -11448,7 +11465,7 @@ inline ::uint64_t EntityData::id() const {
 }
 inline void EntityData::set_id(::uint64_t value) {
   _internal_set_id(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   // @@protoc_insertion_point(field_set:sanyi.proto.EntityData.id)
 }
 inline ::uint64_t EntityData::_internal_id() const {
@@ -11465,7 +11482,7 @@ inline void EntityData::clear_layer_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.layer_id_ = 0u;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000020U);
+                  0x00000040U);
 }
 inline ::uint32_t EntityData::layer_id() const {
   // @@protoc_insertion_point(field_get:sanyi.proto.EntityData.layer_id)
@@ -11473,7 +11490,7 @@ inline ::uint32_t EntityData::layer_id() const {
 }
 inline void EntityData::set_layer_id(::uint32_t value) {
   _internal_set_layer_id(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:sanyi.proto.EntityData.layer_id)
 }
 inline ::uint32_t EntityData::_internal_layer_id() const {
@@ -11487,7 +11504,7 @@ inline void EntityData::_internal_set_layer_id(::uint32_t value) {
 
 // .sanyi.proto.Vec2d base_point = 4;
 inline bool EntityData::has_base_point() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000002U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000004U);
   PROTOBUF_ASSUME(!value || _impl_.base_point_ != nullptr);
   return value;
 }
@@ -11495,7 +11512,7 @@ inline void EntityData::clear_base_point() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.base_point_ != nullptr) _impl_.base_point_->Clear();
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000004U);
 }
 inline const ::sanyi::proto::Vec2d& EntityData::_internal_base_point() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -11514,16 +11531,16 @@ inline void EntityData::unsafe_arena_set_allocated_base_point(
   }
   _impl_.base_point_ = reinterpret_cast<::sanyi::proto::Vec2d*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:sanyi.proto.EntityData.base_point)
 }
 inline ::sanyi::proto::Vec2d* PROTOBUF_NULLABLE EntityData::release_base_point() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::sanyi::proto::Vec2d* released = _impl_.base_point_;
   _impl_.base_point_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -11543,7 +11560,7 @@ inline ::sanyi::proto::Vec2d* PROTOBUF_NULLABLE EntityData::unsafe_arena_release
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:sanyi.proto.EntityData.base_point)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::sanyi::proto::Vec2d* temp = _impl_.base_point_;
   _impl_.base_point_ = nullptr;
   return temp;
@@ -11558,7 +11575,7 @@ inline ::sanyi::proto::Vec2d* PROTOBUF_NONNULL EntityData::_internal_mutable_bas
 }
 inline ::sanyi::proto::Vec2d* PROTOBUF_NONNULL EntityData::mutable_base_point()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::sanyi::proto::Vec2d* _msg = _internal_mutable_base_point();
   // @@protoc_insertion_point(field_mutable:sanyi.proto.EntityData.base_point)
   return _msg;
@@ -11575,9 +11592,9 @@ inline void EntityData::set_allocated_base_point(::sanyi::proto::Vec2d* PROTOBUF
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
 
   _impl_.base_point_ = reinterpret_cast<::sanyi::proto::Vec2d*>(value);
@@ -11586,7 +11603,7 @@ inline void EntityData::set_allocated_base_point(::sanyi::proto::Vec2d* PROTOBUF
 
 // .sanyi.proto.Vec3f color = 5;
 inline bool EntityData::has_color() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000004U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000008U);
   PROTOBUF_ASSUME(!value || _impl_.color_ != nullptr);
   return value;
 }
@@ -11594,7 +11611,7 @@ inline void EntityData::clear_color() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.color_ != nullptr) _impl_.color_->Clear();
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000008U);
 }
 inline const ::sanyi::proto::Vec3f& EntityData::_internal_color() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -11613,16 +11630,16 @@ inline void EntityData::unsafe_arena_set_allocated_color(
   }
   _impl_.color_ = reinterpret_cast<::sanyi::proto::Vec3f*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:sanyi.proto.EntityData.color)
 }
 inline ::sanyi::proto::Vec3f* PROTOBUF_NULLABLE EntityData::release_color() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::sanyi::proto::Vec3f* released = _impl_.color_;
   _impl_.color_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -11642,7 +11659,7 @@ inline ::sanyi::proto::Vec3f* PROTOBUF_NULLABLE EntityData::unsafe_arena_release
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:sanyi.proto.EntityData.color)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::sanyi::proto::Vec3f* temp = _impl_.color_;
   _impl_.color_ = nullptr;
   return temp;
@@ -11657,7 +11674,7 @@ inline ::sanyi::proto::Vec3f* PROTOBUF_NONNULL EntityData::_internal_mutable_col
 }
 inline ::sanyi::proto::Vec3f* PROTOBUF_NONNULL EntityData::mutable_color()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::sanyi::proto::Vec3f* _msg = _internal_mutable_color();
   // @@protoc_insertion_point(field_mutable:sanyi.proto.EntityData.color)
   return _msg;
@@ -11674,9 +11691,9 @@ inline void EntityData::set_allocated_color(::sanyi::proto::Vec3f* PROTOBUF_NULL
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
 
   _impl_.color_ = reinterpret_cast<::sanyi::proto::Vec3f*>(value);
@@ -11688,7 +11705,7 @@ inline void EntityData::clear_closed() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.closed_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000040U);
+                  0x00000080U);
 }
 inline bool EntityData::closed() const {
   // @@protoc_insertion_point(field_get:sanyi.proto.EntityData.closed)
@@ -11696,7 +11713,7 @@ inline bool EntityData::closed() const {
 }
 inline void EntityData::set_closed(bool value) {
   _internal_set_closed(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   // @@protoc_insertion_point(field_set:sanyi.proto.EntityData.closed)
 }
 inline bool EntityData::_internal_closed() const {
@@ -11713,7 +11730,7 @@ inline void EntityData::clear_ccw() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ccw_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000080U);
+                  0x00000100U);
 }
 inline bool EntityData::ccw() const {
   // @@protoc_insertion_point(field_get:sanyi.proto.EntityData.ccw)
@@ -11721,7 +11738,7 @@ inline bool EntityData::ccw() const {
 }
 inline void EntityData::set_ccw(bool value) {
   _internal_set_ccw(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   // @@protoc_insertion_point(field_set:sanyi.proto.EntityData.ccw)
 }
 inline bool EntityData::_internal_ccw() const {
@@ -11787,6 +11804,71 @@ inline ::google::protobuf::RepeatedPtrField<::sanyi::proto::PropertyEntry>* PROT
 EntityData::_internal_mutable_custom_properties() {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return &_impl_.custom_properties_;
+}
+
+// string name = 9;
+inline void EntityData::clear_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.name_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& EntityData::name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:sanyi.proto.EntityData.name)
+  return _internal_name();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EntityData::set_name(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:sanyi.proto.EntityData.name)
+}
+inline ::std::string* PROTOBUF_NONNULL EntityData::mutable_name()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_name();
+  // @@protoc_insertion_point(field_mutable:sanyi.proto.EntityData.name)
+  return _s;
+}
+inline const ::std::string& EntityData::_internal_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.name_.Get();
+}
+inline void EntityData::_internal_set_name(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.name_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EntityData::_internal_mutable_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.name_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EntityData::release_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:sanyi.proto.EntityData.name)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.name_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.name_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EntityData::set_allocated_name(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.name_.IsDefault()) {
+    _impl_.name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:sanyi.proto.EntityData.name)
 }
 
 // .sanyi.proto.PointData point_data = 10;

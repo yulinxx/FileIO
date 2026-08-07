@@ -1,0 +1,5 @@
+if(EXISTS "C:/Users/xx/Documents/Cpp/CAD/FileIO/FileIO/Test/FileIOTests[1]_tests.cmake")
+  include("C:/Users/xx/Documents/Cpp/CAD/FileIO/FileIO/Test/FileIOTests[1]_tests.cmake")
+else()
+  add_test(FileIOTests_NOT_BUILT FileIOTests_NOT_BUILT)
+endif()

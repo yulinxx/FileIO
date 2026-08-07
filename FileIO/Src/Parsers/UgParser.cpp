@@ -2,7 +2,7 @@
 
 namespace Fio
 {
-    ParseResult UgParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
+    ParseResult UgParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
     {
         (void)outEntities;
         (void)filePath;

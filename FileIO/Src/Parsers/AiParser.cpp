@@ -7,20 +7,25 @@ namespace Fio
         return FileFormat::AI;
     }
 
-    std::string AiParser::formatName() const
+    size_t AiParser::formatName(char* buffer, size_t bufferSize) const
     {
-        return "Adobe Illustrator";
+        const char* name = "Adobe Illustrator";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+            std::strcpy(buffer, name);
+        return len;
     }
 
-    std::vector<std::string> AiParser::supportedExtensions() const
+    void AiParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
     {
-        return { "ai" };
+        visitor("ai", ctx);
     }
 
-    bool AiParser::isValidSourceFormat(const std::string& filePath) const
+    bool AiParser::isValidSourceFormat(const char* filePath) const
     {
-        bool isPdf = PdfToSvgConverter::isPdfFile(filePath);
-        bool isPs = PdfToSvgConverter::isPostScriptFile(filePath);
+        std::string fp(filePath);
+        bool isPdf = PdfToSvgConverter::isPdfFile(fp);
+        bool isPs = PdfToSvgConverter::isPostScriptFile(fp);
         if (!isPdf && !isPs)
         {
             // 失效格式：不是 PDF 基 AI 也不是 PostScript 基 AI
@@ -29,9 +34,10 @@ namespace Fio
         return true;
     }
 
-    std::string AiParser::extraToolCheckError(const std::string& filePath) const
+    std::string AiParser::extraToolCheckError(const char* filePath) const
     {
-        if (PdfToSvgConverter::isPostScriptFile(filePath)
+        std::string fp(filePath);
+        if (PdfToSvgConverter::isPostScriptFile(fp)
             && !PdfToSvgConverter::isGhostscriptAvailable())
         {
             return "Ghostscript not found for PostScript AI format.\n\n"

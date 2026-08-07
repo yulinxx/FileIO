@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FileIO/IFileWriter.h"
+#include "FileIOInternal.h"
 
 namespace Fio
 {
@@ -17,13 +18,13 @@ namespace Fio
      *   - BEZIER/BEZIER2/SPLINE → 离散为 SPLINE (126)
      *   - SMARTLINE → 递归导出子段
      */
-    class FILEIO_API UgWriter : public IFileWriter
+    class FILEIO_API UgWriter : public IFileWriter, public ILegacyWriter
     {
     public:
         FileFormat format() const override;
-        std::string formatName() const override;
-        std::string defaultExtension() const override;
-        WriteResult write(const std::string& filePath, const VecSyEntityPtr& entities) override;
+        size_t formatName(char* buffer, size_t bufferSize) const override;
+        size_t defaultExtension(char* buffer, size_t bufferSize) const override;
+        WriteResult write(const char* filePath, const VecSyEntityPtr& entities) override;
 
     private:
         struct IgesEntity

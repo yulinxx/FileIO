@@ -1,4 +1,4 @@
-#include "FileIO/Writers/DxfWriter.h"
+﻿#include "FileIO/Writers/DxfWriter.h"
 
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyArc.h"
@@ -11,6 +11,7 @@
 #include "Engine2D/SyEntity/SySmartLine.h"
 
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <filesystem>
 #include <sstream>
@@ -41,17 +42,29 @@ namespace Fio
         return FileFormat::DXF;
     }
 
-    std::string DxfWriter::formatName() const
+    size_t DxfWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        return "AutoCAD DXF";
+        const char* name = "AutoCAD DXF";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, name);
+        }
+        return len;
     }
 
-    std::string DxfWriter::defaultExtension() const
+    size_t DxfWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        return "dxf";
+        const char* ext = "dxf";
+        const size_t len = std::strlen(ext);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, ext);
+        }
+        return len;
     }
 
-    WriteResult DxfWriter::write(const std::string& filePath, const VecSyEntityPtr& entities)
+    WriteResult DxfWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -62,7 +75,7 @@ namespace Fio
         std::ofstream out(fsPath, std::ios::binary | std::ios::trunc);
         if (!out)
         {
-            return WriteResult::fail("Cannot open file for writing: " + filePath);
+            return WriteResult::fail(std::string("Cannot open file for writing: ") + filePath);
         }
 
         writePair(out, 0, "SECTION");
@@ -87,19 +100,19 @@ namespace Fio
                 case Eg::EType::LINE:
                 {
                     const auto* line = static_cast<const Eg::SyLine*>(entity.get());
-                    if (line->vPoints.size() < 2)
+                    if (line->pointRef().size() < 2)
                     {
                         break;
                     }
 
-                    for (size_t i = 1; i < line->vPoints.size(); ++i)
+                    for (size_t i = 1; i < line->pointRef().size(); ++i)
                     {
                         writeEntityHeader(out, "LINE");
-                        writePair(out, 10, line->vPoints[i - 1].x());
-                        writePair(out, 20, line->vPoints[i - 1].y());
+                        writePair(out, 10, line->pointRef()[i - 1].x());
+                        writePair(out, 20, line->pointRef()[i - 1].y());
                         writePair(out, 30, 0.0);
-                        writePair(out, 11, line->vPoints[i].x());
-                        writePair(out, 21, line->vPoints[i].y());
+                        writePair(out, 11, line->pointRef()[i].x());
+                        writePair(out, 21, line->pointRef()[i].y());
                         writePair(out, 31, 0.0);
                         ++exported;
                     }
@@ -213,7 +226,7 @@ namespace Fio
                 case Eg::EType::SPLINE:
                 {
                     const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
-                    if (spline->vControlPoints.size() < 2)
+                    if (spline->controlPointCount() < 2)
                     {
                         break;
                     }
@@ -246,18 +259,18 @@ namespace Fio
                             case Eg::EType::LINE:
                             {
                                 const auto* ln = static_cast<const Eg::SyLine*>(seg);
-                                if (ln->vPoints.size() < 2)
+                                if (ln->pointRef().size() < 2)
                                 {
                                     break;
                                 }
-                                for (size_t pi = 1; pi < ln->vPoints.size(); ++pi)
+                                for (size_t pi = 1; pi < ln->pointRef().size(); ++pi)
                                 {
                                     writeEntityHeader(out, "LINE");
-                                    writePair(out, 10, ln->vPoints[pi - 1].x());
-                                    writePair(out, 20, ln->vPoints[pi - 1].y());
+                                    writePair(out, 10, ln->pointRef()[pi - 1].x());
+                                    writePair(out, 20, ln->pointRef()[pi - 1].y());
                                     writePair(out, 30, 0.0);
-                                    writePair(out, 11, ln->vPoints[pi].x());
-                                    writePair(out, 21, ln->vPoints[pi].y());
+                                    writePair(out, 11, ln->pointRef()[pi].x());
+                                    writePair(out, 21, ln->pointRef()[pi].y());
                                     writePair(out, 31, 0.0);
                                 }
                                 break;

@@ -1,15 +1,9 @@
 #pragma once
 
-#include <vector>
-#include <memory>
-
-#include "Engine/SyEntity/SyEntity.h"
+#include <cstdint>
 
 namespace Fio
 {
-    /// 图元指针向量（使用智能指针管理内存）
-    using VecSyEntityPtr = std::vector<std::unique_ptr<Eg::SyEntity>>;
-
     enum class FileFormat
     {
         Unknown,

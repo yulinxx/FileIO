@@ -97,10 +97,11 @@ target_include_directories(${LIB_NAME}
         "${NANOSVG_INCLUDE_DIR}"
         "${SANYI_ENGINE_COMMON_DIR}/Include"
         "${SANYI_ENGINE_COMMON_DIR}/Include/Engine"
+    PRIVATE
         "${SANYI_ENGINE_2D_DIR}/Include"
         "${SANYI_ENGINE_2D_DIR}/Include/Engine2D"
-    PRIVATE
         "${SANYI_ENGINE_3D_DIR}/Include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Src/Internal"
 )
 
 target_compile_features(${LIB_NAME} PUBLIC cxx_std_17)

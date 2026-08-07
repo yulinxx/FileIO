@@ -1,5 +1,6 @@
 #include "FileIO/Parsers/NativeParser3D.h"
 #include "FileIO/SySerializer.h"
+#include "SyDocumentData.h"
 
 #include "Engine/SyEntity/SyEntity.h"
 
@@ -25,48 +26,67 @@ namespace Fio
         return FileFormat::Native3D;
     }
 
-    std::string NativeParser3D::formatName() const
+    size_t NativeParser3D::formatName(char* buffer, size_t bufferSize) const
     {
-        return "SanYi 3D Native (Protobuf)";
+        const char* name = "SanYi 3D Native (Protobuf)";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+            std::strcpy(buffer, name);
+        return len;
     }
 
-    std::vector<std::string> NativeParser3D::supportedExtensions() const
+    void NativeParser3D::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
     {
-        return { "syx" };
+        visitor("syx", ctx);
     }
 
-    ParseResult NativeParser3D::parse(const std::string& filePath,
+    ParseResult NativeParser3D::parse(const char* filePath,
         VecSyEntityPtr& outEntities)
     {
         SyDocument doc;
         auto result = parseDocument(filePath, doc);
         if (!result.success)
         {
-            return ParseResult::fail(result.errorMessage, result.warnings);
+            return result;
         }
 
         // 返回 2D 图元
-        outEntities.reserve(doc.entities.size());
-        for (auto& entity : doc.entities)
+        outEntities.reserve(syDocumentData(doc).entities.size());
+        for (auto& entity : syDocumentData(doc).entities)
         {
             outEntities.push_back(std::move(entity));
         }
 
         // meshEntities 通过 parseDocument 获取
-        return ParseResult::ok(result.warnings);
+        return result;
     }
 
     // ---- 3D 完整文档读取 ----
 
-    ParseResult NativeParser3D::parseDocument(const std::string& filePath,
+    namespace
+    {
+        struct WarningCollector
+        {
+            std::vector<std::string> warnings;
+        };
+
+        void collectWarning(const char* msg, void* ctx)
+        {
+            static_cast<WarningCollector*>(ctx)->warnings.emplace_back(msg);
+        }
+    }
+
+    ParseResult NativeParser3D::parseDocument(const char* filePath,
         SyDocument& outDoc)
     {
         outDoc.clear();
-        auto result = m_impl->serializer.loadFromFile(filePath, outDoc);
+        WarningCollector collector;
+        auto result = m_impl->serializer.loadFromFile(filePath, outDoc,
+            collectWarning, &collector);
+
         if (!result.success)
-        {
-            return ParseResult::fail(result.errorMessage, result.warnings);
-        }
-        return ParseResult::ok(result.warnings);
+            return ParseResult::fail(result.errorMessage, collector.warnings);
+
+        return ParseResult::ok(collector.warnings);
     }
 } // namespace Fio

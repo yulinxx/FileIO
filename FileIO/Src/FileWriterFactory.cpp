@@ -1,4 +1,5 @@
 #include "FileIO/FileWriterFactory.h"
+#include "FileIO/IFileWriter.h"
 #include "FileIO/Writers/DxfWriter.h"
 #include "FileIO/Writers/SvgWriter.h"
 #include "FileIO/Writers/PltWriter.h"
@@ -7,57 +8,76 @@
 #include "FileIO/Writers/UgWriter.h"
 #include "Engine/SyEntity/SyEntity.h"
 
+#include <map>
+#include <string>
+
 namespace Fio
 {
+    class FileWriterFactory::Impl
+    {
+    public:
+        std::map<FileFormat, CreatorFunc> m_creators;
+        std::map<FileFormat, std::string> m_formatToExt;
+    };
+
+    FileWriterFactory::FileWriterFactory()
+        : m_impl(new Impl())
+    {
+    }
+
+    FileWriterFactory::~FileWriterFactory()
+    {
+        delete m_impl;
+    }
+
     FileWriterFactory& FileWriterFactory::instance()
     {
         static FileWriterFactory factory;
         return factory;
     }
 
-    void FileWriterFactory::registerWriter(FileFormat format, CreatorFunc creator, const std::string& defaultExtension)
+    void FileWriterFactory::registerWriter(FileFormat format, CreatorFunc creator,
+        const char* defaultExtension)
     {
-        m_creators[format] = std::move(creator);
-        if (!defaultExtension.empty())
-            m_formatToExt[format] = defaultExtension;
+        m_impl->m_creators[format] = creator;
+        if (defaultExtension && defaultExtension[0] != '\0')
+            m_impl->m_formatToExt[format] = defaultExtension;
     }
 
-    std::unique_ptr<IFileWriter> FileWriterFactory::createWriter(FileFormat format) const
+    IFileWriter* FileWriterFactory::createWriter(FileFormat format) const
     {
-        auto it = m_creators.find(format);
-        if (it != m_creators.end())
+        auto it = m_impl->m_creators.find(format);
+        if (it != m_impl->m_creators.end())
             return it->second();
         return nullptr;
     }
 
+    void FileWriterFactory::destroyWriter(IFileWriter* writer) const
+    {
+        delete writer;
+    }
+
     bool FileWriterFactory::hasWriter(FileFormat format) const
     {
-        return m_creators.find(format) != m_creators.end();
+        return m_impl->m_creators.find(format) != m_impl->m_creators.end();
     }
 
-    std::vector<FileFormat> FileWriterFactory::supportedFormats() const
+    void FileWriterFactory::forEachSupportedExtension(
+        void (*visitor)(const char* ext, void* ctx), void* ctx) const
     {
-        std::vector<FileFormat> formats;
-        for (const auto& pair : m_creators)
-            formats.push_back(pair.first);
-        return formats;
-    }
-
-    std::vector<std::string> FileWriterFactory::supportedExtensions() const
-    {
-        std::vector<std::string> exts;
-        for (const auto& pair : m_formatToExt)
-            exts.push_back(pair.second);
-        return exts;
+        if (!visitor)
+            return;
+        for (const auto& pair : m_impl->m_formatToExt)
+            visitor(pair.second.c_str(), ctx);
     }
 
     void FileWriterFactory::initDefaults()
     {
-        registerWriter(FileFormat::DXF, []() { return std::make_unique<DxfWriter>(); }, "dxf");
-        registerWriter(FileFormat::SVG, []() { return std::make_unique<SvgWriter>(); }, "svg");
-        registerWriter(FileFormat::PLT, []() { return std::make_unique<PltWriter>(); }, "plt");
-        registerWriter(FileFormat::UG, []() { return std::make_unique<UgWriter>(); }, "igs");
-        registerWriter(FileFormat::Native, []() { return std::make_unique<NativeWriter>(); }, "sy");
-        registerWriter(FileFormat::Native3D, []() { return std::make_unique<NativeWriter3D>(); }, "syx");
+        registerWriter(FileFormat::DXF, []() -> IFileWriter* { return new DxfWriter(); }, "dxf");
+        registerWriter(FileFormat::SVG, []() -> IFileWriter* { return new SvgWriter(); }, "svg");
+        registerWriter(FileFormat::PLT, []() -> IFileWriter* { return new PltWriter(); }, "plt");
+        registerWriter(FileFormat::UG, []() -> IFileWriter* { return new UgWriter(); }, "igs");
+        registerWriter(FileFormat::Native, []() -> IFileWriter* { return new NativeWriter(); }, "sy");
+        registerWriter(FileFormat::Native3D, []() -> IFileWriter* { return new NativeWriter3D(); }, "syx");
     }
 } // namespace Fio

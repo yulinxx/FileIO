@@ -1,4 +1,4 @@
-#include "SyEntitySerializer.h"
+﻿#include "SyEntitySerializer.h"
 
 #include "Engine2D/SyEntity/SyArc.h"
 #include "Engine2D/SyEntity/SyBarCode.h"
@@ -89,6 +89,7 @@ namespace Fio
         toProtoVec2(entity.basePoint, out->mutable_base_point());
         out->set_closed(entity.bClosed);
         out->set_ccw(entity.bCCW);
+        out->set_name(entity.name());
 
         switch (entity.eType)
         {
@@ -100,7 +101,7 @@ namespace Fio
             {
                 const auto* line = static_cast<const Eg::SyLine*>(&entity);
                 auto* data = out->mutable_line_data();
-                for (const auto& pt : line->vPoints)
+                for (const auto& pt : line->pointRef())
                     toProtoVec2(pt, data->add_points());
                 break;
             }
@@ -168,11 +169,11 @@ namespace Fio
                 const auto* spl = static_cast<const Eg::SyNurbs*>(&entity);
                 auto* data = out->mutable_spline_data();
                 data->set_degree(spl->nDegree);
-                for (double k : spl->vKnots)
+                for (double k : spl->knotRef())
                     data->add_knots(k);
-                for (double w : spl->vWeights)
+                for (double w : spl->weightRef())
                     data->add_weights(w);
-                for (const auto& cp : spl->vControlPoints)
+                for (const auto& cp : spl->controlPointRef())
                     toProtoVec2(cp, data->add_control_points());
                 break;
             }
@@ -181,14 +182,14 @@ namespace Fio
             {
                 const auto* txt = static_cast<const Eg::SyText*>(&entity);
                 auto* data = out->mutable_text_data();
-                data->set_font_name(txt->strFontName);
+                data->set_font_name(txt->fontName());
                 data->set_height(txt->dHeight);
                 data->set_rotation(txt->dRotation);
                 data->set_h_align(static_cast<int32_t>(txt->hAlign));
                 data->set_v_align(static_cast<int32_t>(txt->vAlign));
                 data->set_bold(txt->bBold);
                 data->set_italic(txt->bItalic);
-                data->set_text(txt->strText);
+                data->set_text(txt->text());
                 break;
             }
 
@@ -196,7 +197,7 @@ namespace Fio
             {
                 const auto* bc = static_cast<const Eg::SyBarCode*>(&entity);
                 auto* data = out->mutable_barcode_data();
-                data->set_data(bc->strData);
+                data->set_data(bc->data());
                 data->set_width(bc->dWidth);
                 data->set_height(bc->dHeight);
                 break;
@@ -206,7 +207,7 @@ namespace Fio
             {
                 const auto* qr = static_cast<const Eg::SyQRCode*>(&entity);
                 auto* data = out->mutable_qrcode_data();
-                data->set_data(qr->strData);
+                data->set_data(qr->data());
                 data->set_module_size(qr->dModuleSize);
                 break;
             }
@@ -218,7 +219,7 @@ namespace Fio
                 data->set_width(img->nWidth);
                 data->set_height(img->nHeight);
                 data->set_pixel_format(static_cast<int32_t>(img->ePixelFormat));
-                data->set_pixel_data(img->vPixelData.data(), img->vPixelData.size());
+                data->set_pixel_data(img->pixelData(), img->pixelDataSize());
                 toProtoVec2(img->topLeft, data->mutable_top_left());
                 toProtoVec2(img->topRight, data->mutable_top_right());
                 toProtoVec2(img->bottomLeft, data->mutable_bottom_left());
@@ -234,11 +235,13 @@ namespace Fio
     std::unique_ptr<Eg::SyEntity> SyEntitySerializer::deserializeEntity(const sanyi::proto::EntityData& protoEntity)
     {
         Eg::EType eType = fromProtoType(protoEntity.type());
+        std::unique_ptr<Eg::SyEntity> result;
 
         switch (eType)
         {
             case Eg::EType::POINT:
-                return std::make_unique<Eg::SyPoint>();
+                result = std::make_unique<Eg::SyPoint>();
+                break;
 
             case Eg::EType::LINE:
             {
@@ -247,11 +250,10 @@ namespace Fio
                 {
                     const auto& ld = protoEntity.line_data();
                     for (int j = 0; j < ld.points_size(); ++j)
-                        line->vPoints.push_back(fromProtoVec2(ld.points(j)));
+                        line->addPoint(fromProtoVec2(ld.points(j)));
                 }
-                if (!line->vPoints.empty())
-                    line->basePoint = line->vPoints[0];
-                return line;
+                result = std::move(line);
+                break;
             }
 
             case Eg::EType::POLYGON:
@@ -266,9 +268,8 @@ namespace Fio
                     poly->nSides = pd.sides();
                     poly->dCircumRadius = pd.circum_radius();
                 }
-                if (!poly->vertices().empty())
-                    poly->basePoint = poly->vertices()[0];
-                return poly;
+                result = std::move(poly);
+                break;
             }
 
             case Eg::EType::ARC:
@@ -280,7 +281,8 @@ namespace Fio
                     arc->dStartAngle = protoEntity.arc_data().start_angle();
                     arc->dEndAngle = protoEntity.arc_data().end_angle();
                 }
-                return arc;
+                result = std::move(arc);
+                break;
             }
 
             case Eg::EType::CIRCLE:
@@ -288,7 +290,8 @@ namespace Fio
                 auto circle = std::make_unique<Eg::SyCircle>();
                 if (protoEntity.has_circle_data())
                     circle->dRadius = protoEntity.circle_data().radius();
-                return circle;
+                result = std::move(circle);
+                break;
             }
 
             case Eg::EType::ELLIPSE:
@@ -300,7 +303,8 @@ namespace Fio
                     ell->dRadiusY = protoEntity.ellipse_data().radius_y();
                     ell->dRotation = protoEntity.ellipse_data().rotation();
                 }
-                return ell;
+                result = std::move(ell);
+                break;
             }
 
             case Eg::EType::BEZIER2:
@@ -311,7 +315,8 @@ namespace Fio
                     bz->ptCtrl = fromProtoVec2(protoEntity.bezier2_data().ctrl());
                     bz->ptEnd = fromProtoVec2(protoEntity.bezier2_data().end());
                 }
-                return bz;
+                result = std::move(bz);
+                break;
             }
 
             case Eg::EType::BEZIER:
@@ -323,7 +328,8 @@ namespace Fio
                     bz->ptCtrl1 = fromProtoVec2(protoEntity.bezier_data().ctrl1());
                     bz->ptEnd = fromProtoVec2(protoEntity.bezier_data().end());
                 }
-                return bz;
+                result = std::move(bz);
+                break;
             }
 
             case Eg::EType::SPLINE:
@@ -334,13 +340,14 @@ namespace Fio
                     const auto& sd = protoEntity.spline_data();
                     spl->nDegree = sd.degree();
                     for (int j = 0; j < sd.knots_size(); ++j)
-                        spl->vKnots.push_back(sd.knots(j));
+                        spl->addKnot(sd.knots(j));
                     for (int j = 0; j < sd.weights_size(); ++j)
-                        spl->vWeights.push_back(sd.weights(j));
+                        spl->addWeight(sd.weights(j));
                     for (int j = 0; j < sd.control_points_size(); ++j)
-                        spl->vControlPoints.push_back(fromProtoVec2(sd.control_points(j)));
+                        spl->addControlPoint(fromProtoVec2(sd.control_points(j)));
                 }
-                return spl;
+                result = std::move(spl);
+                break;
             }
 
             case Eg::EType::TEXT:
@@ -349,16 +356,17 @@ namespace Fio
                 if (protoEntity.has_text_data())
                 {
                     const auto& td = protoEntity.text_data();
-                    txt->strFontName = td.font_name();
+                    txt->setFontName(td.font_name().c_str());
                     txt->dHeight = td.height();
                     txt->dRotation = td.rotation();
                     txt->hAlign = static_cast<Eg::SyTextHAlign>(td.h_align());
                     txt->vAlign = static_cast<Eg::SyTextVAlign>(td.v_align());
                     txt->bBold = td.bold();
                     txt->bItalic = td.italic();
-                    txt->strText = td.text();
+                    txt->setText(td.text().c_str());
                 }
-                return txt;
+                result = std::move(txt);
+                break;
             }
 
             case Eg::EType::BAR_CODE:
@@ -366,11 +374,12 @@ namespace Fio
                 auto bc = std::make_unique<Eg::SyBarCode>();
                 if (protoEntity.has_barcode_data())
                 {
-                    bc->strData = protoEntity.barcode_data().data();
+                    bc->setData(protoEntity.barcode_data().data().c_str());
                     bc->dWidth = protoEntity.barcode_data().width();
                     bc->dHeight = protoEntity.barcode_data().height();
                 }
-                return bc;
+                result = std::move(bc);
+                break;
             }
 
             case Eg::EType::QR_CODE:
@@ -378,10 +387,11 @@ namespace Fio
                 auto qr = std::make_unique<Eg::SyQRCode>();
                 if (protoEntity.has_qrcode_data())
                 {
-                    qr->strData = protoEntity.qrcode_data().data();
+                    qr->setData(protoEntity.qrcode_data().data().c_str());
                     qr->dModuleSize = protoEntity.qrcode_data().module_size();
                 }
-                return qr;
+                result = std::move(qr);
+                break;
             }
 
             case Eg::EType::IMAGE:
@@ -394,17 +404,30 @@ namespace Fio
                     img->nHeight = id.height();
                     img->ePixelFormat = static_cast<Eg::SyPixelFormat>(id.pixel_format());
                     const auto& px = id.pixel_data();
-                    img->vPixelData.assign(px.begin(), px.end());
+                    img->setPixelData(reinterpret_cast<const unsigned char*>(px.data()), px.size());
                     img->topLeft = fromProtoVec2(id.top_left());
                     img->topRight = fromProtoVec2(id.top_right());
                     img->bottomLeft = fromProtoVec2(id.bottom_left());
                     img->bottomRight = fromProtoVec2(id.bottom_right());
                 }
-                return img;
+                result = std::move(img);
+                break;
             }
 
             default:
                 return nullptr;
         }
+
+        // 璁剧疆閫氱敤灞炴€э紙id / basePoint / bClosed / bCCW锛夛紝浣?deserializeEntity 鑷寘鍚?
+        if (result)
+        {
+            result->id = static_cast<Eg::EntityId>(protoEntity.id());
+            result->basePoint = fromProtoVec2(protoEntity.base_point());
+            result->bClosed = protoEntity.closed();
+            result->bCCW = protoEntity.ccw();
+            result->setName(protoEntity.name().c_str());
+        }
+
+        return result;
     }
 }

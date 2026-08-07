@@ -2,6 +2,7 @@
 
 #include "FileIO/IFileWriter.h"
 #include "FileIO/SyDocument.h"
+#include "FileIOInternal.h"
 
 namespace Fio
 {
@@ -12,7 +13,7 @@ namespace Fio
     // 支持同时保存 2D 图元和 3D 网格图元
     // 兼容现有 IFileWriter 接口，附加 SyDocument 写入能力
     // ============================================================
-    class FILEIO_API NativeWriter3D : public IFileWriter
+    class FILEIO_API NativeWriter3D : public IFileWriter, public ILegacyWriter
     {
     public:
         NativeWriter3D();
@@ -20,13 +21,13 @@ namespace Fio
 
         // ---- IFileWriter 接口 (仅处理 2D 图元) ----
         FileFormat format() const override;
-        std::string formatName() const override;
-        std::string defaultExtension() const override;
-        WriteResult write(const std::string& filePath,
+        size_t formatName(char* buffer, size_t bufferSize) const override;
+        size_t defaultExtension(char* buffer, size_t bufferSize) const override;
+        WriteResult write(const char* filePath,
             const VecSyEntityPtr& entities) override;
 
         // ---- 3D 完整文档写入 (同时保存 2D 图元和 3D 网格) ----
-        WriteResult writeDocument(const std::string& filePath,
+        WriteResult writeDocument(const char* filePath,
             const SyDocument& doc);
 
     private:

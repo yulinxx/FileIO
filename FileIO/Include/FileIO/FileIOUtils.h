@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FileIO/FileIOAPI.h"
+
 #include <string>
 #include <fstream>
 #include <filesystem>
@@ -22,7 +24,10 @@ namespace Fio
     }
 
     ////////////////////////////////////////////////////////////////
-    class TempFileCopy
+    /// 临时文件副本工具类，用于处理中文路径文件读取兼容性问题
+    /// ABI 说明：本类含 std::string 成员且为 header-only 内联实现，
+    /// 仅限同编译器/同 CRT 体系内部使用（FileIO 内部 C++ DLL）。
+    class FILEIO_API TempFileCopy
     {
     public:
         TempFileCopy(const std::string& originalPath, const std::string& tempPrefix)

@@ -1,15 +1,16 @@
 #pragma once
 
 #include "FileIO/IFileWriter.h"
+#include "FileIOInternal.h"
 
 namespace Fio
 {
-    class FILEIO_API PltWriter : public IFileWriter
+    class FILEIO_API PltWriter : public IFileWriter, public ILegacyWriter
     {
     public:
         FileFormat format() const override;
-        std::string formatName() const override;
-        std::string defaultExtension() const override;
-        WriteResult write(const std::string& filePath, const VecSyEntityPtr& entities) override;
+        size_t formatName(char* buffer, size_t bufferSize) const override;
+        size_t defaultExtension(char* buffer, size_t bufferSize) const override;
+        WriteResult write(const char* filePath, const VecSyEntityPtr& entities) override;
     };
 } // namespace Fio

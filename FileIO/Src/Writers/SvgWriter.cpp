@@ -1,4 +1,4 @@
-#include "FileIO/Writers/SvgWriter.h"
+﻿#include "FileIO/Writers/SvgWriter.h"
 
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyArc.h"
@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -47,17 +48,29 @@ namespace Fio
         return FileFormat::SVG;
     }
 
-    std::string SvgWriter::formatName() const
+    size_t SvgWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        return "SVG";
+        const char* name = "SVG";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, name);
+        }
+        return len;
     }
 
-    std::string SvgWriter::defaultExtension() const
+    size_t SvgWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        return "svg";
+        const char* ext = "svg";
+        const size_t len = std::strlen(ext);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, ext);
+        }
+        return len;
     }
 
-    WriteResult SvgWriter::write(const std::string& filePath, const VecSyEntityPtr& entities)
+    WriteResult SvgWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -104,13 +117,13 @@ namespace Fio
                 case Eg::EType::LINE:
                 {
                     const auto* line = static_cast<const Eg::SyLine*>(entity.get());
-                    if (line->vPoints.size() < 2)
+                    if (line->pointRef().size() < 2)
                     {
                         break;
                     }
 
                     body << "<polyline " << attrs << " points=\"";
-                    for (const auto& pt : line->vPoints)
+                    for (const auto& pt : line->pointRef())
                     {
                         body << (pt.x() + offsetX) << ',' << (offsetY - pt.y()) << ' ';
                     }
@@ -229,7 +242,7 @@ namespace Fio
                 case Eg::EType::SPLINE:
                 {
                     const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
-                    if (spline->vControlPoints.size() < 2)
+                    if (spline->controlPointCount() < 2)
                     {
                         break;
                     }
@@ -264,12 +277,12 @@ namespace Fio
                             case Eg::EType::LINE:
                             {
                                 const auto* ln = static_cast<const Eg::SyLine*>(seg);
-                                if (ln->vPoints.size() < 2)
+                                if (ln->pointRef().size() < 2)
                                 {
                                     break;
                                 }
                                 body << "<polyline " << attrs << " points=\"";
-                                for (const auto& pt : ln->vPoints)
+                                for (const auto& pt : ln->pointRef())
                                 {
                                     body << (pt.x() + offsetX) << ',' << (offsetY - pt.y()) << ' ';
                                 }
@@ -323,7 +336,7 @@ namespace Fio
         std::ofstream out(fsPath, std::ios::binary | std::ios::trunc);
         if (!out)
         {
-            return WriteResult::fail("Cannot open file for writing: " + filePath);
+            return WriteResult::fail(std::string("Cannot open file for writing: ") + filePath);
         }
 
         out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"

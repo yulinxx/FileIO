@@ -1,10 +1,13 @@
 #pragma once
 
 #include "FileIO/IFileParser.h"
+#include "FileIOInternal.h"
+
+#include <cstring>
 
 namespace Fio
 {
-    class UgParser : public IFileParser
+    class UgParser : public IFileParser, public ILegacyParser
     {
     public:
         UgParser() = default;
@@ -15,15 +18,21 @@ namespace Fio
         {
             return FileFormat::UG;
         }
-        std::string formatName() const override
+        size_t formatName(char* buffer, size_t bufferSize) const override
         {
-            return "Siemens NX / Unigraphics";
+            const char* name = "Siemens NX / Unigraphics";
+            const size_t len = std::strlen(name);
+            if (buffer != nullptr && bufferSize > len)
+                std::strcpy(buffer, name);
+            return len;
         }
-        std::vector<std::string> supportedExtensions() const override
+        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override
         {
-            return { "prt", "igs", "iges" };
+            visitor("prt", ctx);
+            visitor("igs", ctx);
+            visitor("iges", ctx);
         }
 
-        ParseResult parse(const std::string& filePath, VecSyEntityPtr& outEntities) override;
+        ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) override;
     };
 } // namespace Fio

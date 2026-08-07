@@ -348,7 +348,7 @@ brew install ghostscript
         ↓
    ┌─────────────────────────────────────────┐
    │ 4. 结果处理                            │
-   │    - 成功: 返回实体列表                │
+   │    - 成功: 返回图元列表                │
    │    - 失败: 返回错误信息                │
    └─────────────────────────────────────────┘
         ↓
@@ -367,7 +367,7 @@ brew install ghostscript
 2. 读取 HEADER 段 - 获取图纸基本信息
 3. 读取 TABLES 段 - 获取图层、样式、线型定义
 4. 读取 BLOCKS 段 - 获取块定义
-5. 读取 ENTITIES 段 - 解析图形实体
+5. 读取 ENTITIES 段 - 解析图形图元
    - LINE, POLYLINE, CIRCLE, ARC, TEXT 等
 6. 读取 OBJECTS 段 - 处理扩展数据
 ```
@@ -376,7 +376,7 @@ brew install ghostscript
 - **坐标系统**: DXF 使用右手坐标系，Y轴向上；内部转换为系统坐标系
 - **图层处理**: 自动创建图层，保持原始颜色和线型
 - **颜色转换**: DXF 颜色索引 → RGB 值
-- **块引用**: 支持 INSERT 实体，递归展开块定义
+- **块引用**: 支持 INSERT 图元，递归展开块定义
 
 ### PLT/HPGL 格式导入流程
 
@@ -387,7 +387,7 @@ brew install ghostscript
 1. 逐字符读取 HPGL 命令流
 2. 解析命令参数 (如 PA, PD, PU, CI 等)
 3. PltHpglInterpreter 维护画笔状态机
-4. 转换命令为图形实体：
+4. 转换命令为图形图元：
    - PA (Plot Absolute): 移动画笔
    - PD (Pen Down): 开始绘制
    - PU (Pen Up): 停止绘制
@@ -400,7 +400,7 @@ brew install ghostscript
 **技术实现细节**:
 - **单位转换**: PLT 使用绘图单位，需转换为系统单位 (mm)
 - **画笔映射**: PLT 画笔号 → 颜色/线型映射
-- **圆弧逼近**: HPGL AR 命令使用中心+角度，转换为圆弧实体
+- **圆弧逼近**: HPGL AR 命令使用中心+角度，转换为圆弧图元
 - **多笔处理**: 支持多画笔切换，映射到不同图层
 
 **相关文件**:
@@ -436,7 +436,7 @@ brew install ghostscript
 2. 检查 pdftocairo 外部工具是否可用
 3. 调用 pdftocairo 将指定页转换为临时 SVG 文件
 4. 委托给 SvgParser 解析生成的 SVG
-5. 返回解析结果（实体列表）
+5. 返回解析结果（图元列表）
 ```
 
 **技术实现细节**:

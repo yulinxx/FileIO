@@ -1,4 +1,5 @@
 #include "FileIO/FileParserFactory.h"
+#include "FileIO/IFileParser.h"
 #include "FileIO/Parsers/DxfParser.h"
 #include "FileIO/Parsers/PltParser.h"
 #include "FileIO/Parsers/SvgParser.h"
@@ -8,13 +9,33 @@
 #include "FileIO/Parsers/AiParser.h"
 #include "FileIO/Parsers/NativeParser.h"
 #include "FileIO/Parsers/NativeParser3D.h"
+#include "FileIO/Parsers/StlParser.h"
 #include "Engine/SyEntity/SyEntity.h"
 
+#include <map>
+#include <string>
 #include <algorithm>
 #include <cctype>
 
 namespace Fio
 {
+    class FileParserFactory::Impl
+    {
+    public:
+        std::map<FileFormat, CreatorFunc> m_creators;
+        std::map<std::string, FileFormat> m_extToFormat;
+    };
+
+    FileParserFactory::FileParserFactory()
+        : m_impl(new Impl())
+    {
+    }
+
+    FileParserFactory::~FileParserFactory()
+    {
+        delete m_impl;
+    }
+
     FileParserFactory& FileParserFactory::instance()
     {
         static FileParserFactory factory;
@@ -23,89 +44,89 @@ namespace Fio
 
     void FileParserFactory::registerParser(FileFormat format, CreatorFunc creator)
     {
-        m_creators[format] = std::move(creator);
+        m_impl->m_creators[format] = creator;
     }
 
-    std::unique_ptr<IFileParser> FileParserFactory::createParser(FileFormat format) const
+    void FileParserFactory::registerWithExtensions(FileFormat format, CreatorFunc creator,
+        const char* const* extensions, size_t count)
     {
-        auto it = m_creators.find(format);
-        if (it != m_creators.end())
+        registerParser(format, creator);
+        for (size_t i = 0; i < count; ++i)
+            m_impl->m_extToFormat[extensions[i]] = format;
+    }
+
+    IFileParser* FileParserFactory::createParser(FileFormat format) const
+    {
+        auto it = m_impl->m_creators.find(format);
+        if (it != m_impl->m_creators.end())
             return it->second();
         return nullptr;
     }
 
-    std::unique_ptr<IFileParser> FileParserFactory::createParserByExtension(const std::string& ext) const
+    void FileParserFactory::destroyParser(IFileParser* parser) const
     {
-        std::string lowerExt = ext;
-        std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
-            [](unsigned char c) { return std::tolower(c); });
-
-        auto it = m_extToFormat.find(lowerExt);
-        if (it != m_extToFormat.end())
-            return createParser(it->second);
-        return nullptr;
+        delete parser;
     }
 
     bool FileParserFactory::hasParser(FileFormat format) const
     {
-        return m_creators.find(format) != m_creators.end();
+        return m_impl->m_creators.find(format) != m_impl->m_creators.end();
     }
 
-    FileFormat FileParserFactory::detectFormat(const std::string& ext) const
+    FileFormat FileParserFactory::detectFormat(const char* ext) const
     {
+        if (!ext)
+            return FileFormat::Unknown;
+
         std::string lowerExt = ext;
         std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
             [](unsigned char c) { return std::tolower(c); });
 
-        auto it = m_extToFormat.find(lowerExt);
-        if (it != m_extToFormat.end())
+        auto it = m_impl->m_extToFormat.find(lowerExt);
+        if (it != m_impl->m_extToFormat.end())
             return it->second;
         return FileFormat::Unknown;
     }
 
-    std::vector<FileFormat> FileParserFactory::supportedFormats() const
+    void FileParserFactory::forEachSupportedExtension(
+        void (*visitor)(const char* ext, void* ctx), void* ctx) const
     {
-        std::vector<FileFormat> formats;
-        for (const auto& pair : m_creators)
-            formats.push_back(pair.first);
-        return formats;
-    }
-
-    std::vector<std::string> FileParserFactory::allSupportedExtensions() const
-    {
-        std::vector<std::string> exts;
-        for (const auto& pair : m_extToFormat)
-            exts.push_back(pair.first);
-        return exts;
+        if (!visitor)
+            return;
+        for (const auto& pair : m_impl->m_extToFormat)
+            visitor(pair.first.c_str(), ctx);
     }
 
     void FileParserFactory::initDefaults()
     {
-        registerWithExtensions(FileFormat::DXF, []() { return std::make_unique<DxfParser>(); },
-            { "dxf" });
+        const char* const dxfExts[] = { "dxf" };
+        registerWithExtensions(FileFormat::DXF, []() -> IFileParser* { return new DxfParser(); }, dxfExts, 1);
 
-        registerWithExtensions(FileFormat::PLT, []() { return std::make_unique<PltParser>(); },
-            { "plt", "hpgl" });
+        const char* const pltExts[] = { "plt", "hpgl" };
+        registerWithExtensions(FileFormat::PLT, []() -> IFileParser* { return new PltParser(); }, pltExts, 2);
 
-        registerWithExtensions(FileFormat::SVG, []() { return std::make_unique<SvgParser>(); },
-            { "svg", "svgz" });
+        const char* const svgExts[] = { "svg", "svgz" };
+        registerWithExtensions(FileFormat::SVG, []() -> IFileParser* { return new SvgParser(); }, svgExts, 2);
 
-        registerWithExtensions(FileFormat::UG, []() { return std::make_unique<UgParser>(); },
-            { "prt", "igs", "iges" });
+        const char* const ugExts[] = { "prt", "igs", "iges" };
+        registerWithExtensions(FileFormat::UG, []() -> IFileParser* { return new UgParser(); }, ugExts, 3);
 
-        registerWithExtensions(FileFormat::STEP, []() { return std::make_unique<StepParser>(); },
-            { "stp", "step" });
+        const char* const stepExts[] = { "stp", "step" };
+        registerWithExtensions(FileFormat::STEP, []() -> IFileParser* { return new StepParser(); }, stepExts, 2);
 
-        registerWithExtensions(FileFormat::PDF, []() { return std::make_unique<PdfParser>(); },
-            { "pdf" });
+        const char* const pdfExts[] = { "pdf" };
+        registerWithExtensions(FileFormat::PDF, []() -> IFileParser* { return new PdfParser(); }, pdfExts, 1);
 
-        registerWithExtensions(FileFormat::AI, []() { return std::make_unique<AiParser>(); },
-            { "ai" });
+        const char* const aiExts[] = { "ai" };
+        registerWithExtensions(FileFormat::AI, []() -> IFileParser* { return new AiParser(); }, aiExts, 1);
 
-        registerWithExtensions(FileFormat::Native, []() { return std::make_unique<NativeParser>(); },
-            { "sy" });
+        const char* const nativeExts[] = { "sy" };
+        registerWithExtensions(FileFormat::Native, []() -> IFileParser* { return new NativeParser(); }, nativeExts, 1);
 
-        registerWithExtensions(FileFormat::Native3D, []() { return std::make_unique<NativeParser3D>(); },
-            { "syx" });
-    }
+         const char* const native3DExts[] = { "syx" };
+         registerWithExtensions(FileFormat::Native3D, []() -> IFileParser* { return new NativeParser3D(); }, native3DExts, 1);
+
+         const char* const stlExts[] = { "stl" };
+         registerWithExtensions(FileFormat::STL, []() -> IFileParser* { return new StlParser(); }, stlExts, 1);
+     }
 } // namespace Fio

@@ -2,14 +2,16 @@
 
 #include "FileIO/FileIOAPI.h"
 #include "FileIO/SyDocument.h"
-#include "FileIO/SyCryptoProvider.h"
+#include "FileIO/FioTypes.h"
 
+#include <cstddef>
 #include <cstdint>
-#include <string>
-#include <vector>
+#include <cstring>
 
 namespace Fio
 {
+    class ISyCryptoProvider;
+
     // ============================================================
     // SySerializer —— 文档序列化/反序列化核心
     //
@@ -21,30 +23,37 @@ namespace Fio
     // 设计模式: Facade Pattern (门面模式)
     //   - 对外提供简洁的 saveToFile / loadFromFile 接口
     //   - 内部编排 ProtoConverter + CryptoProvider
+    //
+    // ABI 说明（2026-07-31 C3 收口）:
+    //   - 序列化结果 SerializeResult 改为纯 POD（错误消息固定 char[] 缓冲）
+    //   - 文件路径统一 const char*；内存序列化输入/输出改为 BinaryBlob/BinaryBlobOut
+    //   - 警告经 C 函数指针回调逐条输出（不使用 std::function / std::vector）
+    //   - 实现细节（加密提供者等）通过 PIMPL 隐藏，头文件不含任何 STL
     // ============================================================
 
-    /// 序列化结果
-    struct SerializeResult
+    /// 序列化结果（纯 POD，跨 DLL 安全）
+    struct FILEIO_API SerializeResult
     {
-        bool        success = false;
-        std::string errorMessage;
-        std::vector<std::string> warnings;
+        bool success = false;
+        char errorMessage[512] = { 0 };
 
         static SerializeResult ok()
         {
-            return { true, {}, {} };
+            return { true, {} };
         }
 
-        static SerializeResult ok(const std::vector<std::string>& warns)
+        static SerializeResult fail(const char* msg)
         {
-            return { true, {}, warns };
-        }
-
-        static SerializeResult fail(const std::string& msg)
-        {
-            return { false, msg, {} };
+            SerializeResult r;
+            r.success = false;
+            if (msg)
+                std::strncpy(r.errorMessage, msg, sizeof(r.errorMessage) - 1);
+            return r;
         }
     };
+
+    /// 警告回调（C 函数指针 + void* ctx，不使用 std::function）
+    typedef void (*SerializeWarningCallback)(const char* msg, void* ctx);
 
     ///////////////////////////////////////////////////////////////////////
     // ---------------------------- 文件格式常量 ----------------------------
@@ -81,13 +90,13 @@ namespace Fio
         // 禁止拷贝，允许移动
         SySerializer(const SySerializer&) = delete;
         SySerializer& operator=(const SySerializer&) = delete;
-        SySerializer(SySerializer&&) = default;
-        SySerializer& operator=(SySerializer&&) = default;
+        SySerializer(SySerializer&&) noexcept;
+        SySerializer& operator=(SySerializer&&) noexcept;
 
         // ========== 加密配置 ==========
 
-        /// 设置加密提供者，传入 nullptr 禁用加密
-        void setCryptoProvider(CryptoProviderPtr provider);
+        /// 设置加密提供者（接管所有权），传入 nullptr 禁用加密
+        void setCryptoProvider(ISyCryptoProvider* provider);
 
         /// 是否有加密提供者
         bool hasCrypto() const;
@@ -95,32 +104,40 @@ namespace Fio
         // ========== 文件级操作 ==========
 
         /// 将文档保存到 .sy 文件
-        /// @param filePath 文件路径
+        /// @param filePath 文件路径（UTF-8）
         /// @param doc      文档数据
         /// @param encrypt  是否加密 (需要先 setCryptoProvider)
-        SerializeResult saveToFile(const std::string& filePath,
+        SerializeResult saveToFile(const char* filePath,
             const SyDocument& doc,
-            bool                       encrypt = false);
+            bool                       encrypt = false,
+            SerializeWarningCallback   warningCb = nullptr,
+            void* warningCtx = nullptr);
 
         /// 从 .sy 文件加载文档
-        /// @param filePath 文件路径
+        /// @param filePath 文件路径（UTF-8）
         /// @param doc      [出参] 文档数据
-        SerializeResult loadFromFile(const std::string& filePath,
-            SyDocument& doc);
+        SerializeResult loadFromFile(const char* filePath,
+            SyDocument& doc,
+            SerializeWarningCallback   warningCb = nullptr,
+            void* warningCtx = nullptr);
 
         // ========== 内存级操作 ==========
 
         /// 将文档序列化为内存中的二进制数据
-        /// @param doc  文档数据
-        /// @param data [出参] 序列化后的二进制数据 (protobuf 序列化结果)
+        /// @param doc 文档数据
+        /// @param out 输出块（调用方提供缓冲区；out->data 为 nullptr 时仅查询大小）
         SerializeResult serializeToMemory(const SyDocument& doc,
-            std::vector<uint8_t>& data);
+            BinaryBlobOut* out,
+            SerializeWarningCallback   warningCb = nullptr,
+            void* warningCtx = nullptr);
 
         /// 从内存中的二进制数据反序列化为文档
-        /// @param data protobuf 序列化后的二进制数据
-        /// @param doc  [出参] 文档数据
-        SerializeResult deserializeFromMemory(const std::vector<uint8_t>& data,
-            SyDocument& doc);
+        /// @param in  序列化后的二进制数据
+        /// @param doc [出参] 文档数据
+        SerializeResult deserializeFromMemory(BinaryBlob in,
+            SyDocument& doc,
+            SerializeWarningCallback   warningCb = nullptr,
+            void* warningCtx = nullptr);
 
         // ========== 工具方法 ==========
 
@@ -128,30 +145,13 @@ namespace Fio
         static uint32_t fileVersion();
 
         /// 根据文件头魔数判断是否为有效的 .sy 文件
-        static bool isValidSyFile(const std::vector<uint8_t>& header);
+        static bool isValidSyFile(const uint8_t* header, size_t headerSize);
 
         /// 根据文件头魔数判断是否为有效的 .syx 文件
-        static bool isValidSyxFile(const std::vector<uint8_t>& header);
+        static bool isValidSyxFile(const uint8_t* header, size_t headerSize);
 
     private:
-        /// 写入文件头
-        bool writeFileHeader(std::vector<uint8_t>& buffer,
-            uint32_t              dataLen,
-            uint32_t              flags,
-            const char            magic[4]);
-
-        /// 读取并解析文件头
-        struct FileHeaderResult
-        {
-            bool     valid = false;
-            uint32_t version = 0;
-            uint32_t flags = 0;
-            uint32_t dataLen = 0;
-            bool     isSyx = false;  // true = SYX 格式, false = SY 格式
-        };
-        FileHeaderResult readFileHeader(const std::vector<uint8_t>& buffer);
-
-    private:
-        CryptoProviderPtr m_cryptoProvider;
+        struct Impl;
+        Impl* m_impl;
     };
 } // namespace Fio

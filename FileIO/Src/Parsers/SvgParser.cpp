@@ -3,14 +3,13 @@
 
 #include "Log/SyLogger.h"
 
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyCircle.h"
 #include "Ut/Vec.h"
 
 #define NANOSVG_IMPLEMENTATION
 #include "nanosvg/nanosvg.h"
 
 #include <cmath>
+#include <cstring>
 #include <memory>
 #include <vector>
 #include <algorithm>
@@ -154,8 +153,11 @@ namespace Fio
     class NsvgInterpreter
     {
     public:
-        NsvgInterpreter(VecSyEntityPtr& outEntities, std::vector<std::string>& warnings)
+        NsvgInterpreter(std::vector<EntityInfo>& outEntities,
+            std::vector<uint8_t>& extensionBlob,
+            std::vector<std::string>& warnings)
             : m_outEntities(outEntities)
+            , m_extensionBlob(extensionBlob)
             , m_warnings(warnings)
             , m_success(false)
         {
@@ -247,7 +249,8 @@ namespace Fio
         }
 
     private:
-        VecSyEntityPtr& m_outEntities;
+        std::vector<EntityInfo>& m_outEntities;
+        std::vector<uint8_t>& m_extensionBlob;
         std::vector<std::string>& m_warnings;
         bool m_success;
 
@@ -266,8 +269,8 @@ namespace Fio
             );
         }
 
-        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& shapeColor,
-            const std::string& layerName)
+        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& /*shapeColor*/,
+            const std::string& /*layerName*/)
         {
             if (!svgPath || svgPath->npts < 4)
                 return;
@@ -325,48 +328,96 @@ namespace Fio
             if (cleaned.size() < 2)
                 return;
 
-            // 创建 SyLine 图元
-            auto syLine = std::make_unique<Eg::SyLine>();
-            syLine->vPoints = std::move(cleaned);
-            syLine->basePoint = syLine->vPoints.front();
-            syLine->bClosed = svgPath->closed != 0;
-            // 应用SVG形状颜色
-            syLine->setOverrideColor(Ut::Color(shapeColor.x(), shapeColor.y(), shapeColor.z()));
+            // 收集顶点为 double 序列（x0,y0,x1,y1,...）
+            std::vector<double> verts;
+            verts.reserve(cleaned.size() * 2);
+            for (const auto& pt : cleaned)
+            {
+                verts.push_back(pt.x());
+                verts.push_back(pt.y());
+            }
 
-            m_outEntities.push_back(std::move(syLine));
+            // 填充 EntityInfo：Polyline 类型，顶点数据存入 extensionBlob
+            EntityInfo info{};
+            info.type = EntityType::Polyline;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.vertexCount = static_cast<uint32_t>(cleaned.size());
+            info.extensionDataOffset = static_cast<uint32_t>(m_extensionBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
+            m_extensionBlob.insert(m_extensionBlob.end(),
+                reinterpret_cast<const uint8_t*>(verts.data()),
+                reinterpret_cast<const uint8_t*>(verts.data()) + info.extensionDataSize);
+            m_outEntities.push_back(info);
         }
     };
 
-    ParseResult SvgParser::parse(const std::string& filePath, VecSyEntityPtr& outEntities)
+    // ========================================================================
+    // SvgParser::parseToIR() — 中立 IR 解析路径
+    // SVG path → 贝塞尔自适应采样 → Polyline(POD) + 顶点数据存入 extensionBlob
+    // 不依赖 Engine2D 类型，跨 DLL 安全
+    // ========================================================================
+    FioParseResult SvgParser::parseToIR(const char* filePath)
     {
-        SY_INFOF("[SvgParser] Start parsing: %s", filePath.c_str());
-        std::vector<std::string> warnings;
+        SY_INFOF("[SvgParser] parseToIR START: %s", filePath ? filePath : "");
+
+        // thread_local 缓冲区管理生命周期（与 StepParser/PltParser 一致）
+        thread_local std::vector<EntityInfo> s_entities;
+        thread_local std::vector<uint8_t> s_extensionBlob;
+        thread_local std::vector<std::string> s_warnings;
+        s_entities.clear();
+        s_extensionBlob.clear();
+        s_warnings.clear();
+
+        if (!filePath)
+        {
+            SY_ERROR("[SvgParser] parseToIR: null filePath");
+            return FioParseResult{};
+        }
 
         try
         {
-            NsvgInterpreter interpreter(outEntities, warnings);
+            NsvgInterpreter interpreter(s_entities, s_extensionBlob, s_warnings);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
-                const std::string message = warnings.empty()
-                    ? "Failed to parse SVG file: " + filePath
-                    : warnings.back();
-                SY_ERRORF("[SvgParser] Parse failed: %s", message.c_str());
-                return ParseResult::fail(message, warnings);
+                const std::string message = s_warnings.empty()
+                    ? std::string("Failed to parse SVG file: ") + filePath
+                    : s_warnings.back();
+                SY_ERRORF("[SvgParser] parseToIR: %s", message.c_str());
+                return FioParseResult{};
             }
         }
         catch (const std::exception& ex)
         {
-            SY_CRITICALF("[SvgParser] Parse exception: %s - %s", filePath.c_str(), ex.what());
-            return ParseResult::fail(
-                std::string("Exception during SVG parsing: ") + ex.what(), warnings);
+            SY_CRITICALF("[SvgParser] parseToIR exception: %s - %s", filePath, ex.what());
+            return FioParseResult{};
+        }
+        catch (...)
+        {
+            SY_CRITICALF("[SvgParser] parseToIR unknown exception: %s", filePath);
+            return FioParseResult{};
         }
 
-        size_t entityCount = outEntities.size();
-        SY_INFOF("[SvgParser] Parse completed: %zu entities", entityCount);
+        if (s_entities.empty())
+        {
+            SY_WARNF("[SvgParser] parseToIR: no entities produced: %s", filePath);
+            return FioParseResult{};
+        }
 
-        ParseResult result = ParseResult::ok();
-        result.warnings = warnings;
+        // 填充 FioParseResult
+        FioParseResult result;
+        result.entities = s_entities.data();
+        result.entityCount = static_cast<uint32_t>(s_entities.size());
+        result.layers = nullptr;
+        result.layerCount = 0;
+        result.extensionBlob.data = s_extensionBlob.data();
+        result.extensionBlob.size = s_extensionBlob.size();
+        std::strncpy(result.sourceFormat, "SVG", sizeof(result.sourceFormat) - 1);
+        result.warningCount = static_cast<uint32_t>(s_warnings.size());
+
+        SY_INFOF("[SvgParser] parseToIR END: %u entities, %u warnings: %s",
+            result.entityCount, result.warningCount, filePath);
         return result;
     }
 
@@ -375,13 +426,18 @@ namespace Fio
         return FileFormat::SVG;
     }
 
-    std::string SvgParser::formatName() const
+    size_t SvgParser::formatName(char* buffer, size_t bufferSize) const
     {
-        return "SVG";
+        const char* name = "SVG";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+            std::strcpy(buffer, name);
+        return len;
     }
 
-    std::vector<std::string> SvgParser::supportedExtensions() const
+    void SvgParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
     {
-        return { "svg", "svgz" };
+        visitor("svg", ctx);
+        visitor("svgz", ctx);
     }
 } // namespace Fio

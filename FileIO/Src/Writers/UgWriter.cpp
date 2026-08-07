@@ -1,4 +1,4 @@
-#include "FileIO/Writers/UgWriter.h"
+﻿#include "FileIO/Writers/UgWriter.h"
 
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyArc.h"
@@ -13,7 +13,9 @@
 #ifndef _USE_MATH_DEFINES
 #define _USE_MATH_DEFINES
 #endif
+
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -54,8 +56,10 @@ namespace Fio
                 else
                     s.erase(last + 1);
             }
+
             if (s.empty())
                 s = "0";
+
             return s;
         }
 
@@ -188,18 +192,18 @@ namespace Fio
                 case Eg::EType::LINE:
                 {
                     const auto* line = static_cast<const Eg::SyLine*>(entity);
-                    if (line->vPoints.size() < 2)
+                    if (line->pointRef().size() < 2)
                         break;
                     // 将折线拆分为多条 LINE
-                    for (size_t i = 1; i < line->vPoints.size(); ++i)
+                    for (size_t i = 1; i < line->pointRef().size(); ++i)
                     {
                         std::ostringstream params;
                         params << ",1,1,"
-                            << igesDouble(line->vPoints[i - 1].x()) << ","
-                            << igesDouble(line->vPoints[i - 1].y()) << ","
+                            << igesDouble(line->pointRef()[i - 1].x()) << ","
+                            << igesDouble(line->pointRef()[i - 1].y()) << ","
                             << igesDouble(0.0) << ","
-                            << igesDouble(line->vPoints[i].x()) << ","
-                            << igesDouble(line->vPoints[i].y()) << ","
+                            << igesDouble(line->pointRef()[i].x()) << ","
+                            << igesDouble(line->pointRef()[i].y()) << ","
                             << igesDouble(0.0) << ";";
 
                         writeDirectoryEntry(out, dirSeq, 116, paramSeq + 1, 1);
@@ -320,6 +324,7 @@ namespace Fio
                     std::ostringstream params;
                     params << "," << kSegCount << ",0,0,1,0,0,3,"
                         << kSegCount + 1;
+
                     for (int i = 0; i <= kSegCount; ++i)
                     {
                         const double t = static_cast<double>(i) / kSegCount;
@@ -341,7 +346,7 @@ namespace Fio
                 case Eg::EType::SPLINE:
                 {
                     const auto* spline = static_cast<const Eg::SyNurbs*>(entity);
-                    if (spline->vControlPoints.size() < 2)
+                    if (spline->controlPointCount() < 2)
                         break;
                     constexpr int kSegCount = 40;
                     std::ostringstream params;
@@ -399,17 +404,29 @@ namespace Fio
         return FileFormat::UG;
     }
 
-    std::string UgWriter::formatName() const
+    size_t UgWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        return "IGES 5.3 (UG/NX)";
+        const char* name = "IGES 5.3 (UG/NX)";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, name);
+        }
+        return len;
     }
 
-    std::string UgWriter::defaultExtension() const
+    size_t UgWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        return "igs";
+        const char* ext = "igs";
+        const size_t len = std::strlen(ext);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, ext);
+        }
+        return len;
     }
 
-    WriteResult UgWriter::write(const std::string& filePath, const VecSyEntityPtr& entities)
+    WriteResult UgWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -420,7 +437,7 @@ namespace Fio
         std::ofstream out(fsPath, std::ios::binary | std::ios::trunc);
         if (!out)
         {
-            return WriteResult::fail("Cannot open file for writing: " + filePath);
+            return WriteResult::fail(std::string("Cannot open file for writing: ") + filePath);
         }
 
         // 使用内存流收集参数段内容，以便最后计算偏移量
@@ -492,7 +509,7 @@ namespace Fio
         std::ofstream outFinal(fsPath, std::ios::binary | std::ios::trunc);
         if (!outFinal)
         {
-            return WriteResult::fail("Cannot open file for writing: " + filePath);
+            return WriteResult::fail(std::string("Cannot open file for writing: ") + filePath);
         }
 
         // S 段
@@ -539,17 +556,17 @@ namespace Fio
                     case Eg::EType::LINE:
                     {
                         const auto* line = static_cast<const Eg::SyLine*>(entity.get());
-                        if (line->vPoints.size() < 2)
+                        if (line->pointRef().size() < 2)
                             break;
-                        for (size_t i = 1; i < line->vPoints.size(); ++i)
+                        for (size_t i = 1; i < line->pointRef().size(); ++i)
                         {
                             std::ostringstream params;
                             params << ",1,1,"
-                                << igesDouble(line->vPoints[i - 1].x()) << ","
-                                << igesDouble(line->vPoints[i - 1].y()) << ","
+                                << igesDouble(line->pointRef()[i - 1].x()) << ","
+                                << igesDouble(line->pointRef()[i - 1].y()) << ","
                                 << igesDouble(0.0) << ","
-                                << igesDouble(line->vPoints[i].x()) << ","
-                                << igesDouble(line->vPoints[i].y()) << ","
+                                << igesDouble(line->pointRef()[i].x()) << ","
+                                << igesDouble(line->pointRef()[i].y()) << ","
                                 << igesDouble(0.0) << ";";
 
                             writeDirectoryEntry(dirStream, dSeq, 116, pSeq + 1, 1);
@@ -617,9 +634,11 @@ namespace Fio
                         const auto& verts = polygon->vertices();
                         if (verts.size() < 2)
                             break;
+
                         std::ostringstream params;
                         params << "," << (polygon->bClosed ? 1 : 0) << ","
                             << verts.size();
+
                         for (const auto& pt : verts)
                         {
                             params << "," << igesDouble(pt.x()) << ","
@@ -638,6 +657,7 @@ namespace Fio
                         std::ostringstream params;
                         params << "," << kSegCount << ",0,0,1,0,0,3,"
                             << kSegCount + 1;
+
                         for (int i = 0; i <= kSegCount; ++i)
                         {
                             const double t = static_cast<double>(i) / kSegCount;
@@ -665,6 +685,7 @@ namespace Fio
                         std::ostringstream params;
                         params << "," << kSegCount << ",0,0,1,0,0,3,"
                             << kSegCount + 1;
+
                         for (int i = 0; i <= kSegCount; ++i)
                         {
                             const double t = static_cast<double>(i) / kSegCount;
@@ -686,7 +707,7 @@ namespace Fio
                     case Eg::EType::SPLINE:
                     {
                         const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
-                        if (spline->vControlPoints.size() < 2)
+                        if (spline->controlPointCount() < 2)
                             break;
                         constexpr int kSegCount = 40;
                         std::ostringstream params;
@@ -713,23 +734,24 @@ namespace Fio
                             const auto* seg = smartLine->segment(si);
                             if (!seg)
                                 continue;
+
                             // 递归处理子段
                             switch (seg->eType)
                             {
                                 case Eg::EType::LINE:
                                 {
                                     const auto* ln = static_cast<const Eg::SyLine*>(seg);
-                                    if (ln->vPoints.size() < 2)
+                                    if (ln->pointRef().size() < 2)
                                         break;
-                                    for (size_t pi = 1; pi < ln->vPoints.size(); ++pi)
+                                    for (size_t pi = 1; pi < ln->pointRef().size(); ++pi)
                                     {
                                         std::ostringstream params;
                                         params << ",1,1,"
-                                            << igesDouble(ln->vPoints[pi - 1].x()) << ","
-                                            << igesDouble(ln->vPoints[pi - 1].y()) << ","
+                                            << igesDouble(ln->pointRef()[pi - 1].x()) << ","
+                                            << igesDouble(ln->pointRef()[pi - 1].y()) << ","
                                             << igesDouble(0.0) << ","
-                                            << igesDouble(ln->vPoints[pi].x()) << ","
-                                            << igesDouble(ln->vPoints[pi].y()) << ","
+                                            << igesDouble(ln->pointRef()[pi].x()) << ","
+                                            << igesDouble(ln->pointRef()[pi].y()) << ","
                                             << igesDouble(0.0) << ";";
                                         writeDirectoryEntry(dirStream, dSeq, 116, pSeq + 1, 1);
                                         writeParameterLine(paramOut, 116, params.str(), pSeq, true);

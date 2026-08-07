@@ -1,4 +1,4 @@
-#include "FileIO/Writers/PltWriter.h"
+﻿#include "FileIO/Writers/PltWriter.h"
 
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyArc.h"
@@ -13,6 +13,7 @@
 #define _USE_MATH_DEFINES
 #endif
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -34,17 +35,29 @@ namespace Fio
         return FileFormat::PLT;
     }
 
-    std::string PltWriter::formatName() const
+    size_t PltWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        return "HPGL PLT";
+        const char* name = "HPGL PLT";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, name);
+        }
+        return len;
     }
 
-    std::string PltWriter::defaultExtension() const
+    size_t PltWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        return "plt";
+        const char* ext = "plt";
+        const size_t len = std::strlen(ext);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, ext);
+        }
+        return len;
     }
 
-    WriteResult PltWriter::write(const std::string& filePath, const VecSyEntityPtr& entities)
+    WriteResult PltWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -67,21 +80,21 @@ namespace Fio
                 case Eg::EType::LINE:
                 {
                     const auto* line = static_cast<const Eg::SyLine*>(entity.get());
-                    if (line->vPoints.empty())
+                    if (line->pointRef().empty())
                     {
                         break;
                     }
 
-                    const auto& first = line->vPoints.front();
+                    const auto& first = line->pointRef().front();
                     hpgl << "PU" << toPlu(first.x()) << ',' << toPlu(first.y()) << ";\n";
 
-                    for (size_t i = 1; i < line->vPoints.size(); ++i)
+                    for (size_t i = 1; i < line->pointRef().size(); ++i)
                     {
-                        const auto& pt = line->vPoints[i];
+                        const auto& pt = line->pointRef()[i];
                         hpgl << "PD" << toPlu(pt.x()) << ',' << toPlu(pt.y()) << ";\n";
                     }
 
-                    if (line->bClosed && line->vPoints.size() > 2)
+                    if (line->bClosed && line->pointRef().size() > 2)
                     {
                         hpgl << "PD" << toPlu(first.x()) << ',' << toPlu(first.y()) << ";\n";
                     }
@@ -195,7 +208,7 @@ namespace Fio
                 case Eg::EType::SPLINE:
                 {
                     const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
-                    if (spline->vControlPoints.size() < 2)
+                    if (spline->controlPointCount() < 2)
                     {
                         break;
                     }
@@ -228,16 +241,16 @@ namespace Fio
                             case Eg::EType::LINE:
                             {
                                 const auto* ln = static_cast<const Eg::SyLine*>(seg);
-                                if (ln->vPoints.empty())
+                                if (ln->pointRef().empty())
                                 {
                                     break;
                                 }
-                                hpgl << "PU" << toPlu(ln->vPoints.front().x())
-                                    << ',' << toPlu(ln->vPoints.front().y()) << ";\n";
-                                for (size_t pi = 1; pi < ln->vPoints.size(); ++pi)
+                                hpgl << "PU" << toPlu(ln->pointRef().front().x())
+                                    << ',' << toPlu(ln->pointRef().front().y()) << ";\n";
+                                for (size_t pi = 1; pi < ln->pointRef().size(); ++pi)
                                 {
-                                    hpgl << "PD" << toPlu(ln->vPoints[pi].x())
-                                        << ',' << toPlu(ln->vPoints[pi].y()) << ";\n";
+                                    hpgl << "PD" << toPlu(ln->pointRef()[pi].x())
+                                        << ',' << toPlu(ln->pointRef()[pi].y()) << ";\n";
                                 }
                                 break;
                             }
@@ -291,7 +304,7 @@ namespace Fio
         std::ofstream out(fsPath, std::ios::binary | std::ios::trunc);
         if (!out)
         {
-            return WriteResult::fail("Cannot open file for writing: " + filePath);
+            return WriteResult::fail(std::string("Cannot open file for writing: ") + filePath);
         }
 
         out << hpgl.str();

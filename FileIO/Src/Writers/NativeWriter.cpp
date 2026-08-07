@@ -4,6 +4,7 @@
 
 #include "Engine/SyEntity/SyEntity.h"
 #include <chrono>
+#include <cstring>
 #include <iomanip>
 #include <sstream>
 
@@ -30,54 +31,65 @@ namespace Fio
         return FileFormat::Native;
     }
 
-    std::string NativeWriter::formatName() const
+    size_t NativeWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        return "SanYi Native (Protobuf)";
+        const char* name = "SanYi Native (Protobuf)";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, name);
+        }
+        return len;
     }
 
-    std::string NativeWriter::defaultExtension() const
+    size_t NativeWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        return "sy";
+        const char* ext = "sy";
+        const size_t len = std::strlen(ext);
+        if (buffer != nullptr && bufferSize > len)
+        {
+            std::strcpy(buffer, ext);
+        }
+        return len;
     }
 
-    WriteResult NativeWriter::write(const std::string& filePath,
+    WriteResult NativeWriter::write(const char* filePath,
         const VecSyEntityPtr& entities)
     {
         // 构建 SyDocument
         SyDocument doc;
 
         // 填充元信息默认值
-        doc.metadata.version = SyFileConst::FILE_VERSION;
-        doc.metadata.fileVersion = 1;
-        doc.metadata.softwareName = "SanYi CAD 2D";
-        doc.metadata.softwareVersion = "1.0.0";
+        doc.setMetadataVersion(SyFileConst::FILE_VERSION);
+        doc.setMetadataFileVersion(1);
+        doc.setSoftwareName("SanYi CAD 2D");
+        doc.setSoftwareVersion("1.0.0");
 
         {
             const auto now = std::chrono::system_clock::now();
             const auto time = std::chrono::system_clock::to_time_t(now);
             std::ostringstream oss;
             oss << std::put_time(std::localtime(&time), "%Y-%m-%dT%H:%M:%S");
-            doc.metadata.createdTime = oss.str();
-            doc.metadata.modifiedTime = oss.str();
+            doc.setCreatedTime(oss.str().c_str());
+            doc.setModifiedTime(oss.str().c_str());
         }
 
 #ifdef _WIN32
-        doc.metadata.operatingSystem = "Windows";
+        doc.setOperatingSystem("Windows");
 #elif defined(__linux__)
-        doc.metadata.operatingSystem = "Linux";
+        doc.setOperatingSystem("Linux");
 #elif defined(__APPLE__)
-        doc.metadata.operatingSystem = "macOS";
+        doc.setOperatingSystem("macOS");
 #else
-        doc.metadata.operatingSystem = "Unknown";
+        doc.setOperatingSystem("Unknown");
 #endif
 
         // 克隆图元到 doc
-        doc.entities.reserve(entities.size());
         for (const auto& entity : entities)
         {
             if (entity)
             {
-                doc.entities.push_back(entity->clone());
+                doc.addEntity(entity->clone());
             }
         }
 

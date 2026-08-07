@@ -5,6 +5,8 @@
 
 namespace Fio
 {
+    /// ABI 说明：本类为内部工具类（非 DLL 导出），
+    /// STL 分配/释放发生在编译方，不跨 DLL 边界。
     class PdfToSvgConverter
     {
     public:

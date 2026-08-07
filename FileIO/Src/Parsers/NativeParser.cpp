@@ -1,6 +1,7 @@
 ﻿#include "FileIO/Parsers/NativeParser.h"
 #include "FileIO/SySerializer.h"
 #include "FileIO/SyDocument.h"
+#include "SyDocumentData.h"
 
 #include "Engine/SyEntity/SyEntity.h"
 
@@ -27,17 +28,21 @@ namespace Fio
         return FileFormat::Native;
     }
 
-    std::string NativeParser::formatName() const
+    size_t NativeParser::formatName(char* buffer, size_t bufferSize) const
     {
-        return "SanYi Native (Protobuf)";
+        const char* name = "SanYi Native (Protobuf)";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+            std::strcpy(buffer, name);
+        return len;
     }
 
-    std::vector<std::string> NativeParser::supportedExtensions() const
+    void NativeParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
     {
-        return { "sy" };
+        visitor("sy", ctx);
     }
 
-    ParseResult NativeParser::parse(const std::string& filePath,
+    ParseResult NativeParser::parse(const char* filePath,
         VecSyEntityPtr& outEntities)
     {
         SyDocument doc;
@@ -45,12 +50,12 @@ namespace Fio
 
         if (!result.success)
         {
-            return ParseResult::fail(result.errorMessage, result.warnings);
+            return ParseResult::fail(result.errorMessage);
         }
 
         // 将 SyDocument 中的图元移动到 outEntities
-        outEntities.reserve(doc.entities.size());
-        for (auto& entity : doc.entities)
+        outEntities.reserve(syDocumentData(doc).entities.size());
+        for (auto& entity : syDocumentData(doc).entities)
         {
             outEntities.push_back(std::move(entity));
         }

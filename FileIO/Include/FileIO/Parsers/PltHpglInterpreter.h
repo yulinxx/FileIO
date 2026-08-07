@@ -4,10 +4,7 @@
 #define _USE_MATH_DEFINES
 #endif
 
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyPoint.h"
+#include "FileIO/FioTypes.h"
 #include "Ut/Vec.h"
 #include "FileIO/FileFormat.h"
 
@@ -51,10 +48,13 @@ namespace Fio
         return result;
     }
 
+    /// HPGL 指令解释器 — 输出中立 IR（EntityInfo），不依赖 Engine2D 类型
+    // ABI 说明：本类为 header-only 内联实现，STL 分配/释放发生在编译方，不跨 DLL 边界。
     class PltHpglInterpreter
     {
     public:
-        PltHpglInterpreter(VecSyEntityPtr& outEntities, std::vector<std::string>& warnings)
+        PltHpglInterpreter(std::vector<EntityInfo>& outEntities,
+            std::vector<std::string>& warnings)
             : m_outEntities(outEntities)
             , m_warnings(warnings)
             , m_penDown(false)
@@ -202,7 +202,7 @@ namespace Fio
         int m_currentPen;
         double m_lineWidth;
 
-        VecSyEntityPtr& m_outEntities;
+        std::vector<EntityInfo>& m_outEntities;
         std::vector<std::string>& m_warnings;
 
         static const std::regex m_regexCommaSpace;
@@ -233,33 +233,55 @@ namespace Fio
             return def;
         }
 
+        // 输出 Line 类型 EntityInfo（两点确定线段）
         void emitLine(const Ut::Vec2d& from, const Ut::Vec2d& to)
         {
-            auto lineEnt = std::make_unique<Eg::SyLine>();
             Ut::Vec2d p1 = from * m_scale;
             Ut::Vec2d p2 = to * m_scale;
-            lineEnt->vPoints.push_back(p1);
-            lineEnt->vPoints.push_back(p2);
-            lineEnt->basePoint = p1;
-            m_outEntities.push_back(std::move(lineEnt));
+
+            EntityInfo info{};
+            info.type = EntityType::Line;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.line.x1 = p1.x();
+            info.line.y1 = p1.y();
+            info.line.x2 = p2.x();
+            info.line.y2 = p2.y();
+            m_outEntities.push_back(info);
         }
 
+        // 输出 Arc 类型 EntityInfo
         void emitArc(const Ut::Vec2d& center, double radius, double startAngle, double endAngle)
         {
-            auto arcEnt = std::make_unique<Eg::SyArc>();
-            arcEnt->basePoint = center * m_scale;
-            arcEnt->dRadius = radius * m_scale;
-            arcEnt->dStartAngle = startAngle;
-            arcEnt->dEndAngle = endAngle;
-            m_outEntities.push_back(std::move(arcEnt));
+            Ut::Vec2d scaledCenter = center * m_scale;
+            double scaledRadius = radius * m_scale;
+
+            EntityInfo info{};
+            info.type = EntityType::Arc;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.arc.cx = scaledCenter.x();
+            info.arc.cy = scaledCenter.y();
+            info.arc.r = scaledRadius;
+            info.arc.sa = startAngle;
+            info.arc.ea = endAngle;
+            m_outEntities.push_back(info);
         }
 
+        // 输出 Circle 类型 EntityInfo
         void emitCircle(const Ut::Vec2d& center, double radius)
         {
-            auto circleEnt = std::make_unique<Eg::SyCircle>();
-            circleEnt->basePoint = center * m_scale;
-            circleEnt->dRadius = radius * m_scale;
-            m_outEntities.push_back(std::move(circleEnt));
+            Ut::Vec2d scaledCenter = center * m_scale;
+            double scaledRadius = radius * m_scale;
+
+            EntityInfo info{};
+            info.type = EntityType::Circle;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.circle.cx = scaledCenter.x();
+            info.circle.cy = scaledCenter.y();
+            info.circle.r = scaledRadius;
+            m_outEntities.push_back(info);
         }
 
         void handleIN(const std::vector<std::string>& /*params*/)

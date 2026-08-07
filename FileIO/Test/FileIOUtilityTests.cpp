@@ -249,12 +249,12 @@ TEST(TempFileCopyTest, CopyPreservesBinaryContent)
     std::string tempDir = std::filesystem::temp_directory_path().string();
     std::string testFile = tempDir + "/fio_test_binary.bin";
     
-    std::vector<char> binaryData = {0x00, 0x01, 0xFF, 0xFE, 0x80, 0x7F, 0x00, 0x00};
+    std::vector<uint8_t> binaryData = {0x00, 0x01, 0xFF, 0xFE, 0x80, 0x7F, 0x00, 0x00};
     
     {
         std::ofstream outFile(testFile, std::ios::binary);
         ASSERT_TRUE(outFile.is_open());
-        outFile.write(binaryData.data(), binaryData.size());
+        outFile.write(reinterpret_cast<const char*>(binaryData.data()), binaryData.size());
     }
     
     {
@@ -263,8 +263,8 @@ TEST(TempFileCopyTest, CopyPreservesBinaryContent)
         
         std::ifstream inFile(tempCopy.path(), std::ios::binary);
         ASSERT_TRUE(inFile.is_open());
-        std::vector<char> copiedData((std::istreambuf_iterator<char>(inFile)),
-                                      std::istreambuf_iterator<char>());
+        std::vector<uint8_t> copiedData((std::istreambuf_iterator<char>(inFile)),
+                                         std::istreambuf_iterator<char>());
         EXPECT_EQ(copiedData.size(), binaryData.size());
         for (size_t i = 0; i < binaryData.size(); ++i)
         {

@@ -7,17 +7,21 @@ namespace Fio
         return FileFormat::PDF;
     }
 
-    std::string PdfParser::formatName() const
+    size_t PdfParser::formatName(char* buffer, size_t bufferSize) const
     {
-        return "PDF";
+        const char* name = "PDF";
+        const size_t len = std::strlen(name);
+        if (buffer != nullptr && bufferSize > len)
+            std::strcpy(buffer, name);
+        return len;
     }
 
-    std::vector<std::string> PdfParser::supportedExtensions() const
+    void PdfParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
     {
-        return { "pdf" };
+        visitor("pdf", ctx);
     }
 
-    bool PdfParser::isValidSourceFormat(const std::string& filePath) const
+    bool PdfParser::isValidSourceFormat(const char* filePath) const
     {
         return PdfToSvgConverter::isPdfFile(filePath);
     }

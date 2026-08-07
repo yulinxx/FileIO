@@ -119,7 +119,7 @@ enum EntityType {
     ENTITY_BAR_CODE   = 13;
     ENTITY_QR_CODE    = 14;
     ENTITY_IMAGE      = 15;
-    ENTITY_MESH       = 16;   // 3D 网格实体
+    ENTITY_MESH       = 16;   // 3D 网格图元
     ENTITY_GROUP      = 17;   // 群组
 }
 
@@ -218,7 +218,7 @@ message ImageData {
     Vec2d  bottom_right = 8;   // 右下角
 }
 
-// 3D 网格实体数据
+// 3D 网格图元数据
 message MeshData {
     string name                  = 1;   // 网格名称
     repeated Vec3fData vertices  = 2;   // 顶点位置
@@ -259,6 +259,7 @@ message EntityData {
     bool       closed     = 6;    // 是否闭合
     bool       ccw        = 7;    // 是否逆时针方向
     repeated PropertyEntry custom_properties = 8;  // 扩展属性
+    string   name             = 9;    // 图元名称
 
     // === 类型特有数据 (oneof 保证互斥，节省空间) ===
     oneof type_specific {

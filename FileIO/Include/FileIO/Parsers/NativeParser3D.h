@@ -2,6 +2,7 @@
 
 #include "FileIO/IFileParser.h"
 #include "FileIO/SyDocument.h"
+#include "FileIOInternal.h"
 
 namespace Fio
 {
@@ -12,7 +13,7 @@ namespace Fio
     // 支持同时读取 2D 图元和 3D 网格图元
     // 兼容现有 IFileParser 接口，附加 SyDocument 读取能力
     // ============================================================
-    class FILEIO_API NativeParser3D : public IFileParser
+    class FILEIO_API NativeParser3D : public IFileParser, public ILegacyParser
     {
     public:
         NativeParser3D();
@@ -20,13 +21,13 @@ namespace Fio
 
         // ---- IFileParser 接口 (仅返回 2D 图元) ----
         FileFormat format() const override;
-        std::string formatName() const override;
-        std::vector<std::string> supportedExtensions() const override;
-        ParseResult parse(const std::string& filePath,
+        size_t formatName(char* buffer, size_t bufferSize) const override;
+        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
+        ParseResult parse(const char* filePath,
             VecSyEntityPtr& outEntities) override;
 
         // ---- 3D 完整文档读取 (同时返回 2D 图元和 3D 网格) ----
-        ParseResult parseDocument(const std::string& filePath,
+        ParseResult parseDocument(const char* filePath,
             SyDocument& outDoc);
 
     private:

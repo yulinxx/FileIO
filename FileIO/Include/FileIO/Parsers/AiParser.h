@@ -19,14 +19,14 @@ namespace Fio
 
     public:
         FileFormat format() const override;
-        std::string formatName() const override;
-        std::vector<std::string> supportedExtensions() const override;
+        size_t formatName(char* buffer, size_t bufferSize) const override;
+        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
 
     protected:
         /// AI 合法性：接受 PDF 格式(AI 8+) 和 PostScript 格式(AI 7-)
-        bool isValidSourceFormat(const std::string& filePath) const override;
+        bool isValidSourceFormat(const char* filePath) const override;
 
         /// PostScript 格式的 AI 文件需要额外检查 Ghostscript
-        std::string extraToolCheckError(const std::string& filePath) const override;
+        std::string extraToolCheckError(const char* filePath) const override;
     };
 } // namespace Fio
