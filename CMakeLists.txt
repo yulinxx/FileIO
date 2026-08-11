@@ -1,12 +1,12 @@
 ﻿cmake_minimum_required(VERSION 4.3)
 
-include(../Config.txt)
+include(../Config.cmake)
 
 if(DEFINED VCPKG_DIR AND EXISTS "${VCPKG_DIR}")
     set(CMAKE_TOOLCHAIN_FILE "${VCPKG_DIR}/scripts/buildsystems/vcpkg.cmake")
     message(STATUS "Using VCPKG toolchain: ${CMAKE_TOOLCHAIN_FILE}")
 else()
-    message(WARNING "VCPKG directory error. Please set VCPKG_DIR in Config.txt")
+    message(WARNING "VCPKG directory error. Please set VCPKG_DIR in Config.cmake")
 endif()
 
 project(SanYiFileIO
