@@ -23,9 +23,9 @@ namespace Fio
         bool isValid = false;
     };
 
-    /// ABI 说明：readImageInfo 参数使用 const std::string&，
-    /// 仅限同编译器/同 CRT 体系内部使用。如需跨编译器应改用 const char*。
-    FILEIO_API ImageInfo readImageInfo(const std::string& filePath);
+    /// ABI 说明：readImageInfo 接受 UTF-8 路径文本（调用方持有缓冲，只读同步使用），
+    /// 不跨 DLL 传递 std::string。返回 ImageInfo 为 POD。
+    FILEIO_API ImageInfo readImageInfo(const char* strUtf8Path);
 
     FILEIO_API float pixelsToUnit(int pixelSize, float dpi, UnitType targetUnit = UnitType::Millimeter);
 

@@ -7,13 +7,15 @@ namespace Fio
 {
     const float MM_PER_INCH = 25.4f;
 
-    ImageInfo readImageInfo(const std::string& filePath)
+ImageInfo readImageInfo(const char* strUtf8Path)
     {
         ImageInfo info;
+        if (!strUtf8Path || !strUtf8Path[0])
+            return info;
 
         int width, height, channels;
 
-        if (stbi_info(filePath.c_str(), &width, &height, &channels))
+        if (stbi_info(strUtf8Path, &width, &height, &channels))
         {
             info.width = width;
             info.height = height;
