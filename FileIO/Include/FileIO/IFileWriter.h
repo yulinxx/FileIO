@@ -3,6 +3,8 @@
 #include "FileIO/FileIOAPI.h"
 #include "FileIO/FileFormat.h"
 
+#include <cstddef>
+
 namespace Fio
 {
     // 旧版纯虚 write() 已随 WriteResult 内迁至 Src/Internal（ILegacyWriter），

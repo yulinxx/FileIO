@@ -19,6 +19,7 @@
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <limits.h>
+#include <unistd.h>
 #include <sys/wait.h>
 #endif
 
