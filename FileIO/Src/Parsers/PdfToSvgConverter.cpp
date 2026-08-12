@@ -18,6 +18,7 @@
 #include <sys/wait.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
+#include <unistd.h>
 #include <limits.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -461,7 +462,7 @@ namespace Fio
         std::vector<std::string> args;
         args.push_back("-f");
         char pageStr[10];
-        sprintf(pageStr, "%d", page);
+        std::snprintf(pageStr, sizeof(pageStr), "%d", page);
         args.push_back(pageStr);
         args.push_back("-l");
         args.push_back(pageStr);

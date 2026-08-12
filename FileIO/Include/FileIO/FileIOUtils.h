@@ -19,7 +19,7 @@ namespace Fio
             hash *= 0x01000193;
         }
         char buffer[9];
-        sprintf(buffer, "%08x", hash);
+        std::snprintf(buffer, sizeof(buffer), "%08x", hash);
         return std::string(buffer);
     }
 

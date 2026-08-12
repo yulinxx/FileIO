@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include "FileIO/FileIOAPI.h"
 #include "FileIO/FileFormat.h"
 
