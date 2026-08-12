@@ -7,7 +7,7 @@ namespace Fio
 {
     const float MM_PER_INCH = 25.4f;
 
-ImageInfo readImageInfo(const char* strUtf8Path)
+    ImageInfo readImageInfo(const char* strUtf8Path)
     {
         ImageInfo info;
         if (!strUtf8Path || !strUtf8Path[0])

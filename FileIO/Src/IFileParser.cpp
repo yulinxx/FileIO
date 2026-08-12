@@ -6,10 +6,9 @@ namespace Fio
     IFileParser::~IFileParser() = default;
 
     // parseToIR 默认实现：回退到旧版 parse()
-    FioParseResult IFileParser::parseToIR(const char* filePath)
+    FioParseResult IFileParser::parseToIR(const char* /*filePath*/)
     {
         // 默认实现返回空结果，子类应重写此方法
-        (void)filePath;
         return FioParseResult{};
     }
 } // namespace Fio

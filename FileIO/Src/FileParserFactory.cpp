@@ -123,10 +123,10 @@ namespace Fio
         const char* const nativeExts[] = { "sy" };
         registerWithExtensions(FileFormat::Native, []() -> IFileParser* { return new NativeParser(); }, nativeExts, 1);
 
-         const char* const native3DExts[] = { "syx" };
-         registerWithExtensions(FileFormat::Native3D, []() -> IFileParser* { return new NativeParser3D(); }, native3DExts, 1);
+        const char* const native3DExts[] = { "syx" };
+        registerWithExtensions(FileFormat::Native3D, []() -> IFileParser* { return new NativeParser3D(); }, native3DExts, 1);
 
-         const char* const stlExts[] = { "stl" };
-         registerWithExtensions(FileFormat::STL, []() -> IFileParser* { return new StlParser(); }, stlExts, 1);
-     }
+        const char* const stlExts[] = { "stl" };
+        registerWithExtensions(FileFormat::STL, []() -> IFileParser* { return new StlParser(); }, stlExts, 1);
+    }
 } // namespace Fio

@@ -58,10 +58,9 @@ namespace Fio
         }
 
         void toProtoProperties(const PropertyMap& props,
-            sanyi::proto::SanYiDocument& doc,
+            sanyi::proto::SanYiDocument& /*doc*/,
             google::protobuf::RepeatedPtrField<sanyi::proto::PropertyEntry>* entries)
         {
-            (void)doc;
             for (const auto& kv : props)
             {
                 auto* entry = entries->Add();
@@ -355,11 +354,9 @@ namespace Fio
     SerializeResult SySerializer::saveToFile(const char* filePath,
         const SyDocument& doc,
         bool               encrypt,
-        SerializeWarningCallback warningCb,
-        void* warningCtx)
+        SerializeWarningCallback /*warningCb*/,
+        void* /*warningCtx*/)
     {
-        (void)warningCb;
-        (void)warningCtx;
 
         if (!filePath || !*filePath)
         {
@@ -570,11 +567,9 @@ namespace Fio
 
     SerializeResult SySerializer::serializeToMemory(const SyDocument& doc,
         BinaryBlobOut* out,
-        SerializeWarningCallback warningCb,
-        void* warningCtx)
+        SerializeWarningCallback /*warningCb*/,
+        void* /*warningCtx*/)
     {
-        (void)warningCb;
-        (void)warningCtx;
 
         std::vector<uint8_t> data;
         if (!serializeToProto(doc, data))

@@ -12,7 +12,10 @@ namespace Fio
         StlParser() = default;
         ~StlParser() override = default;
 
-        FileFormat format() const override { return FileFormat::STL; }
+        FileFormat format() const override
+        {
+            return FileFormat::STL;
+        }
 
         void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
 
@@ -20,5 +23,4 @@ namespace Fio
 
         FioParseResult parseToIR(const char* filePath) override;
     };
-
 } // namespace Fio

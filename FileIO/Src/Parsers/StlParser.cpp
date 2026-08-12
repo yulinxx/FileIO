@@ -83,8 +83,14 @@ namespace Fio
                         ny = az * bx - ax * bz;
                         nz = ax * by - ay * bx;
                         float len = std::sqrt(nx * nx + ny * ny + nz * nz);
-                        if (len > 0.0001f) { nx /= len; ny /= len; nz /= len; }
-                        else { nx = 0; ny = 0; nz = 1; }
+                        if (len > 0.0001f)
+                        {
+                            nx /= len; ny /= len; nz /= len;
+                        }
+                        else
+                        {
+                            nx = 0; ny = 0; nz = 1;
+                        }
 
                         vertices.push_back(v[0]); vertices.push_back(v[1]); vertices.push_back(v[2]);
                         vertices.push_back(v[3]); vertices.push_back(v[4]); vertices.push_back(v[5]);
@@ -148,7 +154,9 @@ namespace Fio
                         std::istringstream ls(trimmed);
                         std::string token;
                         ls >> token >> token;
-                        if (ls >> nx >> ny >> nz) { }
+                        if (ls >> nx >> ny >> nz)
+                        {
+                        }
                         vertRead = 0;
                     }
                     else if (lower.find("vertex") != std::string::npos)
@@ -178,8 +186,14 @@ namespace Fio
                                 ny = az * bx - ax * bz;
                                 nz = ax * by - ay * bx;
                                 float len = std::sqrt(nx * nx + ny * ny + nz * nz);
-                                if (len > 0.0001f) { nx /= len; ny /= len; nz /= len; }
-                                else { nx = 0; ny = 0; nz = 1; }
+                                if (len > 0.0001f)
+                                {
+                                    nx /= len; ny /= len; nz /= len;
+                                }
+                                else
+                                {
+                                    nx = 0; ny = 0; nz = 1;
+                                }
                             }
 
                             for (int j = 0; j < 9; ++j)
@@ -236,5 +250,4 @@ namespace Fio
 
         return result;
     }
-
 } // namespace Fio

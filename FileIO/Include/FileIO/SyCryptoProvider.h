@@ -81,9 +81,8 @@ namespace Fio
         }
 
         /// 设置密钥（const char* 替代 std::string）
-        virtual bool setKey(const char* key)
+        virtual bool setKey(const char* /*key*/)
         {
-            (void)key;
             return false;
         }
     };

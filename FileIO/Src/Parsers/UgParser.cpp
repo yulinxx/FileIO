@@ -2,10 +2,8 @@
 
 namespace Fio
 {
-    ParseResult UgParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
+    ParseResult UgParser::parse(const char* /*filePath*/, VecSyEntityPtr& /*outEntities*/)
     {
-        (void)outEntities;
-        (void)filePath;
 
         return ParseResult::fail(
             "UG/NX file parsing is not yet implemented.\n\n"
