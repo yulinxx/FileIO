@@ -35,7 +35,7 @@ namespace Fio
             doc.setOperatingSystem("Unknown");
 #endif
         }
-    } // anonymous namespace
+    }  // anonymous namespace
 
     class NativeWriter3D::Impl
     {
@@ -79,8 +79,7 @@ namespace Fio
         return len;
     }
 
-    WriteResult NativeWriter3D::write(const char* filePath,
-        const VecSyEntityPtr& entities)
+    WriteResult NativeWriter3D::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         // 构建文档并克隆 2D 图元
         SyDocument doc;
@@ -88,15 +87,16 @@ namespace Fio
         for (const auto& entity : entities)
         {
             if (entity)
+            {
                 doc.addEntity(entity->clone());
+            }
         }
         return writeDocument(filePath, doc);
     }
 
     // ---- 3D 完整文档写入 ----
 
-    WriteResult NativeWriter3D::writeDocument(const char* filePath,
-        const SyDocument& doc)
+    WriteResult NativeWriter3D::writeDocument(const char* filePath, const SyDocument& doc)
     {
         auto result = m_impl->serializer.saveToFile(filePath, doc, false);
         if (!result.success)
@@ -105,4 +105,4 @@ namespace Fio
         }
         return WriteResult::ok();
     }
-} // namespace Fio
+}  // namespace Fio

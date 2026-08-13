@@ -190,26 +190,25 @@ TEST(TempFileCopyTest, ValidFileCopy)
 {
     std::string tempDir = std::filesystem::temp_directory_path().string();
     std::string testFile = tempDir + "/fio_test_original.txt";
-    
+
     {
         std::ofstream outFile(testFile, std::ios::binary);
         ASSERT_TRUE(outFile.is_open());
         outFile << "Test content for TempFileCopy";
     }
-    
+
     {
         Fio::TempFileCopy tempCopy(testFile, "unittest");
         EXPECT_TRUE(tempCopy.isValid());
         EXPECT_TRUE(tempCopy.error().empty());
         EXPECT_NE(tempCopy.path(), testFile);
-        
+
         std::ifstream inFile(tempCopy.path(), std::ios::binary);
         ASSERT_TRUE(inFile.is_open());
-        std::string content((std::istreambuf_iterator<char>(inFile)),
-                            std::istreambuf_iterator<char>());
+        std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
         EXPECT_EQ(content, "Test content for TempFileCopy");
     }
-    
+
     std::filesystem::remove(testFile);
 }
 
@@ -225,22 +224,22 @@ TEST(TempFileCopyTest, TempFileDeletedOnDestruction)
     std::string tempDir = std::filesystem::temp_directory_path().string();
     std::string testFile = tempDir + "/fio_test_delete.txt";
     std::string tempFilePath;
-    
+
     {
         std::ofstream outFile(testFile, std::ios::binary);
         ASSERT_TRUE(outFile.is_open());
         outFile << "Delete test";
     }
-    
+
     {
         Fio::TempFileCopy tempCopy(testFile, "deletetest");
         ASSERT_TRUE(tempCopy.isValid());
         tempFilePath = tempCopy.path();
         EXPECT_TRUE(std::filesystem::exists(tempFilePath));
     }
-    
+
     EXPECT_FALSE(std::filesystem::exists(tempFilePath));
-    
+
     std::filesystem::remove(testFile);
 }
 
@@ -248,29 +247,28 @@ TEST(TempFileCopyTest, CopyPreservesBinaryContent)
 {
     std::string tempDir = std::filesystem::temp_directory_path().string();
     std::string testFile = tempDir + "/fio_test_binary.bin";
-    
-    std::vector<uint8_t> binaryData = {0x00, 0x01, 0xFF, 0xFE, 0x80, 0x7F, 0x00, 0x00};
-    
+
+    std::vector<uint8_t> binaryData = { 0x00, 0x01, 0xFF, 0xFE, 0x80, 0x7F, 0x00, 0x00 };
+
     {
         std::ofstream outFile(testFile, std::ios::binary);
         ASSERT_TRUE(outFile.is_open());
         outFile.write(reinterpret_cast<const char*>(binaryData.data()), binaryData.size());
     }
-    
+
     {
         Fio::TempFileCopy tempCopy(testFile, "binarytest");
         ASSERT_TRUE(tempCopy.isValid());
-        
+
         std::ifstream inFile(tempCopy.path(), std::ios::binary);
         ASSERT_TRUE(inFile.is_open());
-        std::vector<uint8_t> copiedData((std::istreambuf_iterator<char>(inFile)),
-                                         std::istreambuf_iterator<char>());
+        std::vector<uint8_t> copiedData((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
         EXPECT_EQ(copiedData.size(), binaryData.size());
         for (size_t i = 0; i < binaryData.size(); ++i)
         {
             EXPECT_EQ(copiedData[i], binaryData[i]);
         }
     }
-    
+
     std::filesystem::remove(testFile);
 }

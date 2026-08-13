@@ -53,8 +53,7 @@ namespace Fio
         return len;
     }
 
-    WriteResult NativeWriter::write(const char* filePath,
-        const VecSyEntityPtr& entities)
+    WriteResult NativeWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         // 构建 SyDocument
         SyDocument doc;
@@ -102,4 +101,4 @@ namespace Fio
 
         return WriteResult::ok();
     }
-} // namespace Fio
+}  // namespace Fio

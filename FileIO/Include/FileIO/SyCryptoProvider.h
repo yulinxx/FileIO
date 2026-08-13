@@ -22,11 +22,11 @@ namespace Fio
     /// 加密结果（POD 安全，固定缓冲区 + BinaryBlob）
     struct CryptoResult
     {
-        bool        success = false;
-        char        errorMessage[256] = {};  // 固定缓冲区替代 std::string
+        bool success = false;
+        char errorMessage[256] = {};  // 固定缓冲区替代 std::string
         // 数据指针（由加密提供者分配，调用方通过 freeCryptoData() 释放）
         uint8_t* data = nullptr;
-        size_t      dataSize = 0;
+        size_t dataSize = 0;
 
         static CryptoResult ok(uint8_t* d, size_t sz)
         {
@@ -42,7 +42,9 @@ namespace Fio
             CryptoResult r;
             r.success = false;
             if (msg)
+            {
                 std::strncpy(r.errorMessage, msg, sizeof(r.errorMessage) - 1);
+            }
             return r;
         }
     };
@@ -105,13 +107,15 @@ namespace Fio
         CryptoResult encrypt(const uint8_t* plaintext, size_t plaintextSize) override;
         CryptoResult decrypt(const uint8_t* ciphertext, size_t ciphertextSize) override;
         void freeCryptoData(uint8_t* data) override;
+
         bool requiresKey() const override
         {
             return true;
         }
+
         bool setKey(const char* key) override;
 
     private:
         std::vector<uint8_t> m_key;
     };
-} // namespace Fio
+}  // namespace Fio

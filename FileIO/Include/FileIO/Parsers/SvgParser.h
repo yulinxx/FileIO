@@ -16,10 +16,10 @@ namespace Fio
     public:
         FileFormat format() const override;
         size_t formatName(char* buffer, size_t bufferSize) const override;
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
 
         // 输出中立 IR，跨 DLL 安全
         // SVG path 采样为 Polyline，顶点数据存入 extensionBlob
         FioParseResult parseToIR(const char* filePath) override;
     };
-} // namespace Fio
+}  // namespace Fio

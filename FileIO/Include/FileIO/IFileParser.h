@@ -29,7 +29,7 @@ namespace Fio
         virtual FileFormat format() const = 0;
 
         /// 遍历支持的扩展名（回调模式替代 std::vector<std::string> 返回）
-        virtual void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const = 0;
+        virtual void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const = 0;
 
         /// 格式名称（buffer 模式替代 std::string 返回）
         virtual size_t formatName(char* buffer, size_t bufferSize) const = 0;
@@ -39,4 +39,4 @@ namespace Fio
         // 调用方通过 FioEntityConverter 将 IR 转换为 Engine 领域对象
         virtual FioParseResult parseToIR(const char* filePath);
     };
-} // namespace Fio
+}  // namespace Fio

@@ -10,7 +10,7 @@
 
 namespace Fio
 {
-    void StlParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void StlParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("stl", ctx);
     }
@@ -20,7 +20,9 @@ namespace Fio
         const char* name = "STL (Stereolithography)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
@@ -33,17 +35,23 @@ namespace Fio
         std::filesystem::path fsPath = std::filesystem::u8path(filePath);
         std::ifstream file(fsPath, std::ios::binary | std::ios::ate);
         if (!file.is_open())
+        {
             return result;
+        }
 
         std::streamsize fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
 
         if (fileSize < 15)
+        {
             return result;
+        }
 
         std::vector<uint8_t> data(static_cast<size_t>(fileSize));
         if (!file.read(reinterpret_cast<char*>(data.data()), fileSize))
+        {
             return result;
+        }
 
         // 检测格式并解析
         uint32_t triangleCount = 0;
@@ -65,9 +73,12 @@ namespace Fio
                 for (uint32_t i = 0; i < triangleCount; ++i)
                 {
                     float nx, ny, nz;
-                    std::memcpy(&nx, ptr, 4); ptr += 4;
-                    std::memcpy(&ny, ptr, 4); ptr += 4;
-                    std::memcpy(&nz, ptr, 4); ptr += 4;
+                    std::memcpy(&nx, ptr, 4);
+                    ptr += 4;
+                    std::memcpy(&ny, ptr, 4);
+                    ptr += 4;
+                    std::memcpy(&nz, ptr, 4);
+                    ptr += 4;
 
                     // 如果法线为零向量，稍后重新计算
                     if (std::abs(nx) < 0.0001f && std::abs(ny) < 0.0001f && std::abs(nz) < 0.0001f)
@@ -85,25 +96,41 @@ namespace Fio
                         float len = std::sqrt(nx * nx + ny * ny + nz * nz);
                         if (len > 0.0001f)
                         {
-                            nx /= len; ny /= len; nz /= len;
+                            nx /= len;
+                            ny /= len;
+                            nz /= len;
                         }
                         else
                         {
-                            nx = 0; ny = 0; nz = 1;
+                            nx = 0;
+                            ny = 0;
+                            nz = 1;
                         }
 
-                        vertices.push_back(v[0]); vertices.push_back(v[1]); vertices.push_back(v[2]);
-                        vertices.push_back(v[3]); vertices.push_back(v[4]); vertices.push_back(v[5]);
-                        vertices.push_back(v[6]); vertices.push_back(v[7]); vertices.push_back(v[8]);
+                        vertices.push_back(v[0]);
+                        vertices.push_back(v[1]);
+                        vertices.push_back(v[2]);
+                        vertices.push_back(v[3]);
+                        vertices.push_back(v[4]);
+                        vertices.push_back(v[5]);
+                        vertices.push_back(v[6]);
+                        vertices.push_back(v[7]);
+                        vertices.push_back(v[8]);
                     }
                     else
                     {
                         float v[9];
                         std::memcpy(v, ptr, 36);
                         ptr += 36;
-                        vertices.push_back(v[0]); vertices.push_back(v[1]); vertices.push_back(v[2]);
-                        vertices.push_back(v[3]); vertices.push_back(v[4]); vertices.push_back(v[5]);
-                        vertices.push_back(v[6]); vertices.push_back(v[7]); vertices.push_back(v[8]);
+                        vertices.push_back(v[0]);
+                        vertices.push_back(v[1]);
+                        vertices.push_back(v[2]);
+                        vertices.push_back(v[3]);
+                        vertices.push_back(v[4]);
+                        vertices.push_back(v[5]);
+                        vertices.push_back(v[6]);
+                        vertices.push_back(v[7]);
+                        vertices.push_back(v[8]);
                     }
 
                     // 每个顶点使用相同法线
@@ -114,7 +141,7 @@ namespace Fio
                         normals.push_back(nz);
                     }
 
-                    ptr += 2; // 跳过 attribute byte count
+                    ptr += 2;  // 跳过 attribute byte count
                 }
             }
         }
@@ -122,11 +149,11 @@ namespace Fio
         // 如果 binary 解析失败，尝试 ASCII
         if (triangleCount == 0)
         {
-            std::string header(reinterpret_cast<const char*>(data.data()),
-                std::min(data.size(), size_t(256)));
+            std::string header(reinterpret_cast<const char*>(data.data()), std::min(data.size(), size_t(256)));
             std::string lowerHeader = header;
-            std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(),
-                [](unsigned char c) { return std::tolower(c); });
+            std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), [](unsigned char c) {
+                return std::tolower(c);
+            });
 
             if (lowerHeader.find("solid") != std::string::npos)
             {
@@ -141,13 +168,17 @@ namespace Fio
                 while (std::getline(stream, line))
                 {
                     auto start = line.find_first_not_of(" \t\r\n");
-                    if (start == std::string::npos) continue;
+                    if (start == std::string::npos)
+                    {
+                        continue;
+                    }
                     auto end = line.find_last_not_of(" \t\r\n");
                     std::string trimmed = line.substr(start, end - start + 1);
 
                     std::string lower = trimmed;
-                    std::transform(lower.begin(), lower.end(), lower.begin(),
-                        [](unsigned char c) { return std::tolower(c); });
+                    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+                        return std::tolower(c);
+                    });
 
                     if (lower.find("facet normal") != std::string::npos)
                     {
@@ -188,16 +219,22 @@ namespace Fio
                                 float len = std::sqrt(nx * nx + ny * ny + nz * nz);
                                 if (len > 0.0001f)
                                 {
-                                    nx /= len; ny /= len; nz /= len;
+                                    nx /= len;
+                                    ny /= len;
+                                    nz /= len;
                                 }
                                 else
                                 {
-                                    nx = 0; ny = 0; nz = 1;
+                                    nx = 0;
+                                    ny = 0;
+                                    nz = 1;
                                 }
                             }
 
                             for (int j = 0; j < 9; ++j)
+                            {
                                 vertices.push_back(v[j]);
+                            }
                             for (int j = 0; j < 3; ++j)
                             {
                                 normals.push_back(nx);
@@ -216,7 +253,9 @@ namespace Fio
         }
 
         if (triangleCount == 0)
+        {
             return result;
+        }
 
         // 填充 IR
         thread_local EntityInfo s_info;
@@ -250,4 +289,4 @@ namespace Fio
 
         return result;
     }
-} // namespace Fio
+}  // namespace Fio

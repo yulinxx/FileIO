@@ -77,8 +77,10 @@ TEST(EntityInfoTest, LineGeometry)
 {
     Fio::EntityInfo entity;
     entity.type = Fio::EntityType::Line;
-    entity.line.x1 = 0.0; entity.line.y1 = 0.0;
-    entity.line.x2 = 100.0; entity.line.y2 = 200.0;
+    entity.line.x1 = 0.0;
+    entity.line.y1 = 0.0;
+    entity.line.x2 = 100.0;
+    entity.line.y2 = 200.0;
 
     EXPECT_DOUBLE_EQ(entity.line.x1, 0.0);
     EXPECT_DOUBLE_EQ(entity.line.y1, 0.0);
@@ -156,9 +158,12 @@ TEST(EntityInfoTest, BezierGeometry)
 {
     Fio::EntityInfo entity;
     entity.type = Fio::EntityType::Bezier;
-    entity.bezier.c0x = 0.0; entity.bezier.c0y = 0.0;
-    entity.bezier.c1x = 50.0; entity.bezier.c1y = 100.0;
-    entity.bezier.ex = 100.0; entity.bezier.ey = 0.0;
+    entity.bezier.c0x = 0.0;
+    entity.bezier.c0y = 0.0;
+    entity.bezier.c1x = 50.0;
+    entity.bezier.c1y = 100.0;
+    entity.bezier.ex = 100.0;
+    entity.bezier.ey = 0.0;
 
     EXPECT_DOUBLE_EQ(entity.bezier.c0x, 0.0);
     EXPECT_DOUBLE_EQ(entity.bezier.c1x, 50.0);
@@ -174,8 +179,7 @@ TEST(EntityTypeTest, EnumValues)
     EXPECT_EQ(static_cast<int>(Fio::EntityType::Arc), 1);
     EXPECT_EQ(static_cast<int>(Fio::EntityType::Circle), 2);
     EXPECT_EQ(static_cast<int>(Fio::EntityType::Ellipse), 3);
-    EXPECT_NE(static_cast<int>(Fio::EntityType::Unknown),
-              static_cast<int>(Fio::EntityType::Mesh3D));
+    EXPECT_NE(static_cast<int>(Fio::EntityType::Unknown), static_cast<int>(Fio::EntityType::Mesh3D));
 }
 
 // ==================== BinaryBlob ====================

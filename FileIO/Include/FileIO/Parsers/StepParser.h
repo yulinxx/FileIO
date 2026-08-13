@@ -25,11 +25,13 @@ namespace Fio
             const char* name = "STEP (ISO-10303)";
             const size_t len = std::strlen(name);
             if (buffer != nullptr && bufferSize > len)
+            {
                 std::strcpy(buffer, name);
+            }
             return len;
         }
 
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override
         {
             visitor("stp", ctx);
             visitor("step", ctx);
@@ -39,4 +41,4 @@ namespace Fio
         // STEP 投影为 2D Polyline，顶点数据存入 extensionBlob
         FioParseResult parseToIR(const char* filePath) override;
     };
-} // namespace Fio
+}  // namespace Fio

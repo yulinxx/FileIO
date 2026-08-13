@@ -35,4 +35,4 @@ namespace Fio
             int directoryPointer = 0;
         };
     };
-} // namespace Fio
+}  // namespace Fio

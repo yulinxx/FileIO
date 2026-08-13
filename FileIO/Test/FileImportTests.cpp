@@ -126,10 +126,7 @@ TEST(FileImporterTest, OpenAfterFailedOpenResetsState)
 
 TEST(FileFormatTest, KnownFormatsAreUnique)
 {
-    EXPECT_NE(static_cast<int>(Fio::FileFormat::Unknown),
-              static_cast<int>(Fio::FileFormat::DXF));
-    EXPECT_NE(static_cast<int>(Fio::FileFormat::DXF),
-              static_cast<int>(Fio::FileFormat::SVG));
-    EXPECT_NE(static_cast<int>(Fio::FileFormat::SVG),
-              static_cast<int>(Fio::FileFormat::Native));
+    EXPECT_NE(static_cast<int>(Fio::FileFormat::Unknown), static_cast<int>(Fio::FileFormat::DXF));
+    EXPECT_NE(static_cast<int>(Fio::FileFormat::DXF), static_cast<int>(Fio::FileFormat::SVG));
+    EXPECT_NE(static_cast<int>(Fio::FileFormat::SVG), static_cast<int>(Fio::FileFormat::Native));
 }

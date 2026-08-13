@@ -19,10 +19,10 @@ namespace Fio
     public:
         FileFormat format() const override;
         size_t formatName(char* buffer, size_t bufferSize) const override;
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
 
     protected:
         /// PDF 合法性：读取文件头 %PDF-
         bool isValidSourceFormat(const char* filePath) const override;
     };
-} // namespace Fio
+}  // namespace Fio

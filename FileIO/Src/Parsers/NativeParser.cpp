@@ -33,17 +33,18 @@ namespace Fio
         const char* name = "SanYi Native (Protobuf)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
-    void NativeParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void NativeParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("sy", ctx);
     }
 
-    ParseResult NativeParser::parse(const char* filePath,
-        VecSyEntityPtr& outEntities)
+    ParseResult NativeParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
     {
         SyDocument doc;
         auto result = m_impl->serializer.loadFromFile(filePath, doc);
@@ -62,4 +63,4 @@ namespace Fio
 
         return ParseResult::ok();
     }
-} // namespace Fio
+}  // namespace Fio

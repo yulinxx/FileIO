@@ -50,4 +50,4 @@ namespace Fio
         struct Impl;
         Impl* pImpl;
     };
-} // namespace Fio
+}  // namespace Fio

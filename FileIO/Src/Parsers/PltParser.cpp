@@ -1,6 +1,6 @@
 // 确保在任何标准头文件之前定义，使 PltHpglInterpreter.h 中的 M_PI 可用
 #ifndef _USE_MATH_DEFINES
-#define _USE_MATH_DEFINES
+    #define _USE_MATH_DEFINES
 #endif
 
 #include "FileIO/Parsers/PltParser.h"
@@ -31,11 +31,13 @@ namespace Fio
         const char* name = "HPGL Plot (PLT)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
-    void PltParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void PltParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("plt", ctx);
         visitor("hpgl", ctx);
@@ -88,7 +90,9 @@ namespace Fio
             {
                 unsigned char c = static_cast<unsigned char>(headerBuf[i]);
                 if (c < 32 && c != '\t' && c != '\n' && c != '\r')
+                {
                     nonPrintable++;
+                }
             }
             bool likelyBinary = (bytesRead > 256 && nonPrintable > bytesRead / 10);
 
@@ -115,8 +119,7 @@ namespace Fio
             {
                 if (s_entities.size() >= static_cast<size_t>(MAX_ENTITIES))
                 {
-                    s_warnings.push_back("Entity limit (" + std::to_string(MAX_ENTITIES) +
-                        ") reached, stopping parse.");
+                    s_warnings.push_back("Entity limit (" + std::to_string(MAX_ENTITIES) + ") reached, stopping parse.");
                     break;
                 }
 
@@ -154,8 +157,8 @@ namespace Fio
         std::strncpy(result.sourceFormat, "PLT", sizeof(result.sourceFormat) - 1);
         result.warningCount = static_cast<uint32_t>(s_warnings.size());
 
-        SY_INFOF("[PltParser] parseToIR END: %u entities, %u warnings: %s",
-            result.entityCount, result.warningCount, filePath);
+        SY_INFOF(
+            "[PltParser] parseToIR END: %u entities, %u warnings: %s", result.entityCount, result.warningCount, filePath);
         return result;
     }
-} // namespace Fio
+}  // namespace Fio

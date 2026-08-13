@@ -12,11 +12,13 @@ namespace Fio
         const char* name = "Adobe Illustrator";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
-    void AiParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void AiParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("ai", ctx);
     }
@@ -37,12 +39,10 @@ namespace Fio
     std::string AiParser::extraToolCheckError(const char* filePath) const
     {
         std::string fp(filePath);
-        if (PdfToSvgConverter::isPostScriptFile(fp)
-            && !PdfToSvgConverter::isGhostscriptAvailable())
+        if (PdfToSvgConverter::isPostScriptFile(fp) && !PdfToSvgConverter::isGhostscriptAvailable())
         {
-            return "Ghostscript not found for PostScript AI format.\n\n"
-                + PdfToSvgConverter::getInstallHint();
+            return "Ghostscript not found for PostScript AI format.\n\n" + PdfToSvgConverter::getInstallHint();
         }
         return {};  // 检查通过
     }
-} // namespace Fio
+}  // namespace Fio

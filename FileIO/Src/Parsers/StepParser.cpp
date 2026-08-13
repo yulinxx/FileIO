@@ -8,10 +8,10 @@
 #include <vector>
 
 #if defined(FILEIO_HAS_GEOMODELCORE) && defined(GMC_ENABLE_STEP_IO)
-#include "GeoModelCore/GeoModelDocument.h"
-#include "GeoModelCore/GmcProjection.h"
-#include "GeoModelCore/GmcTypes.h"
-#include "GeoModelCore/TopoShape.h"
+    #include "GeoModelCore/GeoModelDocument.h"
+    #include "GeoModelCore/GmcProjection.h"
+    #include "GeoModelCore/GmcTypes.h"
+    #include "GeoModelCore/TopoShape.h"
 #endif
 
 namespace Fio
@@ -70,7 +70,9 @@ namespace Fio
             for (const auto& poly : polylines)
             {
                 if (poly.points.size() < 2)
+                {
                     continue;
+                }
 
                 // 收集顶点为 double 序列（x0,y0,x1,y1,...）
                 std::vector<double> verts;
@@ -112,7 +114,9 @@ namespace Fio
             const auto t1 = std::chrono::steady_clock::now();
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
             SY_INFOF("[StepParser] parseToIR END: %u entities (%lld ms): %s",
-                result.entityCount, static_cast<long long>(ms), filePath);
+                result.entityCount,
+                static_cast<long long>(ms),
+                filePath);
             return result;
         }
         catch (const std::exception& ex)
@@ -126,8 +130,9 @@ namespace Fio
             return FioParseResult{};
         }
 #else
-        SY_WARN("[StepParser] parseToIR: STEP import unavailable (rebuild with BUILD_GEOMODELCORE=ON and GMC_ENABLE_STEP_IO)");
+        SY_WARN("[StepParser] parseToIR: STEP import unavailable (rebuild with BUILD_GEOMODELCORE=ON and "
+                "GMC_ENABLE_STEP_IO)");
         return FioParseResult{};
 #endif
     }
-} // namespace Fio
+}  // namespace Fio

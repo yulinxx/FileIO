@@ -29,25 +29,25 @@ using namespace Fio;
 namespace
 {
     // 序列化辅助：查询大小 → 分配 → 写入，返回完整数据
-    SerializeResult serializeDoc(SySerializer& s, const SyDocument& doc,
-        std::vector<uint8_t>& out)
+    SerializeResult serializeDoc(SySerializer& s, const SyDocument& doc, std::vector<uint8_t>& out)
     {
         BinaryBlobOut query;
         auto r = s.serializeToMemory(doc, &query);
         if (!r.success)
+        {
             return r;
+        }
         out.resize(query.written);
         BinaryBlobOut blobOut{ out.data(), out.size(), 0 };
         return s.serializeToMemory(doc, &blobOut);
     }
 
-    SerializeResult deserializeDoc(SySerializer& s, const std::vector<uint8_t>& data,
-        SyDocument& doc)
+    SerializeResult deserializeDoc(SySerializer& s, const std::vector<uint8_t>& data, SyDocument& doc)
     {
         BinaryBlob in{ const_cast<uint8_t*>(data.data()), data.size() };
         return s.deserializeFromMemory(in, doc);
     }
-}
+}  // namespace
 
 // ==================== 文件魔数校验 ====================
 

@@ -17,10 +17,10 @@ namespace Fio
             return FileFormat::STL;
         }
 
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
 
         size_t formatName(char* buffer, size_t bufferSize) const override;
 
         FioParseResult parseToIR(const char* filePath) override;
     };
-} // namespace Fio
+}  // namespace Fio

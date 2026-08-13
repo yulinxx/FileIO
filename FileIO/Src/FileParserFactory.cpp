@@ -47,19 +47,23 @@ namespace Fio
         m_impl->m_creators[format] = creator;
     }
 
-    void FileParserFactory::registerWithExtensions(FileFormat format, CreatorFunc creator,
-        const char* const* extensions, size_t count)
+    void FileParserFactory::registerWithExtensions(
+        FileFormat format, CreatorFunc creator, const char* const* extensions, size_t count)
     {
         registerParser(format, creator);
         for (size_t i = 0; i < count; ++i)
+        {
             m_impl->m_extToFormat[extensions[i]] = format;
+        }
     }
 
     IFileParser* FileParserFactory::createParser(FileFormat format) const
     {
         auto it = m_impl->m_creators.find(format);
         if (it != m_impl->m_creators.end())
+        {
             return it->second();
+        }
         return nullptr;
     }
 
@@ -76,57 +80,125 @@ namespace Fio
     FileFormat FileParserFactory::detectFormat(const char* ext) const
     {
         if (!ext)
+        {
             return FileFormat::Unknown;
+        }
 
         std::string lowerExt = ext;
-        std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(),
-            [](unsigned char c) { return std::tolower(c); });
+        std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
 
         auto it = m_impl->m_extToFormat.find(lowerExt);
         if (it != m_impl->m_extToFormat.end())
+        {
             return it->second;
+        }
         return FileFormat::Unknown;
     }
 
-    void FileParserFactory::forEachSupportedExtension(
-        void (*visitor)(const char* ext, void* ctx), void* ctx) const
+    void FileParserFactory::forEachSupportedExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const
     {
         if (!visitor)
+        {
             return;
+        }
         for (const auto& pair : m_impl->m_extToFormat)
+        {
             visitor(pair.first.c_str(), ctx);
+        }
     }
 
     void FileParserFactory::initDefaults()
     {
         const char* const dxfExts[] = { "dxf" };
-        registerWithExtensions(FileFormat::DXF, []() -> IFileParser* { return new DxfParser(); }, dxfExts, 1);
+        registerWithExtensions(
+            FileFormat::DXF,
+            []() -> IFileParser* {
+                return new DxfParser();
+            },
+            dxfExts,
+            1);
 
         const char* const pltExts[] = { "plt", "hpgl" };
-        registerWithExtensions(FileFormat::PLT, []() -> IFileParser* { return new PltParser(); }, pltExts, 2);
+        registerWithExtensions(
+            FileFormat::PLT,
+            []() -> IFileParser* {
+                return new PltParser();
+            },
+            pltExts,
+            2);
 
         const char* const svgExts[] = { "svg", "svgz" };
-        registerWithExtensions(FileFormat::SVG, []() -> IFileParser* { return new SvgParser(); }, svgExts, 2);
+        registerWithExtensions(
+            FileFormat::SVG,
+            []() -> IFileParser* {
+                return new SvgParser();
+            },
+            svgExts,
+            2);
 
         const char* const ugExts[] = { "prt", "igs", "iges" };
-        registerWithExtensions(FileFormat::UG, []() -> IFileParser* { return new UgParser(); }, ugExts, 3);
+        registerWithExtensions(
+            FileFormat::UG,
+            []() -> IFileParser* {
+                return new UgParser();
+            },
+            ugExts,
+            3);
 
         const char* const stepExts[] = { "stp", "step" };
-        registerWithExtensions(FileFormat::STEP, []() -> IFileParser* { return new StepParser(); }, stepExts, 2);
+        registerWithExtensions(
+            FileFormat::STEP,
+            []() -> IFileParser* {
+                return new StepParser();
+            },
+            stepExts,
+            2);
 
         const char* const pdfExts[] = { "pdf" };
-        registerWithExtensions(FileFormat::PDF, []() -> IFileParser* { return new PdfParser(); }, pdfExts, 1);
+        registerWithExtensions(
+            FileFormat::PDF,
+            []() -> IFileParser* {
+                return new PdfParser();
+            },
+            pdfExts,
+            1);
 
         const char* const aiExts[] = { "ai" };
-        registerWithExtensions(FileFormat::AI, []() -> IFileParser* { return new AiParser(); }, aiExts, 1);
+        registerWithExtensions(
+            FileFormat::AI,
+            []() -> IFileParser* {
+                return new AiParser();
+            },
+            aiExts,
+            1);
 
         const char* const nativeExts[] = { "sy" };
-        registerWithExtensions(FileFormat::Native, []() -> IFileParser* { return new NativeParser(); }, nativeExts, 1);
+        registerWithExtensions(
+            FileFormat::Native,
+            []() -> IFileParser* {
+                return new NativeParser();
+            },
+            nativeExts,
+            1);
 
         const char* const native3DExts[] = { "syx" };
-        registerWithExtensions(FileFormat::Native3D, []() -> IFileParser* { return new NativeParser3D(); }, native3DExts, 1);
+        registerWithExtensions(
+            FileFormat::Native3D,
+            []() -> IFileParser* {
+                return new NativeParser3D();
+            },
+            native3DExts,
+            1);
 
         const char* const stlExts[] = { "stl" };
-        registerWithExtensions(FileFormat::STL, []() -> IFileParser* { return new StlParser(); }, stlExts, 1);
+        registerWithExtensions(
+            FileFormat::STL,
+            []() -> IFileParser* {
+                return new StlParser();
+            },
+            stlExts,
+            1);
     }
-} // namespace Fio
+}  // namespace Fio

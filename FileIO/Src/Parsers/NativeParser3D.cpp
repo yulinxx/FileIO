@@ -31,17 +31,18 @@ namespace Fio
         const char* name = "SanYi 3D Native (Protobuf)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
-    void NativeParser3D::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void NativeParser3D::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("syx", ctx);
     }
 
-    ParseResult NativeParser3D::parse(const char* filePath,
-        VecSyEntityPtr& outEntities)
+    ParseResult NativeParser3D::parse(const char* filePath, VecSyEntityPtr& outEntities)
     {
         SyDocument doc;
         auto result = parseDocument(filePath, doc);
@@ -74,19 +75,19 @@ namespace Fio
         {
             static_cast<WarningCollector*>(ctx)->warnings.emplace_back(msg);
         }
-    }
+    }  // namespace
 
-    ParseResult NativeParser3D::parseDocument(const char* filePath,
-        SyDocument& outDoc)
+    ParseResult NativeParser3D::parseDocument(const char* filePath, SyDocument& outDoc)
     {
         outDoc.clear();
         WarningCollector collector;
-        auto result = m_impl->serializer.loadFromFile(filePath, outDoc,
-            collectWarning, &collector);
+        auto result = m_impl->serializer.loadFromFile(filePath, outDoc, collectWarning, &collector);
 
         if (!result.success)
+        {
             return ParseResult::fail(result.errorMessage, collector.warnings);
+        }
 
         return ParseResult::ok(collector.warnings);
     }
-} // namespace Fio
+}  // namespace Fio

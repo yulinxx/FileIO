@@ -36,19 +36,22 @@ namespace Fio
         return factory;
     }
 
-    void FileWriterFactory::registerWriter(FileFormat format, CreatorFunc creator,
-        const char* defaultExtension)
+    void FileWriterFactory::registerWriter(FileFormat format, CreatorFunc creator, const char* defaultExtension)
     {
         m_impl->m_creators[format] = creator;
         if (defaultExtension && defaultExtension[0] != '\0')
+        {
             m_impl->m_formatToExt[format] = defaultExtension;
+        }
     }
 
     IFileWriter* FileWriterFactory::createWriter(FileFormat format) const
     {
         auto it = m_impl->m_creators.find(format);
         if (it != m_impl->m_creators.end())
+        {
             return it->second();
+        }
         return nullptr;
     }
 
@@ -62,22 +65,55 @@ namespace Fio
         return m_impl->m_creators.find(format) != m_impl->m_creators.end();
     }
 
-    void FileWriterFactory::forEachSupportedExtension(
-        void (*visitor)(const char* ext, void* ctx), void* ctx) const
+    void FileWriterFactory::forEachSupportedExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const
     {
         if (!visitor)
+        {
             return;
+        }
         for (const auto& pair : m_impl->m_formatToExt)
+        {
             visitor(pair.second.c_str(), ctx);
+        }
     }
 
     void FileWriterFactory::initDefaults()
     {
-        registerWriter(FileFormat::DXF, []() -> IFileWriter* { return new DxfWriter(); }, "dxf");
-        registerWriter(FileFormat::SVG, []() -> IFileWriter* { return new SvgWriter(); }, "svg");
-        registerWriter(FileFormat::PLT, []() -> IFileWriter* { return new PltWriter(); }, "plt");
-        registerWriter(FileFormat::UG, []() -> IFileWriter* { return new UgWriter(); }, "igs");
-        registerWriter(FileFormat::Native, []() -> IFileWriter* { return new NativeWriter(); }, "sy");
-        registerWriter(FileFormat::Native3D, []() -> IFileWriter* { return new NativeWriter3D(); }, "syx");
+        registerWriter(
+            FileFormat::DXF,
+            []() -> IFileWriter* {
+                return new DxfWriter();
+            },
+            "dxf");
+        registerWriter(
+            FileFormat::SVG,
+            []() -> IFileWriter* {
+                return new SvgWriter();
+            },
+            "svg");
+        registerWriter(
+            FileFormat::PLT,
+            []() -> IFileWriter* {
+                return new PltWriter();
+            },
+            "plt");
+        registerWriter(
+            FileFormat::UG,
+            []() -> IFileWriter* {
+                return new UgWriter();
+            },
+            "igs");
+        registerWriter(
+            FileFormat::Native,
+            []() -> IFileWriter* {
+                return new NativeWriter();
+            },
+            "sy");
+        registerWriter(
+            FileFormat::Native3D,
+            []() -> IFileWriter* {
+                return new NativeWriter3D();
+            },
+            "syx");
     }
-} // namespace Fio
+}  // namespace Fio
