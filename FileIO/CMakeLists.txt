@@ -49,13 +49,10 @@ get_target_property(NANOSVG_INCLUDE_DIR NanoSVG::nanosvg INTERFACE_INCLUDE_DIREC
 find_package(ZLIB QUIET)
 
 # --- Protobuf 代码生成 ---
+# 始终输出到构建目录，避免生成的中间文件污染源码树
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Proto")
-set(PROTO_GEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Generated/Proto")
-
-if(NOT EXISTS "${PROTO_GEN_DIR}")
-    set(PROTO_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/Generated/Proto")
-    file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
-endif()
+set(PROTO_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/Generated/Proto")
+file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
 
 set(PROTO_FILE "${PROTO_DIR}/SanYiDocument.proto")
 
