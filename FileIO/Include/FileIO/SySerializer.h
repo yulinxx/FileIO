@@ -47,7 +47,9 @@ namespace Fio
             SerializeResult r;
             r.success = false;
             if (msg)
+            {
                 std::strncpy(r.errorMessage, msg, sizeof(r.errorMessage) - 1);
+            }
             return r;
         }
     };
@@ -76,7 +78,7 @@ namespace Fio
 
         /// 加密标志位
         constexpr uint32_t FLAG_ENCRYPTED = 0x01;
-    } // namespace SyFileConst
+    }  // namespace SyFileConst
 
     ////////////////////////////////////////////////////////////////////
     // ---------------------------- 序列化器 ----------------------------
@@ -109,8 +111,8 @@ namespace Fio
         /// @param encrypt  是否加密 (需要先 setCryptoProvider)
         SerializeResult saveToFile(const char* filePath,
             const SyDocument& doc,
-            bool                       encrypt = false,
-            SerializeWarningCallback   warningCb = nullptr,
+            bool encrypt = false,
+            SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
 
         /// 从 .sy 文件加载文档
@@ -118,7 +120,7 @@ namespace Fio
         /// @param doc      [出参] 文档数据
         SerializeResult loadFromFile(const char* filePath,
             SyDocument& doc,
-            SerializeWarningCallback   warningCb = nullptr,
+            SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
 
         // ========== 内存级操作 ==========
@@ -128,16 +130,14 @@ namespace Fio
         /// @param out 输出块（调用方提供缓冲区；out->data 为 nullptr 时仅查询大小）
         SerializeResult serializeToMemory(const SyDocument& doc,
             BinaryBlobOut* out,
-            SerializeWarningCallback   warningCb = nullptr,
+            SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
 
         /// 从内存中的二进制数据反序列化为文档
         /// @param in  序列化后的二进制数据
         /// @param doc [出参] 文档数据
-        SerializeResult deserializeFromMemory(BinaryBlob in,
-            SyDocument& doc,
-            SerializeWarningCallback   warningCb = nullptr,
-            void* warningCtx = nullptr);
+        SerializeResult deserializeFromMemory(
+            BinaryBlob in, SyDocument& doc, SerializeWarningCallback warningCb = nullptr, void* warningCtx = nullptr);
 
         // ========== 工具方法 ==========
 
@@ -154,4 +154,4 @@ namespace Fio
         struct Impl;
         Impl* m_impl;
     };
-} // namespace Fio
+}  // namespace Fio

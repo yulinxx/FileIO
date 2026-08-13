@@ -30,21 +30,34 @@ namespace Fio
     /// 图元类型枚举（跨 DLL 安全，uint8_t）
     enum class FILEIO_API EntityType : uint8_t
     {
-        Line, Arc, Circle, Ellipse, Polygon,
-        Bezier, Bezier2, Nurbs, Spline,
-        Polyline, Point, Text, Image,
-        BarCode, QRCode, SmartLine,
-        Mesh3D, Unknown
+        Line,
+        Arc,
+        Circle,
+        Ellipse,
+        Polygon,
+        Bezier,
+        Bezier2,
+        Nurbs,
+        Spline,
+        Polyline,
+        Point,
+        Text,
+        Image,
+        BarCode,
+        QRCode,
+        SmartLine,
+        Mesh3D,
+        Unknown
     };
 
     /// 图层信息（POD，固定长度缓冲区，跨 DLL 安全）
     struct FILEIO_API IrLayerInfo
     {
         uint32_t sourceId = 0;
-        char     name[256] = {};
+        char name[256] = {};
         uint32_t color = 0xFF000000;
-        bool     visible = true;
-        bool     locked = false;
+        bool visible = true;
+        bool locked = false;
     };
 
     /// 2D 点（POD）
@@ -58,13 +71,13 @@ namespace Fio
     /// 注意：复杂几何数据（如多边形顶点、贝塞尔控制点序列）通过扩展数据块承载
     struct FILEIO_API EntityInfo
     {
-        uint64_t   sourceId = 0;
+        uint64_t sourceId = 0;
         EntityType type = EntityType::Unknown;
-        char       name[256] = {};
-        uint32_t   layerSourceId = 0;
-        double     lineWidth = 1.0;
-        bool       visible = true;
-        bool       locked = false;
+        char name[256] = {};
+        uint32_t layerSourceId = 0;
+        double lineWidth = 1.0;
+        bool visible = true;
+        bool locked = false;
 
         // ---- 基础几何参数（按 type 使用对应字段） ----
 
@@ -72,19 +85,19 @@ namespace Fio
         struct
         {
             double x1, y1, x2, y2;
-        }     line;
+        } line;
 
         // 圆弧: 圆心(cx,cy), 半径r, 起始角sa, 终止角ea（弧度）
         struct
         {
             double cx, cy, r, sa, ea;
-        }  arc;
+        } arc;
 
         // 圆: 圆心(cx,cy), 半径r
         struct
         {
             double cx, cy, r;
-        }           circle;
+        } circle;
 
         // 椭圆: 圆心(cx,cy), 半轴rx/ry, 旋转角rot, 起始角sa, 终止角ea
         struct
@@ -95,7 +108,9 @@ namespace Fio
         // 文本: 位置(x,y), 内容text, 高度h, 角度a
         struct
         {
-            double x, y; char text[256]; double h, a;
+            double x, y;
+            char text[256];
+            double h, a;
         } text;
 
         // 三次贝塞尔: 控制点(c0,c1), 终点(e)
@@ -116,13 +131,13 @@ namespace Fio
 
         // NURBS: 阶数 + 控制点/节点/权重数量（完整数据在扩展数据块中）
         // 扩展数据布局: [控制点(n*doubles)] [节点(k*doubles)] [权重(w*doubles)]
-        int32_t  nurbsDegree = 3;
+        int32_t nurbsDegree = 3;
         uint32_t nurbsCtrlPtCount = 0;
         uint32_t nurbsKnotCount = 0;
 
         // 图像: 尺寸（像素数据在扩展数据块中）
-        int32_t  imageWidth = 0;
-        int32_t  imageHeight = 0;
+        int32_t imageWidth = 0;
+        int32_t imageHeight = 0;
 
         // 3D网格: 顶点/三角形数量（完整数据在扩展数据块中）
         uint32_t meshVertCount = 0;
@@ -146,7 +161,7 @@ namespace Fio
     struct FILEIO_API BinaryBlob
     {
         uint8_t* data = nullptr;
-        size_t   size = 0;
+        size_t size = 0;
     };
 
     /// 二进制输出块（纯 POD，调用方提供缓冲区；Blob 化序列化输出用）
@@ -155,8 +170,8 @@ namespace Fio
     struct FILEIO_API BinaryBlobOut
     {
         uint8_t* data = nullptr;
-        size_t   capacity = 0;
-        size_t   written = 0;
+        size_t capacity = 0;
+        size_t written = 0;
     };
 
     // ===== 中立 IR 层：FioParseResult =====
@@ -172,18 +187,18 @@ namespace Fio
     {
         /// 图元列表（POD 数组）
         const EntityInfo* entities = nullptr;
-        uint32_t          entityCount = 0;
+        uint32_t entityCount = 0;
 
         /// 图层列表（POD 数组）
         const IrLayerInfo* layers = nullptr;
-        uint32_t          layerCount = 0;
+        uint32_t layerCount = 0;
 
         /// 扩展数据块（多边形顶点、贝塞尔控制点序列等可变长度数据）
-        BinaryBlob        extensionBlob{};
+        BinaryBlob extensionBlob{};
 
         /// 元数据
-        char              sourceFormat[64] = {};  // 来源格式名（如 "DXF", "SVG"）
-        char              sourceUnit[16] = {};     // 来源单位（如 "mm", "inch"）
-        uint32_t          warningCount = 0;
+        char sourceFormat[64] = {};  // 来源格式名（如 "DXF", "SVG"）
+        char sourceUnit[16] = {};    // 来源单位（如 "mm", "inch"）
+        uint32_t warningCount = 0;
     };
-} // namespace Fio
+}  // namespace Fio

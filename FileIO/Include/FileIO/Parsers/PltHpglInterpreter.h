@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef _USE_MATH_DEFINES
-#define _USE_MATH_DEFINES
+    #define _USE_MATH_DEFINES
 #endif
 
 #include "FileIO/FioTypes.h"
@@ -20,8 +20,9 @@ namespace Fio
     inline std::string pltToUpper(const std::string& str)
     {
         std::string result = str;
-        std::transform(result.begin(), result.end(), result.begin(),
-            [](unsigned char c) { return std::toupper(c); });
+        std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
+            return std::toupper(c);
+        });
         return result;
     }
 
@@ -29,7 +30,10 @@ namespace Fio
     {
         size_t start = str.find_first_not_of(" \t\n\r");
         size_t end = str.find_last_not_of(" \t\n\r");
-        if (start == std::string::npos) return "";
+        if (start == std::string::npos)
+        {
+            return "";
+        }
         return str.substr(start, end - start + 1);
     }
 
@@ -53,17 +57,16 @@ namespace Fio
     class PltHpglInterpreter
     {
     public:
-        PltHpglInterpreter(std::vector<EntityInfo>& outEntities,
-            std::vector<std::string>& warnings)
-            : m_outEntities(outEntities)
-            , m_warnings(warnings)
-            , m_penDown(false)
+        PltHpglInterpreter(std::vector<EntityInfo>& outEntities, std::vector<std::string>& warnings)
+            : m_penDown(false)
             , m_currentPos(0.0, 0.0)
             , m_lastPos(0.0, 0.0)
             , m_scale(0.025)
             , m_defaultScale(0.025)
             , m_currentPen(1)
             , m_lineWidth(0.5)
+            , m_outEntities(outEntities)
+            , m_warnings(warnings)
         {
         }
 
@@ -71,16 +74,22 @@ namespace Fio
         {
             std::string line = pltToUpper(pltTrim(rawLine));
             if (line.empty())
+            {
                 return;
+            }
 
             size_t pos = 0;
             while (pos < line.size())
             {
                 while (pos < line.size() && (line[pos] == ';' || line[pos] == ' ' || line[pos] == '\t'))
+                {
                     ++pos;
+                }
 
                 if (pos >= line.size())
+                {
                     break;
+                }
 
                 if (!std::isalpha(static_cast<unsigned char>(line[pos])))
                 {
@@ -90,7 +99,9 @@ namespace Fio
 
                 size_t cmdStart = pos;
                 while (pos < line.size() && std::isalpha(static_cast<unsigned char>(line[pos])))
+                {
                     ++pos;
+                }
 
                 std::string cmd = line.substr(cmdStart, pos - cmdStart);
 
@@ -104,7 +115,8 @@ namespace Fio
                     }
                     else
                     {
-                        m_warnings.push_back("Line " + std::to_string(lineIdx + 1) + ": Unknown HPGL command '" + cmd + "'");
+                        m_warnings.push_back(
+                            "Line " + std::to_string(lineIdx + 1) + ": Unknown HPGL command '" + cmd + "'");
                         continue;
                     }
                 }
@@ -115,7 +127,9 @@ namespace Fio
                 }
 
                 while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t'))
+                {
                     ++pos;
+                }
 
                 size_t paramsStart = pos;
                 while (pos < line.size() && line[pos] != ';')
@@ -126,7 +140,9 @@ namespace Fio
                         {
                             std::string maybeCmd = line.substr(pos, 2);
                             if (isKnownCommand(maybeCmd))
+                            {
                                 break;
+                            }
                         }
                     }
                     ++pos;
@@ -140,47 +156,83 @@ namespace Fio
                 try
                 {
                     if (cmd == "IN")
+                    {
                         handleIN(params);
+                    }
                     else if (cmd == "PU")
+                    {
                         handlePU(params);
+                    }
                     else if (cmd == "PD")
+                    {
                         handlePD(params);
+                    }
                     else if (cmd == "PA")
+                    {
                         handlePA(params);
+                    }
                     else if (cmd == "PR")
+                    {
                         handlePR(params);
+                    }
                     else if (cmd == "AA")
+                    {
                         handleAA(params);
+                    }
                     else if (cmd == "AR")
+                    {
                         handleAR(params);
+                    }
                     else if (cmd == "CI")
+                    {
                         handleCI(params);
+                    }
                     else if (cmd == "SP")
+                    {
                         handleSP(params);
+                    }
                     else if (cmd == "PT")
+                    {
                         handlePT(params);
+                    }
                     else if (cmd == "SC")
+                    {
                         handleSC(params);
+                    }
                     else if (cmd == "LT")
+                    {
                         handleLT(params);
+                    }
                     else if (cmd == "LB")
+                    {
                         handleLB(params, lineIdx);
+                    }
                     else if (cmd == "DI")
+                    {
                         handleDI(params);
+                    }
                     else if (cmd == "VS")
+                    {
                         handleVS(params);
+                    }
                     else if (cmd == "WU")
+                    {
                         handleWU(params);
+                    }
                     else if (cmd == "PW")
+                    {
                         handlePW(params);
+                    }
                     else
                     {
-                        m_warnings.push_back("Line " + std::to_string(lineIdx + 1) + ": Unknown HPGL command '" + cmd + "'");
+                        m_warnings.push_back(
+                            "Line " + std::to_string(lineIdx + 1) + ": Unknown HPGL command '" + cmd + "'");
                     }
                 }
                 catch (const std::exception& e)
                 {
-                    m_warnings.push_back("Line " + std::to_string(lineIdx + 1) + ": Error parsing command '" + cmd + "': " + e.what());
+                    m_warnings.push_back(
+                        "Line " + std::to_string(lineIdx + 1) + ": Error parsing command '" + cmd + "': " + e.what());
                 }
             }
         }
@@ -209,12 +261,9 @@ namespace Fio
 
         static bool isKnownCommand(const std::string& cmd)
         {
-            return cmd == "IN" || cmd == "PU" || cmd == "PD" ||
-                cmd == "PA" || cmd == "PR" || cmd == "AA" ||
-                cmd == "AR" || cmd == "CI" || cmd == "SP" ||
-                cmd == "PT" || cmd == "SC" || cmd == "LT" ||
-                cmd == "LB" || cmd == "DI" || cmd == "VS" ||
-                cmd == "WU" || cmd == "PW";
+            return cmd == "IN" || cmd == "PU" || cmd == "PD" || cmd == "PA" || cmd == "PR" || cmd == "AA" ||
+                cmd == "AR" || cmd == "CI" || cmd == "SP" || cmd == "PT" || cmd == "SC" || cmd == "LT" || cmd == "LB" ||
+                cmd == "DI" || cmd == "VS" || cmd == "WU" || cmd == "PW";
         }
 
         static double getParam(const std::vector<std::string>& params, int i, double def = 0.0)
@@ -315,7 +364,8 @@ namespace Fio
             for (size_t i = 0; i + 1 < params.size(); i += 2)
             {
                 m_lastPos = m_currentPos;
-                m_currentPos = Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
+                m_currentPos =
+                    Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
                 emitLine(m_lastPos, m_currentPos);
             }
         }
@@ -325,7 +375,8 @@ namespace Fio
             for (size_t i = 0; i + 1 < params.size(); i += 2)
             {
                 m_lastPos = m_currentPos;
-                m_currentPos = Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
+                m_currentPos =
+                    Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
 
                 if (m_penDown)
                 {
@@ -339,7 +390,8 @@ namespace Fio
             for (size_t i = 0; i + 1 < params.size(); i += 2)
             {
                 m_lastPos = m_currentPos;
-                m_currentPos = m_currentPos + Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
+                m_currentPos = m_currentPos +
+                    Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
 
                 if (m_penDown)
                 {
@@ -351,7 +403,9 @@ namespace Fio
         void handleAA(const std::vector<std::string>& params)
         {
             if (params.size() < 3)
+            {
                 return;
+            }
 
             double cx = getParam(params, 0);
             double cy = getParam(params, 1);
@@ -366,14 +420,15 @@ namespace Fio
                 emitArc(Ut::Vec2d(cx, cy), radius, startAng, endAng);
             }
 
-            m_currentPos = Ut::Vec2d(cx + radius * std::cos(endAng),
-                cy + radius * std::sin(endAng));
+            m_currentPos = Ut::Vec2d(cx + radius * std::cos(endAng), cy + radius * std::sin(endAng));
         }
 
         void handleAR(const std::vector<std::string>& params)
         {
             if (params.size() < 3)
+            {
                 return;
+            }
 
             double rx = getParam(params, 0);
             double ry = getParam(params, 1);
@@ -389,14 +444,15 @@ namespace Fio
                 emitArc(center, radius, startAng, endAng);
             }
 
-            m_currentPos = Ut::Vec2d(center.x() + radius * std::cos(endAng),
-                center.y() + radius * std::sin(endAng));
+            m_currentPos = Ut::Vec2d(center.x() + radius * std::cos(endAng), center.y() + radius * std::sin(endAng));
         }
 
         void handleCI(const std::vector<std::string>& params)
         {
             if (params.size() < 1)
+            {
                 return;
+            }
 
             double radius = getParam(params, 0);
             if (radius > 0)
@@ -445,31 +501,22 @@ namespace Fio
             }
         }
 
-        void handleLT(const std::vector<std::string>& /*params*/)
-        {
-        }
+        void handleLT(const std::vector<std::string>& /*params*/) {}
 
         void handleLB(const std::vector<std::string>& /*params*/, int lineIdx)
         {
-            m_warnings.push_back("Line " + std::to_string(lineIdx + 1) + ": LB (Label) command is not supported, text content ignored");
+            m_warnings.push_back(
+                "Line " + std::to_string(lineIdx + 1) + ": LB (Label) command is not supported, text content ignored");
         }
 
-        void handleDI(const std::vector<std::string>& /*params*/)
-        {
-        }
+        void handleDI(const std::vector<std::string>& /*params*/) {}
 
-        void handleVS(const std::vector<std::string>& /*params*/)
-        {
-        }
+        void handleVS(const std::vector<std::string>& /*params*/) {}
 
-        void handleWU(const std::vector<std::string>& /*params*/)
-        {
-        }
+        void handleWU(const std::vector<std::string>& /*params*/) {}
 
-        void handlePW(const std::vector<std::string>& /*params*/)
-        {
-        }
+        void handlePW(const std::vector<std::string>& /*params*/) {}
     };
 
     inline const std::regex PltHpglInterpreter::m_regexCommaSpace{ "[,\\s]+" };
-} // namespace Fio
+}  // namespace Fio

@@ -6,152 +6,190 @@
 #include <vector>
 #include <map>
 
-namespace Fio {
+namespace Fio
+{
 
-// ===================== 基础类型 =====================
+    // ===================== 基础类型 =====================
 
-struct ParsedPoint2D { double x = 0, y = 0; };
-struct ParsedPoint3D { double x = 0, y = 0, z = 0; };
+    struct ParsedPoint2D
+    {
+        double x = 0, y = 0;
+    };
 
-// ===================== 图元类型枚举 =====================
+    struct ParsedPoint3D
+    {
+        double x = 0, y = 0, z = 0;
+    };
 
-enum class ParsedGeometryType {
-    Line, Arc, Circle, Ellipse, Polygon,
-    Bezier, Bezier2, Nurbs, Spline,
-    Polyline, Point, Text, Image,
-    BarCode, QRCode, SmartLine,
-    Mesh3D,
-    Unknown
-};
+    // ===================== 图元类型枚举 =====================
 
-// ===================== 图层信息 =====================
+    enum class ParsedGeometryType
+    {
+        Line,
+        Arc,
+        Circle,
+        Ellipse,
+        Polygon,
+        Bezier,
+        Bezier2,
+        Nurbs,
+        Spline,
+        Polyline,
+        Point,
+        Text,
+        Image,
+        BarCode,
+        QRCode,
+        SmartLine,
+        Mesh3D,
+        Unknown
+    };
 
-struct ParsedLayer {
-    uint32_t sourceId = 0;
-    std::string name;
-    uint32_t color = 0xFF000000;
-    bool visible = true;
-    bool locked = false;
-};
+    // ===================== 图层信息 =====================
 
-// ===================== 群组信息 =====================
+    struct ParsedLayer
+    {
+        uint32_t sourceId = 0;
+        std::string name;
+        uint32_t color = 0xFF000000;
+        bool visible = true;
+        bool locked = false;
+    };
 
-struct ParsedGroup {
-    uint64_t sourceId = 0;
-    uint64_t parentGroupSourceId = 0;
-    std::string name;
-    std::vector<uint64_t> entitySourceIds;
-    std::vector<uint64_t> subGroupSourceIds;
-};
+    // ===================== 群组信息 =====================
 
-// ===================== 图元数据 =====================
+    struct ParsedGroup
+    {
+        uint64_t sourceId = 0;
+        uint64_t parentGroupSourceId = 0;
+        std::string name;
+        std::vector<uint64_t> entitySourceIds;
+        std::vector<uint64_t> subGroupSourceIds;
+    };
 
-struct ParsedGeometry {
-    uint64_t sourceId = 0;
-    ParsedGeometryType type = ParsedGeometryType::Unknown;
-    std::string name;
-    uint32_t layerSourceId = 0;
-    double lineWidth = 1.0;
-    bool visible = true;
-    bool locked = false;
-    bool closed = false;
-    bool ccw = true;
+    // ===================== 图元数据 =====================
 
-    struct LineData {
-        ParsedPoint2D start, end;
-    } line;
-
-    struct ArcData {
-        ParsedPoint2D center;
-        double radius = 0;
-        double startAngle = 0, endAngle = 0;
-    } arc;
-
-    struct CircleData {
-        ParsedPoint2D center;
-        double radius = 0;
-    } circle;
-
-    struct EllipseData {
-        ParsedPoint2D center;
-        double radiusX = 0, radiusY = 0;
-        double rotation = 0;
-        double startAngle = 0, endAngle = 0;
-    } ellipse;
-
-    struct PolylineData {
-        std::vector<ParsedPoint2D> points;
+    struct ParsedGeometry
+    {
+        uint64_t sourceId = 0;
+        ParsedGeometryType type = ParsedGeometryType::Unknown;
+        std::string name;
+        uint32_t layerSourceId = 0;
+        double lineWidth = 1.0;
+        bool visible = true;
+        bool locked = false;
         bool closed = false;
-    } polyline;
+        bool ccw = true;
 
-    struct BezierData {
-        ParsedPoint2D start;    // basePoint (P0)
-        ParsedPoint2D ctrl0;    // ptCtrl0 (P1)
-        ParsedPoint2D ctrl1;    // ptCtrl1 (P2)
-        ParsedPoint2D end;      // ptEnd (P3)
-    } bezier;
+        struct LineData
+        {
+            ParsedPoint2D start, end;
+        } line;
 
-    struct Bezier2Data {
-        ParsedPoint2D start;    // basePoint (P0)
-        ParsedPoint2D ctrl;     // ptCtrl (P1)
-        ParsedPoint2D end;      // ptEnd (P2)
-    } bezier2;
+        struct ArcData
+        {
+            ParsedPoint2D center;
+            double radius = 0;
+            double startAngle = 0, endAngle = 0;
+        } arc;
 
-    struct NurbsData {
-        int degree = 3;
-        std::vector<double> knots;
-        std::vector<double> weights;
-        std::vector<ParsedPoint2D> controlPoints;
-    } nurbs;
+        struct CircleData
+        {
+            ParsedPoint2D center;
+            double radius = 0;
+        } circle;
 
-    struct TextData {
-        ParsedPoint2D position;
-        std::string text;
-        double height = 10.0;
-        std::string fontFamily;
-        double angle = 0.0;
-    } text;
+        struct EllipseData
+        {
+            ParsedPoint2D center;
+            double radiusX = 0, radiusY = 0;
+            double rotation = 0;
+            double startAngle = 0, endAngle = 0;
+        } ellipse;
 
-    struct ImageData {
-        ParsedPoint2D position;
-        int width = 0, height = 0;
-        std::vector<uint8_t> data;
-        double dpiX = 96.0, dpiY = 96.0;
-    } image;
+        struct PolylineData
+        {
+            std::vector<ParsedPoint2D> points;
+            bool closed = false;
+        } polyline;
 
-    struct SmartLineData {
-        std::vector<ParsedGeometry> subEntities;
-    } smartLine;
+        struct BezierData
+        {
+            ParsedPoint2D start;  // basePoint (P0)
+            ParsedPoint2D ctrl0;  // ptCtrl0 (P1)
+            ParsedPoint2D ctrl1;  // ptCtrl1 (P2)
+            ParsedPoint2D end;    // ptEnd (P3)
+        } bezier;
 
-    struct MeshData {
-        std::vector<ParsedPoint3D> vertices;
-        std::vector<uint32_t> indices;
-        std::vector<ParsedPoint3D> normals;
-    } mesh;
-};
+        struct Bezier2Data
+        {
+            ParsedPoint2D start;  // basePoint (P0)
+            ParsedPoint2D ctrl;   // ptCtrl (P1)
+            ParsedPoint2D end;    // ptEnd (P2)
+        } bezier2;
 
-// ===================== 文档元信息 =====================
+        struct NurbsData
+        {
+            int degree = 3;
+            std::vector<double> knots;
+            std::vector<double> weights;
+            std::vector<ParsedPoint2D> controlPoints;
+        } nurbs;
 
-struct ParsedMetadata {
-    std::string author;
-    std::string version;
-    std::string creationDate;
-    std::string modificationDate;
-    std::string description;
-    std::map<std::string, std::string> customProperties;
-};
+        struct TextData
+        {
+            ParsedPoint2D position;
+            std::string text;
+            double height = 10.0;
+            std::string fontFamily;
+            double angle = 0.0;
+        } text;
 
-// ===================== 完整解析结果 =====================
+        struct ImageData
+        {
+            ParsedPoint2D position;
+            int width = 0, height = 0;
+            std::vector<uint8_t> data;
+            double dpiX = 96.0, dpiY = 96.0;
+        } image;
 
-struct ParseData {
-    ParsedMetadata metadata;
-    std::vector<ParsedLayer> layers;
-    std::vector<ParsedGeometry> geometries;
-    std::vector<ParsedGroup> groups;
+        struct SmartLineData
+        {
+            std::vector<ParsedGeometry> subEntities;
+        } smartLine;
 
-    bool success = false;
-    std::string errorMessage;
-    std::vector<std::string> warnings;
-};
+        struct MeshData
+        {
+            std::vector<ParsedPoint3D> vertices;
+            std::vector<uint32_t> indices;
+            std::vector<ParsedPoint3D> normals;
+        } mesh;
+    };
 
-} // namespace Fio
+    // ===================== 文档元信息 =====================
+
+    struct ParsedMetadata
+    {
+        std::string author;
+        std::string version;
+        std::string creationDate;
+        std::string modificationDate;
+        std::string description;
+        std::map<std::string, std::string> customProperties;
+    };
+
+    // ===================== 完整解析结果 =====================
+
+    struct ParseData
+    {
+        ParsedMetadata metadata;
+        std::vector<ParsedLayer> layers;
+        std::vector<ParsedGeometry> geometries;
+        std::vector<ParsedGroup> groups;
+
+        bool success = false;
+        std::string errorMessage;
+        std::vector<std::string> warnings;
+    };
+
+}  // namespace Fio

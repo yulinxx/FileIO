@@ -23,15 +23,13 @@ namespace Fio
         FileFormat format() const override;
         size_t formatName(char* buffer, size_t bufferSize) const override;
         size_t defaultExtension(char* buffer, size_t bufferSize) const override;
-        WriteResult write(const char* filePath,
-            const VecSyEntityPtr& entities) override;
+        WriteResult write(const char* filePath, const VecSyEntityPtr& entities) override;
 
         // ---- 3D 完整文档写入 (同时保存 2D 图元和 3D 网格) ----
-        WriteResult writeDocument(const char* filePath,
-            const SyDocument& doc);
+        WriteResult writeDocument(const char* filePath, const SyDocument& doc);
 
     private:
         class Impl;
         std::unique_ptr<Impl> m_impl;
     };
-} // namespace Fio
+}  // namespace Fio

@@ -82,7 +82,9 @@ namespace Fio
                 out.type = ParsedGeometryType::Polygon;
                 out.closed = true;
                 for (auto& v : poly->vertices())
+                {
                     out.polyline.points.push_back({ v.x(), v.y() });
+                }
             }
             else if (auto* bezier = dynamic_cast<const Eg::SyBezier*>(src))
             {
@@ -103,10 +105,18 @@ namespace Fio
             {
                 out.type = ParsedGeometryType::Nurbs;
                 out.nurbs.degree = nurbs->nDegree;
-                for (const auto& k : nurbs->knotRef()) out.nurbs.knots.push_back(k);
-                for (const auto& w : nurbs->weightRef()) out.nurbs.weights.push_back(w);
+                for (const auto& k : nurbs->knotRef())
+                {
+                    out.nurbs.knots.push_back(k);
+                }
+                for (const auto& w : nurbs->weightRef())
+                {
+                    out.nurbs.weights.push_back(w);
+                }
                 for (const auto& p : nurbs->controlPointRef())
+                {
                     out.nurbs.controlPoints.push_back({ p.x(), p.y() });
+                }
             }
             else if (auto* text = dynamic_cast<const Eg::SyText*>(src))
             {
@@ -141,45 +151,48 @@ namespace Fio
 
             switch (src.type)
             {
-                case ParsedGeometryType::Line:
-                    out->type = EntityType::Line;
-                    out->line = { src.line.start.x, src.line.start.y,
-                                  src.line.end.x,   src.line.end.y };
-                    break;
-                case ParsedGeometryType::Arc:
-                    out->type = EntityType::Arc;
-                    out->arc = { src.arc.center.x, src.arc.center.y,
-                                  src.arc.radius, src.arc.startAngle, src.arc.endAngle };
-                    break;
-                case ParsedGeometryType::Circle:
-                    out->type = EntityType::Circle;
-                    out->circle = { src.circle.center.x, src.circle.center.y, src.circle.radius };
-                    break;
-                case ParsedGeometryType::Ellipse:
-                    out->type = EntityType::Ellipse;
-                    out->ellipse = { src.ellipse.center.x, src.ellipse.center.y,
-                                      src.ellipse.radiusX, src.ellipse.radiusY,
-                                      src.ellipse.rotation,
-                                      src.ellipse.startAngle, src.ellipse.endAngle };
-                    break;
-                case ParsedGeometryType::Text:
-                    out->type = EntityType::Text;
-                    out->text = { src.text.position.x, src.text.position.y, {}, src.text.height, src.text.angle };
-                    std::strncpy(out->text.text, src.text.text.c_str(), sizeof(out->text.text) - 1);
-                    break;
-                case ParsedGeometryType::Bezier:
-                    out->type = EntityType::Bezier;
-                    out->bezier = { src.bezier.ctrl0.x, src.bezier.ctrl0.y,
-                                    src.bezier.ctrl1.x, src.bezier.ctrl1.y,
-                                    src.bezier.end.x,   src.bezier.end.y };
-                    break;
-                case ParsedGeometryType::Bezier2:
-                    out->type = EntityType::Bezier2;
-                    out->bezier2 = { src.bezier2.ctrl.x, src.bezier2.ctrl.y,
-                                     src.bezier2.end.x,  src.bezier2.end.y };
-                    break;
-                default:
-                    break;
+            case ParsedGeometryType::Line:
+                out->type = EntityType::Line;
+                out->line = { src.line.start.x, src.line.start.y, src.line.end.x, src.line.end.y };
+                break;
+            case ParsedGeometryType::Arc:
+                out->type = EntityType::Arc;
+                out->arc = { src.arc.center.x, src.arc.center.y, src.arc.radius, src.arc.startAngle, src.arc.endAngle };
+                break;
+            case ParsedGeometryType::Circle:
+                out->type = EntityType::Circle;
+                out->circle = { src.circle.center.x, src.circle.center.y, src.circle.radius };
+                break;
+            case ParsedGeometryType::Ellipse:
+                out->type = EntityType::Ellipse;
+                out->ellipse = { src.ellipse.center.x,
+                    src.ellipse.center.y,
+                    src.ellipse.radiusX,
+                    src.ellipse.radiusY,
+                    src.ellipse.rotation,
+                    src.ellipse.startAngle,
+                    src.ellipse.endAngle };
+                break;
+            case ParsedGeometryType::Text:
+                out->type = EntityType::Text;
+                out->text = { src.text.position.x, src.text.position.y, {}, src.text.height, src.text.angle };
+                std::strncpy(out->text.text, src.text.text.c_str(), sizeof(out->text.text) - 1);
+                break;
+            case ParsedGeometryType::Bezier:
+                out->type = EntityType::Bezier;
+                out->bezier = { src.bezier.ctrl0.x,
+                    src.bezier.ctrl0.y,
+                    src.bezier.ctrl1.x,
+                    src.bezier.ctrl1.y,
+                    src.bezier.end.x,
+                    src.bezier.end.y };
+                break;
+            case ParsedGeometryType::Bezier2:
+                out->type = EntityType::Bezier2;
+                out->bezier2 = { src.bezier2.ctrl.x, src.bezier2.ctrl.y, src.bezier2.end.x, src.bezier2.end.y };
+                break;
+            default:
+                break;
             }
         }
     };
@@ -209,7 +222,9 @@ namespace Fio
         std::filesystem::path pathObj = std::filesystem::u8path(path);
         std::string ext = pathObj.extension().string();
         if (!ext.empty() && ext[0] == '.')
+        {
             ext = ext.substr(1);
+        }
 
         FileFormat fmt = factory.detectFormat(ext.c_str());
         if (fmt == FileFormat::Unknown)
@@ -298,15 +313,15 @@ namespace Fio
 
     int FileImporter::LayerCount() const
     {
-        return pImpl->hasData
-            ? static_cast<int>(pImpl->data.layers.size())
-            : 0;
+        return pImpl->hasData ? static_cast<int>(pImpl->data.layers.size()) : 0;
     }
 
     bool FileImporter::GetLayer(int index, IrLayerInfo* out) const
     {
         if (!out || index < 0 || index >= LayerCount())
+        {
             return false;
+        }
 
         const auto& src = pImpl->data.layers[index];
         out->sourceId = src.sourceId;
@@ -319,15 +334,15 @@ namespace Fio
 
     int FileImporter::EntityCount() const
     {
-        return pImpl->hasData
-            ? static_cast<int>(pImpl->data.geometries.size())
-            : 0;
+        return pImpl->hasData ? static_cast<int>(pImpl->data.geometries.size()) : 0;
     }
 
     bool FileImporter::GetEntity(int index, EntityInfo* out) const
     {
         if (!out || index < 0 || index >= EntityCount())
+        {
             return false;
+        }
 
         Impl::fillEntityInfo(pImpl->data.geometries[index], out);
         return true;
@@ -336,7 +351,9 @@ namespace Fio
     BinaryBlob FileImporter::ExportBlob() const
     {
         if (!pImpl->hasData)
+        {
             return { nullptr, 0 };
+        }
 
         // 序列化到内存流
         std::vector<uint8_t> buffer;
@@ -346,28 +363,28 @@ namespace Fio
             buffer.push_back(static_cast<uint8_t>((v >> 8) & 0xFF));
             buffer.push_back(static_cast<uint8_t>((v >> 16) & 0xFF));
             buffer.push_back(static_cast<uint8_t>((v >> 24) & 0xFF));
-            };
+        };
         auto writeU64 = [&](uint64_t v) {
             for (int i = 0; i < 8; ++i)
             {
                 buffer.push_back(static_cast<uint8_t>(v & 0xFF));
                 v >>= 8;
             }
-            };
+        };
         auto writeDouble = [&](double v) {
             uint64_t bits;
             std::memcpy(&bits, &v, sizeof(bits));
             writeU64(bits);
-            };
+        };
         auto writeString = [&](const std::string& s) {
             uint32_t len = static_cast<uint32_t>(s.size());
             writeU32(len);
             buffer.insert(buffer.end(), s.begin(), s.end());
-            };
+        };
 
         // 写入魔数 + 版本
-        writeU32(0x46494F42); // "FIOB"
-        writeU32(1);          // version
+        writeU32(0x46494F42);  // "FIOB"
+        writeU32(1);           // version
 
         // 写入图层数
         writeU32(static_cast<uint32_t>(pImpl->data.layers.size()));
@@ -420,4 +437,4 @@ namespace Fio
     {
         return pImpl->lastError.c_str();
     }
-} // namespace Fio
+}  // namespace Fio

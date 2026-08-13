@@ -82,10 +82,12 @@ namespace Fio
             SvgParser svgParser;
             FioParseResult result = svgParser.parseToIR(tempSvg.c_str());
 
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - t0).count();
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
             SY_INFOF("[PdfBasedParser] parseToIR END: %lld ms, %u entities: %s",
-                static_cast<long long>(elapsed), result.entityCount, filePath ? filePath : "");
+                static_cast<long long>(elapsed),
+                result.entityCount,
+                filePath ? filePath : "");
 
             return result;
         }
@@ -101,4 +103,4 @@ namespace Fio
             return {};
         }
     };
-} // namespace Fio
+}  // namespace Fio

@@ -8,14 +8,16 @@ namespace Fio
 {
     struct SyDocument3DData
     {
-        std::vector<std::unique_ptr<Eg::SyMeshEntity>> meshEntities; // 3D 网格图元
+        std::vector<std::unique_ptr<Eg::SyMeshEntity>> meshEntities;  // 3D 网格图元
     };
 
     // 内部访问器（friend of SyDocument3D，仅 DLL 内部使用）
     SyDocument3DData& syDocument3DData(SyDocument3D& doc)
     {
         if (!doc.m_data)
+        {
             doc.m_data = new SyDocument3DData();
+        }
         return *doc.m_data;
     }
 
@@ -54,7 +56,9 @@ namespace Fio
     void SyDocument3D::clear()
     {
         if (m_data)
+        {
             m_data->meshEntities.clear();
+        }
     }
 
     size_t SyDocument3D::meshEntityCount() const
@@ -65,14 +69,18 @@ namespace Fio
     Eg::SyMeshEntity* SyDocument3D::meshEntityAt(size_t index) const
     {
         if (!m_data || index >= m_data->meshEntities.size())
+        {
             return nullptr;
+        }
         return m_data->meshEntities[index].get();
     }
 
     void SyDocument3D::addMeshEntity(Eg::SyMeshEntity* entity)
     {
         if (!m_data)
+        {
             m_data = new SyDocument3DData();
+        }
         m_data->meshEntities.emplace_back(entity);
     }
-} // namespace Fio
+}  // namespace Fio

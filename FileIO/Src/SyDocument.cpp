@@ -38,9 +38,13 @@ namespace Fio
     void SyDocument::clear()
     {
         if (m_data)
+        {
             *m_data = SyDocumentData();
+        }
         else
+        {
             m_data = new SyDocumentData();
+        }
     }
 
     bool SyDocument::isValid() const
@@ -58,7 +62,9 @@ namespace Fio
     void SyDocument::setMetadataVersion(int32_t version)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.version = version;
     }
 
@@ -70,7 +76,9 @@ namespace Fio
     void SyDocument::setMetadataFileVersion(int32_t fileVersion)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.fileVersion = fileVersion;
     }
 
@@ -82,7 +90,9 @@ namespace Fio
     void SyDocument::setAuthor(const char* author)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.author = author ? author : "";
     }
 
@@ -94,7 +104,9 @@ namespace Fio
     void SyDocument::setSoftwareName(const char* name)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.softwareName = name ? name : "";
     }
 
@@ -106,7 +118,9 @@ namespace Fio
     void SyDocument::setSoftwareVersion(const char* version)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.softwareVersion = version ? version : "";
     }
 
@@ -118,7 +132,9 @@ namespace Fio
     void SyDocument::setCreatedTime(const char* time)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.createdTime = time ? time : "";
     }
 
@@ -130,7 +146,9 @@ namespace Fio
     void SyDocument::setModifiedTime(const char* time)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.modifiedTime = time ? time : "";
     }
 
@@ -142,7 +160,9 @@ namespace Fio
     void SyDocument::setOperatingSystem(const char* os)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.operatingSystem = os ? os : "";
     }
 
@@ -154,7 +174,9 @@ namespace Fio
     void SyDocument::setDescription(const char* desc)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->metadata.description = desc ? desc : "";
     }
 
@@ -168,7 +190,9 @@ namespace Fio
     bool SyDocument::getLayerAt(size_t index, SyLayerInfo& out) const
     {
         if (!m_data || index >= m_data->layers.size())
+        {
             return false;
+        }
 
         const auto& l = m_data->layers[index];
         out.id = l.id;
@@ -183,7 +207,9 @@ namespace Fio
     void SyDocument::addLayer(const SyLayerInfo& layer)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
 
         LayerInfo l;
         l.id = layer.id;
@@ -197,7 +223,9 @@ namespace Fio
     void SyDocument::clearLayers()
     {
         if (m_data)
+        {
             m_data->layers.clear();
+        }
     }
 
     // ---- 图元 ----
@@ -210,21 +238,27 @@ namespace Fio
     Eg::SyEntity* SyDocument::entityAt(size_t index) const
     {
         if (!m_data || index >= m_data->entities.size())
+        {
             return nullptr;
+        }
         return m_data->entities[index].get();
     }
 
     void SyDocument::addEntity(Eg::SyEntity* entity)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
         m_data->entities.emplace_back(entity);
     }
 
     void SyDocument::clearEntities()
     {
         if (m_data)
+        {
             m_data->entities.clear();
+        }
     }
 
     // ---- 硬件 ----
@@ -232,7 +266,9 @@ namespace Fio
     void SyDocument::getHardware(SyHardwareInfo& out) const
     {
         if (!m_data)
+        {
             return;
+        }
 
         const auto& h = m_data->hardware;
         std::strncpy(out.laserType, h.laserType.c_str(), sizeof(out.laserType) - 1);
@@ -247,7 +283,9 @@ namespace Fio
     void SyDocument::setHardware(const SyHardwareInfo& hardware)
     {
         if (!m_data)
+        {
             m_data = new SyDocumentData();
+        }
 
         auto& h = m_data->hardware;
         h.laserType = hardware.laserType;
@@ -256,4 +294,4 @@ namespace Fio
         h.workAreaWidth = hardware.workAreaWidth;
         h.workAreaHeight = hardware.workAreaHeight;
     }
-} // namespace Fio
+}  // namespace Fio

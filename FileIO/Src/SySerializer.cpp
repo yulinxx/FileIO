@@ -23,7 +23,9 @@ namespace Fio
         void initCrc32Table()
         {
             if (crc32TableInitialized)
+            {
                 return;
+            }
 
             const uint32_t polynomial = 0xEDB88320;
             for (uint32_t i = 0; i < 256; ++i)
@@ -32,9 +34,13 @@ namespace Fio
                 for (int j = 0; j < 8; ++j)
                 {
                     if (crc & 1)
+                    {
                         crc = (crc >> 1) ^ polynomial;
+                    }
                     else
+                    {
                         crc >>= 1;
+                    }
                 }
                 crc32Table[i] = crc;
             }
@@ -52,11 +58,6 @@ namespace Fio
             return crc ^ 0xFFFFFFFF;
         }
 
-        Ut::Vec2d fromProtoVec2(const sanyi::proto::Vec2d& p)
-        {
-            return Ut::Vec2d(p.x(), p.y());
-        }
-
         void toProtoProperties(const PropertyMap& props,
             sanyi::proto::SanYiDocument& /*doc*/,
             google::protobuf::RepeatedPtrField<sanyi::proto::PropertyEntry>* entries)
@@ -69,8 +70,7 @@ namespace Fio
             }
         }
 
-        PropertyMap fromProtoProperties(
-            const google::protobuf::RepeatedPtrField<sanyi::proto::PropertyEntry>& entries)
+        PropertyMap fromProtoProperties(const google::protobuf::RepeatedPtrField<sanyi::proto::PropertyEntry>& entries)
         {
             PropertyMap props;
             for (const auto& entry : entries)
@@ -103,26 +103,6 @@ namespace Fio
 #endif
         }
 
-        void ensureMetadataDefaults(DocumentMetadata& meta)
-        {
-            if (meta.version == 0)
-                meta.version = SyFileConst::FILE_VERSION;
-
-            if (meta.softwareName.empty())
-                meta.softwareName = "SanYi CAD";
-
-            if (meta.softwareVersion.empty())
-                meta.softwareVersion = "1.0.0";
-
-            if (meta.createdTime.empty())
-                meta.createdTime = currentIsoTime();
-
-            meta.modifiedTime = currentIsoTime();
-
-            if (meta.operatingSystem.empty())
-                meta.operatingSystem = currentOS();
-        }
-
         bool serializeToProto(const SyDocument& doc, std::vector<uint8_t>& out)
         {
             const auto& docData = syDocumentData(doc);
@@ -140,8 +120,7 @@ namespace Fio
                 meta->set_operating_system(docData.metadata.operatingSystem);
                 meta->set_description(docData.metadata.description);
 
-                toProtoProperties(docData.metadata.customProperties, protoDoc,
-                    meta->mutable_custom_properties());
+                toProtoProperties(docData.metadata.customProperties, protoDoc, meta->mutable_custom_properties());
             }
 
             for (const auto& layer : docData.layers)
@@ -152,14 +131,15 @@ namespace Fio
                 l->set_color(layer.color);
                 l->set_visible(layer.visible);
                 l->set_locked(layer.locked);
-                toProtoProperties(layer.customProperties, protoDoc,
-                    l->mutable_custom_properties());
+                toProtoProperties(layer.customProperties, protoDoc, l->mutable_custom_properties());
             }
 
             for (const auto& entity : docData.entities)
             {
                 if (!entity)
+                {
                     continue;
+                }
                 auto* e = protoDoc.add_entities();
                 SyEntitySerializer::serializeEntity(*entity, e);
             }
@@ -167,20 +147,30 @@ namespace Fio
             for (const auto& groupInfo : docData.groups)
             {
                 if (groupInfo.isEmpty())
+                {
                     continue;
+                }
 
                 auto* g = protoDoc.add_groups();
                 g->set_id(groupInfo.id);
                 if (!groupInfo.name.empty())
+                {
                     g->set_name(groupInfo.name);
+                }
                 if (groupInfo.parentGroupId != 0)
+                {
                     g->set_parent_group_id(groupInfo.parentGroupId);
+                }
 
                 for (uint64_t entityId : groupInfo.entityIds)
+                {
                     g->add_entity_ids(entityId);
+                }
 
                 for (uint64_t subGroupId : groupInfo.subGroupIds)
+                {
                     g->add_sub_group_ids(subGroupId);
+                }
             }
 
             {
@@ -190,8 +180,7 @@ namespace Fio
                 hw->set_max_power(docData.hardware.maxPower);
                 hw->set_work_area_width(docData.hardware.workAreaWidth);
                 hw->set_work_area_height(docData.hardware.workAreaHeight);
-                toProtoProperties(docData.hardware.customProperties, protoDoc,
-                    hw->mutable_custom_properties());
+                toProtoProperties(docData.hardware.customProperties, protoDoc, hw->mutable_custom_properties());
             }
 
             const size_t byteSize = protoDoc.ByteSizeLong();
@@ -243,14 +232,15 @@ namespace Fio
 
                 if (!entity)
                 {
-                    docData.warnings.push_back(
-                        "Unknown entity type: " + std::to_string(static_cast<int>(ed.type())));
+                    docData.warnings.push_back("Unknown entity type: " + std::to_string(static_cast<int>(ed.type())));
                     continue;
                 }
 
                 // 通用属性已由 deserializeEntity 内部设置，此处仅处理图层关联
                 if (ed.layer_id() != 0)
+                {
                     docData.entityLayerMap[entity->id] = ed.layer_id();
+                }
 
                 docData.entities.push_back(std::move(entity));
             }
@@ -264,10 +254,14 @@ namespace Fio
                 info.parentGroupId = gd.parent_group_id();
 
                 for (int j = 0; j < gd.entity_ids_size(); ++j)
+                {
                     info.entityIds.push_back(gd.entity_ids(j));
+                }
 
                 for (int j = 0; j < gd.sub_group_ids_size(); ++j)
+                {
                     info.subGroupIds.push_back(gd.sub_group_ids(j));
+                }
 
                 docData.groups.push_back(std::move(info));
             }
@@ -287,21 +281,25 @@ namespace Fio
         }
 
         /// 将 docData.warnings 逐条通过回调输出（回调为空时忽略）
-        void emitWarnings(const SyDocument& doc,
-            SerializeWarningCallback warningCb, void* warningCtx)
+        void emitWarnings(const SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
         {
             const auto& docData = syDocumentData(doc);
             if (!warningCb)
+            {
                 return;
+            }
             for (const auto& warn : docData.warnings)
+            {
                 warningCb(warn.c_str(), warningCtx);
+            }
         }
-    } // namespace
+    }  // namespace
 
-    class SySerializer::Impl
+    struct SySerializer::Impl
     {
     public:
         Impl() = default;
+
         ~Impl()
         {
             delete m_cryptoProvider;
@@ -353,7 +351,7 @@ namespace Fio
 
     SerializeResult SySerializer::saveToFile(const char* filePath,
         const SyDocument& doc,
-        bool               encrypt,
+        bool encrypt,
         SerializeWarningCallback /*warningCb*/,
         void* /*warningCtx*/)
     {
@@ -370,21 +368,19 @@ namespace Fio
         }
 
         std::vector<uint8_t> finalData = std::move(protoData);
-        uint32_t             flags = 0;
+        uint32_t flags = 0;
 
         if (encrypt)
         {
             if (!m_impl->m_cryptoProvider)
             {
-                return SerializeResult::fail(
-                    "Encryption requested but no crypto provider set");
+                return SerializeResult::fail("Encryption requested but no crypto provider set");
             }
 
             auto encResult = m_impl->m_cryptoProvider->encrypt(finalData.data(), finalData.size());
             if (!encResult.success)
             {
-                return SerializeResult::fail(
-                    std::string("Encryption failed: ").append(encResult.errorMessage).c_str());
+                return SerializeResult::fail(std::string("Encryption failed: ").append(encResult.errorMessage).c_str());
             }
             finalData.assign(encResult.data, encResult.data + encResult.dataSize);
             m_impl->m_cryptoProvider->freeCryptoData(encResult.data);
@@ -413,8 +409,7 @@ namespace Fio
         fileBuffer[14] = static_cast<uint8_t>((finalData.size() >> 16) & 0xFF);
         fileBuffer[15] = static_cast<uint8_t>((finalData.size() >> 24) & 0xFF);
 
-        std::memcpy(fileBuffer.data() + SyFileConst::HEADER_SIZE,
-            finalData.data(), finalData.size());
+        std::memcpy(fileBuffer.data() + SyFileConst::HEADER_SIZE, finalData.data(), finalData.size());
 
         const size_t crcOffset = SyFileConst::HEADER_SIZE + finalData.size();
         fileBuffer[crcOffset + 0] = static_cast<uint8_t>(crc & 0xFF);
@@ -425,26 +420,21 @@ namespace Fio
         std::ofstream out(std::filesystem::u8path(filePath), std::ios::binary | std::ios::trunc);
         if (!out)
         {
-            return SerializeResult::fail(
-                std::string("Cannot open file for writing: ").append(filePath).c_str());
+            return SerializeResult::fail(std::string("Cannot open file for writing: ").append(filePath).c_str());
         }
 
-        out.write(reinterpret_cast<const char*>(fileBuffer.data()),
-            static_cast<std::streamsize>(fileBuffer.size()));
+        out.write(reinterpret_cast<const char*>(fileBuffer.data()), static_cast<std::streamsize>(fileBuffer.size()));
 
         if (!out.good())
         {
-            return SerializeResult::fail(
-                std::string("Failed to write file: ").append(filePath).c_str());
+            return SerializeResult::fail(std::string("Failed to write file: ").append(filePath).c_str());
         }
 
         return SerializeResult::ok();
     }
 
-    SerializeResult SySerializer::loadFromFile(const char* filePath,
-        SyDocument& doc,
-        SerializeWarningCallback warningCb,
-        void* warningCtx)
+    SerializeResult SySerializer::loadFromFile(
+        const char* filePath, SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
     {
         doc.clear();
 
@@ -456,8 +446,7 @@ namespace Fio
         std::ifstream in(std::filesystem::u8path(filePath), std::ios::binary | std::ios::ate);
         if (!in)
         {
-            return SerializeResult::fail(
-                std::string("Cannot open file: ").append(filePath).c_str());
+            return SerializeResult::fail(std::string("Cannot open file: ").append(filePath).c_str());
         }
 
         const auto fileSize = static_cast<size_t>(in.tellg());
@@ -468,11 +457,9 @@ namespace Fio
 
         in.seekg(0);
         std::vector<uint8_t> fileBuffer(fileSize);
-        if (!in.read(reinterpret_cast<char*>(fileBuffer.data()),
-            static_cast<std::streamsize>(fileSize)))
+        if (!in.read(reinterpret_cast<char*>(fileBuffer.data()), static_cast<std::streamsize>(fileSize)))
         {
-            return SerializeResult::fail(
-                std::string("Failed to read file: ").append(filePath).c_str());
+            return SerializeResult::fail(std::string("Failed to read file: ").append(filePath).c_str());
         }
 
         bool headerValid = false;
@@ -480,22 +467,16 @@ namespace Fio
         uint32_t flags = 0;
         uint32_t dataLen = 0;
 
-        if (fileBuffer.size() >= SyFileConst::HEADER_SIZE
-            && std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SY, 4) == 0)
+        if (fileBuffer.size() >= SyFileConst::HEADER_SIZE &&
+            std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SY, 4) == 0)
         {
             headerValid = true;
-            version = static_cast<uint32_t>(fileBuffer[4])
-                | (static_cast<uint32_t>(fileBuffer[5]) << 8)
-                | (static_cast<uint32_t>(fileBuffer[6]) << 16)
-                | (static_cast<uint32_t>(fileBuffer[7]) << 24);
-            flags = static_cast<uint32_t>(fileBuffer[8])
-                | (static_cast<uint32_t>(fileBuffer[9]) << 8)
-                | (static_cast<uint32_t>(fileBuffer[10]) << 16)
-                | (static_cast<uint32_t>(fileBuffer[11]) << 24);
-            dataLen = static_cast<uint32_t>(fileBuffer[12])
-                | (static_cast<uint32_t>(fileBuffer[13]) << 8)
-                | (static_cast<uint32_t>(fileBuffer[14]) << 16)
-                | (static_cast<uint32_t>(fileBuffer[15]) << 24);
+            version = static_cast<uint32_t>(fileBuffer[4]) | (static_cast<uint32_t>(fileBuffer[5]) << 8) |
+                (static_cast<uint32_t>(fileBuffer[6]) << 16) | (static_cast<uint32_t>(fileBuffer[7]) << 24);
+            flags = static_cast<uint32_t>(fileBuffer[8]) | (static_cast<uint32_t>(fileBuffer[9]) << 8) |
+                (static_cast<uint32_t>(fileBuffer[10]) << 16) | (static_cast<uint32_t>(fileBuffer[11]) << 24);
+            dataLen = static_cast<uint32_t>(fileBuffer[12]) | (static_cast<uint32_t>(fileBuffer[13]) << 8) |
+                (static_cast<uint32_t>(fileBuffer[14]) << 16) | (static_cast<uint32_t>(fileBuffer[15]) << 24);
         }
 
         if (!headerValid)
@@ -505,10 +486,8 @@ namespace Fio
 
         if (version != SyFileConst::FILE_VERSION)
         {
-            syDocumentData(doc).warnings.push_back(
-                "File version mismatch: expected " +
-                std::to_string(SyFileConst::FILE_VERSION) + ", got " +
-                std::to_string(version));
+            syDocumentData(doc).warnings.push_back("File version mismatch: expected " +
+                std::to_string(SyFileConst::FILE_VERSION) + ", got " + std::to_string(version));
         }
 
         if (dataLen + SyFileConst::HEADER_SIZE + SyFileConst::FOOTER_SIZE > fileSize)
@@ -519,21 +498,20 @@ namespace Fio
         const uint8_t* dataPtr = fileBuffer.data() + SyFileConst::HEADER_SIZE;
 
         const uint32_t expectedCrc = computeCrc32(dataPtr, dataLen);
-        const size_t   crcOffset = SyFileConst::HEADER_SIZE + dataLen;
-        const uint32_t storedCrc = static_cast<uint32_t>(fileBuffer[crcOffset + 0])
-            | (static_cast<uint32_t>(fileBuffer[crcOffset + 1]) << 8)
-            | (static_cast<uint32_t>(fileBuffer[crcOffset + 2]) << 16)
-            | (static_cast<uint32_t>(fileBuffer[crcOffset + 3]) << 24);
+        const size_t crcOffset = SyFileConst::HEADER_SIZE + dataLen;
+        const uint32_t storedCrc = static_cast<uint32_t>(fileBuffer[crcOffset + 0]) |
+            (static_cast<uint32_t>(fileBuffer[crcOffset + 1]) << 8) |
+            (static_cast<uint32_t>(fileBuffer[crcOffset + 2]) << 16) |
+            (static_cast<uint32_t>(fileBuffer[crcOffset + 3]) << 24);
 
         if (expectedCrc != storedCrc)
         {
-            return SerializeResult::fail(
-                std::string("CRC32 mismatch: file may be corrupted (expected ")
-                .append(std::to_string(expectedCrc))
-                .append(", got ")
-                .append(std::to_string(storedCrc))
-                .append(")")
-                .c_str());
+            return SerializeResult::fail(std::string("CRC32 mismatch: file may be corrupted (expected ")
+                    .append(std::to_string(expectedCrc))
+                    .append(", got ")
+                    .append(std::to_string(storedCrc))
+                    .append(")")
+                    .c_str());
         }
 
         std::vector<uint8_t> data(dataPtr, dataPtr + dataLen);
@@ -542,15 +520,13 @@ namespace Fio
         {
             if (!m_impl->m_cryptoProvider)
             {
-                return SerializeResult::fail(
-                    "File is encrypted but no crypto provider set");
+                return SerializeResult::fail("File is encrypted but no crypto provider set");
             }
 
             auto decResult = m_impl->m_cryptoProvider->decrypt(data.data(), data.size());
             if (!decResult.success)
             {
-                return SerializeResult::fail(
-                    std::string("Decryption failed: ").append(decResult.errorMessage).c_str());
+                return SerializeResult::fail(std::string("Decryption failed: ").append(decResult.errorMessage).c_str());
             }
             data.assign(decResult.data, decResult.data + decResult.dataSize);
             m_impl->m_cryptoProvider->freeCryptoData(decResult.data);
@@ -565,10 +541,8 @@ namespace Fio
         return SerializeResult::ok();
     }
 
-    SerializeResult SySerializer::serializeToMemory(const SyDocument& doc,
-        BinaryBlobOut* out,
-        SerializeWarningCallback /*warningCb*/,
-        void* /*warningCtx*/)
+    SerializeResult SySerializer::serializeToMemory(
+        const SyDocument& doc, BinaryBlobOut* out, SerializeWarningCallback /*warningCb*/, void* /*warningCtx*/)
     {
 
         std::vector<uint8_t> data;
@@ -589,10 +563,8 @@ namespace Fio
         return SerializeResult::ok();
     }
 
-    SerializeResult SySerializer::deserializeFromMemory(BinaryBlob in,
-        SyDocument& doc,
-        SerializeWarningCallback warningCb,
-        void* warningCtx)
+    SerializeResult SySerializer::deserializeFromMemory(
+        BinaryBlob in, SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
     {
         doc.clear();
         if (!deserializeFromProto(in.data, in.size, doc))
@@ -611,14 +583,18 @@ namespace Fio
     bool SySerializer::isValidSyFile(const uint8_t* header, size_t headerSize)
     {
         if (!header || headerSize < 4)
+        {
             return false;
+        }
         return std::memcmp(header, SyFileConst::MAGIC_SY, 4) == 0;
     }
 
     bool SySerializer::isValidSyxFile(const uint8_t* header, size_t headerSize)
     {
         if (!header || headerSize < 4)
+        {
             return false;
+        }
         return std::memcmp(header, SyFileConst::MAGIC_SYX, 4) == 0;
     }
-} // namespace Fio
+}  // namespace Fio

@@ -32,4 +32,4 @@ namespace Fio
     FILEIO_API float inchToMm(float inch);
 
     FILEIO_API float mmToInch(float mm);
-} // namespace Fio
+}  // namespace Fio

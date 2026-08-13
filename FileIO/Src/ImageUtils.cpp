@@ -11,7 +11,9 @@ namespace Fio
     {
         ImageInfo info;
         if (!strUtf8Path || !strUtf8Path[0])
+        {
             return info;
+        }
 
         int width, height, channels;
 
@@ -24,27 +26,36 @@ namespace Fio
             info.isValid = true;
         }
 
-        if (info.isValid && info.dpiX <= 0) info.dpiX = 96.0f;
-        if (info.isValid && info.dpiY <= 0) info.dpiY = 96.0f;
+        if (info.isValid && info.dpiX <= 0)
+        {
+            info.dpiX = 96.0f;
+        }
+        if (info.isValid && info.dpiY <= 0)
+        {
+            info.dpiY = 96.0f;
+        }
 
         return info;
     }
 
     float pixelsToUnit(int pixelSize, float dpi, UnitType targetUnit)
     {
-        if (dpi <= 0) dpi = 96.0f;
+        if (dpi <= 0)
+        {
+            dpi = 96.0f;
+        }
 
         float inches = static_cast<float>(pixelSize) / dpi;
 
         switch (targetUnit)
         {
-            case UnitType::Millimeter:
-                return inches * MM_PER_INCH;
-            case UnitType::Inch:
-                return inches;
-            case UnitType::Pixel:
-            default:
-                return static_cast<float>(pixelSize);
+        case UnitType::Millimeter:
+            return inches * MM_PER_INCH;
+        case UnitType::Inch:
+            return inches;
+        case UnitType::Pixel:
+        default:
+            return static_cast<float>(pixelSize);
         }
     }
 
@@ -57,4 +68,4 @@ namespace Fio
     {
         return mm / MM_PER_INCH;
     }
-} // namespace Fio
+}  // namespace Fio

@@ -17,7 +17,7 @@ namespace Fio
     class FILEIO_API FileWriterFactory
     {
     public:
-        using CreatorFunc = IFileWriter * (*)();
+        using CreatorFunc = IFileWriter* (*)();
 
         static FileWriterFactory& instance();
 
@@ -44,4 +44,4 @@ namespace Fio
         class Impl;
         Impl* m_impl;
     };
-} // namespace Fio
+}  // namespace Fio

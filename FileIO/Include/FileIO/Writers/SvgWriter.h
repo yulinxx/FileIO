@@ -13,4 +13,4 @@ namespace Fio
         size_t defaultExtension(char* buffer, size_t bufferSize) const override;
         WriteResult write(const char* filePath, const VecSyEntityPtr& entities) override;
     };
-} // namespace Fio
+}  // namespace Fio

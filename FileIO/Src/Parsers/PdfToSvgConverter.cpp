@@ -9,19 +9,19 @@
 #include <cstring>
 
 #ifdef _WIN32
-#include <windows.h>
-#include <libloaderapi.h>
-#include <process.h>
+    #include <windows.h>
+    #include <libloaderapi.h>
+    #include <process.h>
 #elif defined(__linux__)
-#include <unistd.h>
-#include <limits.h>
-#include <sys/wait.h>
+    #include <unistd.h>
+    #include <limits.h>
+    #include <sys/wait.h>
 #elif defined(__APPLE__)
-#include <mach-o/dyld.h>
-#include <unistd.h>
-#include <limits.h>
-#include <unistd.h>
-#include <sys/wait.h>
+    #include <mach-o/dyld.h>
+    #include <unistd.h>
+    #include <limits.h>
+    #include <unistd.h>
+    #include <sys/wait.h>
 #endif
 
 namespace Fio
@@ -64,10 +64,14 @@ namespace Fio
     std::string PdfToSvgConverter::findInDirectory(const std::string& dir, const std::string& exeName)
     {
         if (dir.empty())
+        {
             return "";
+        }
         std::filesystem::path fullPath = std::filesystem::path(dir) / exeName;
         if (std::filesystem::exists(fullPath))
+        {
             return fullPath.string();
+        }
         return "";
     }
 
@@ -75,7 +79,9 @@ namespace Fio
     {
         const char* pathEnv = std::getenv("PATH");
         if (!pathEnv)
+        {
             return "";
+        }
 
         std::string pathStr(pathEnv);
         std::string::size_type start = 0;
@@ -91,7 +97,9 @@ namespace Fio
             std::string dir = pathStr.substr(start, end - start);
             std::string result = findInDirectory(dir, exeName);
             if (!result.empty())
+            {
                 return result;
+            }
             start = end + 1;
             end = pathStr.find(sep, start);
         }
@@ -108,7 +116,9 @@ namespace Fio
         std::string toolBinDir = (std::filesystem::path(appDir) / "tools" / toolName / "bin").string();
         std::string result = findInDirectory(toolBinDir, exeName);
         if (!result.empty())
+        {
             return result;
+        }
 
         // SANYI_TOOLS_DIR 环境变量指定的目录 + 工具名
         const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
@@ -117,7 +127,9 @@ namespace Fio
             std::string envToolBin = (std::filesystem::path(toolsDirEnv) / toolName / "bin").string();
             result = findInDirectory(envToolBin, exeName);
             if (!result.empty())
+            {
                 return result;
+            }
         }
 
         return "";
@@ -167,27 +179,37 @@ namespace Fio
         {
             std::string result = findInDirectory(toolsDirEnv, exeName);
             if (!result.empty())
+            {
                 return result;
+            }
         }
 
         std::string appDir = getExecutableDir();
         std::string result = findInDirectory(appDir, exeName);
         if (!result.empty())
+        {
             return result;
+        }
 
         // 结构化部署: tools/poppler/bin/ （Linux/macOS）
         result = findToolExe("poppler", exeName);
         if (!result.empty())
+        {
             return result;
+        }
 
         std::string toolsSubDir = (std::filesystem::path(appDir) / "tools").string();
         result = findInDirectory(toolsSubDir, exeName);
         if (!result.empty())
+        {
             return result;
+        }
 
         result = findInPathEnv(exeName);
         if (!result.empty())
+        {
             return result;
+        }
 
 #ifdef _WIN32
         std::vector<std::string> commonPaths = {
@@ -206,7 +228,9 @@ namespace Fio
         for (const std::string& p : commonPaths)
         {
             if (std::filesystem::exists(p))
+            {
                 return p;
+            }
         }
         return "";
     }
@@ -239,7 +263,9 @@ namespace Fio
             {
                 std::string result = findInDirectory(toolsDirEnv, exeName);
                 if (!result.empty())
+                {
                     return result;
+                }
             }
         }
 
@@ -248,7 +274,9 @@ namespace Fio
         {
             std::string result = findInDirectory(appDir, exeName);
             if (!result.empty())
+            {
                 return result;
+            }
         }
 
         // 结构化部署: tools/ghostscript/bin/ （Linux/macOS）
@@ -256,7 +284,9 @@ namespace Fio
         {
             std::string result = findToolExe("ghostscript", exeName);
             if (!result.empty())
+            {
                 return result;
+            }
         }
 
         std::string toolsSubDir = (std::filesystem::path(appDir) / "tools").string();
@@ -264,14 +294,18 @@ namespace Fio
         {
             std::string result = findInDirectory(toolsSubDir, exeName);
             if (!result.empty())
+            {
                 return result;
+            }
         }
 
         for (const std::string& exeName : exeNames)
         {
             std::string result = findInPathEnv(exeName);
             if (!result.empty())
+            {
                 return result;
+            }
         }
 
 #ifdef _WIN32
@@ -286,7 +320,9 @@ namespace Fio
                     {
                         std::filesystem::path gsPath = entry.path() / "bin" / exeName;
                         if (std::filesystem::exists(gsPath))
+                        {
                             return gsPath.string();
+                        }
                     }
                 }
             }
@@ -300,7 +336,9 @@ namespace Fio
         for (const std::string& p : commonPaths)
         {
             if (std::filesystem::exists(p))
+            {
                 return p;
+            }
         }
 #endif
         return "";
@@ -311,7 +349,9 @@ namespace Fio
         std::filesystem::path fsPath = std::filesystem::u8path(filePath);
         std::ifstream file(fsPath, std::ios::binary);
         if (!file)
+        {
             return false;
+        }
 
         // PDF 文件签名：前4字节必须为 "%PDF"
         // 这是 PDF 规范 ISO 32000 定义的标准魔数
@@ -327,7 +367,9 @@ namespace Fio
         std::filesystem::path fsPath = std::filesystem::u8path(filePath);
         std::ifstream file(fsPath, std::ios::binary);
         if (!file)
+        {
             return false;
+        }
 
         // PostScript 文件签名：前4字节为 "%!PS"
         // 旧版 AI (AI 7-) 使用此格式
@@ -341,9 +383,8 @@ namespace Fio
     /// 跨平台进程执行封装（带可选库路径环境变量）
     /// Windows: CreateProcessA + WaitForSingleObject
     /// Unix:    fork + execvpe + waitpid，设置 LD_LIBRARY_PATH / DYLD_LIBRARY_PATH
-    bool PdfToSvgConverter::executeProcessWithEnv(const std::string& program,
-        const std::vector<std::string>& args,
-        const std::string& libDir)
+    bool PdfToSvgConverter::executeProcessWithEnv(
+        const std::string& program, const std::vector<std::string>& args, const std::string& libDir)
     {
 #ifdef _WIN32
         std::string command = "\"" + program + "\"";
@@ -359,9 +400,7 @@ namespace Fio
         PROCESS_INFORMATION pi = { 0 };
         si.cb = sizeof(STARTUPINFOA);
 
-        if (!CreateProcessA(nullptr, cmdBuf.data(),
-            nullptr, nullptr, FALSE, 0, nullptr, nullptr,
-            &si, &pi))
+        if (!CreateProcessA(nullptr, cmdBuf.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi))
         {
             return false;
         }
@@ -381,7 +420,7 @@ namespace Fio
         {
             if (!libDir.empty())
             {
-#ifdef __APPLE__
+    #ifdef __APPLE__
                 const char* existing = std::getenv("DYLD_LIBRARY_PATH");
                 std::string newValue = libDir;
                 if (existing && strlen(existing) > 0)
@@ -390,7 +429,7 @@ namespace Fio
                     newValue += existing;
                 }
                 setenv("DYLD_LIBRARY_PATH", newValue.c_str(), 1);
-#else
+    #else
                 const char* existing = std::getenv("LD_LIBRARY_PATH");
                 std::string newValue = libDir;
                 if (existing && strlen(existing) > 0)
@@ -399,7 +438,7 @@ namespace Fio
                     newValue += existing;
                 }
                 setenv("LD_LIBRARY_PATH", newValue.c_str(), 1);
-#endif
+    #endif
             }
 
             std::vector<const char*> cargs;
@@ -431,10 +470,14 @@ namespace Fio
     {
         std::string gs = findGhostscriptPath();
         if (gs.empty())
+        {
             return false;
+        }
 
         if (!std::filesystem::exists(psPath))
+        {
             return false;
+        }
 
         std::vector<std::string> args;
         args.push_back("-dNOPAUSE");
@@ -454,10 +497,14 @@ namespace Fio
     {
         std::string pdftocairo = findPdftocairoPath();
         if (pdftocairo.empty())
+        {
             return false;
+        }
 
         if (!std::filesystem::exists(pdfPath))
+        {
             return false;
+        }
 
         std::vector<std::string> args;
         args.push_back("-f");
@@ -473,7 +520,9 @@ namespace Fio
         bool result = executeProcessWithEnv(pdftocairo, args, findToolLibDir("poppler"));
 
         if (!result)
+        {
             return false;
+        }
 
         // pdftocairo 可能在给定文件名后自动追加 .svg 后缀（如 "output.svg" → "output.svg.svg"）
         // 如果发现这种情况，重命名为期望的文件名
@@ -539,32 +588,30 @@ namespace Fio
     std::string PdfToSvgConverter::getInstallHint()
     {
 #ifdef _WIN32
-        return
-            "pdftocairo and Ghostscript are required to import PDF/AI files.\n\n"
-            "=== Option 1: Copy to application folder (Recommended) ===\n\n"
-            "1. Download pdftocairo (poppler):\n"
-            "   https://github.com/oschwartz10612/poppler-windows/releases\n"
-            "   Extract all files from Library/bin/ to your app folder.\n\n"
-            "2. Download Ghostscript:\n"
-            "   https://github.com/ArtifexSoftware/ghostpdl-downloads/releases\n"
-            "   Extract gswin64c.exe and gs.dll to your app folder.\n\n"
-            "=== Option 2: Install to system ===\n"
-            "1. Run installers for pdftocairo and Ghostscript.\n"
-            "2. Ensure they are in PATH or Program Files.\n\n"
-            "Restart the application after installation.";
+        return "pdftocairo and Ghostscript are required to import PDF/AI files.\n\n"
+               "=== Option 1: Copy to application folder (Recommended) ===\n\n"
+               "1. Download pdftocairo (poppler):\n"
+               "   https://github.com/oschwartz10612/poppler-windows/releases\n"
+               "   Extract all files from Library/bin/ to your app folder.\n\n"
+               "2. Download Ghostscript:\n"
+               "   https://github.com/ArtifexSoftware/ghostpdl-downloads/releases\n"
+               "   Extract gswin64c.exe and gs.dll to your app folder.\n\n"
+               "=== Option 2: Install to system ===\n"
+               "1. Run installers for pdftocairo and Ghostscript.\n"
+               "2. Ensure they are in PATH or Program Files.\n\n"
+               "Restart the application after installation.";
 #else
-        return
-            "pdftocairo and Ghostscript are required to import PDF/AI files.\n\n"
-            "=== Option 1: Copy to application folder (Recommended) ===\n\n"
-            "1. Linux: sudo apt install poppler-utils ghostscript\n"
-            "   macOS: brew install poppler ghostscript\n"
-            "   Then copy executables to your app folder:\n"
-            "   - /usr/bin/pdftocairo\n"
-            "   - /usr/bin/gs\n\n"
-            "=== Option 2: Install to system ===\n"
-            "Linux: sudo apt install poppler-utils ghostscript\n"
-            "macOS: brew install poppler ghostscript\n\n"
-            "Restart the application after installation.";
+        return "pdftocairo and Ghostscript are required to import PDF/AI files.\n\n"
+               "=== Option 1: Copy to application folder (Recommended) ===\n\n"
+               "1. Linux: sudo apt install poppler-utils ghostscript\n"
+               "   macOS: brew install poppler ghostscript\n"
+               "   Then copy executables to your app folder:\n"
+               "   - /usr/bin/pdftocairo\n"
+               "   - /usr/bin/gs\n\n"
+               "=== Option 2: Install to system ===\n"
+               "Linux: sudo apt install poppler-utils ghostscript\n"
+               "macOS: brew install poppler ghostscript\n\n"
+               "Restart the application after installation.";
 #endif
     }
-} // namespace Fio
+}  // namespace Fio

@@ -25,28 +25,28 @@ namespace Fio
     //   - 图元仅暴露借用指针（entityAt），所有权始终由文档持有。
     // ============================================================
 
-    struct SyDocumentData; // 内部数据模型（前向声明，仅在 DLL 内部定义）
+    struct SyDocumentData;  // 内部数据模型（前向声明，仅在 DLL 内部定义）
 
     // ---------------------------- POD 视图（跨 DLL 安全） ----------------------------
 
     /// 图层信息视图（POD，固定长度缓冲区）
     struct FILEIO_API SyLayerInfo
     {
-        uint32_t id = 0;             // 图层 ID
-        char     name[256] = {};     // 图层名称
-        uint32_t color = 0xFF000000; // ARGB 颜色
-        bool     visible = true;     // 可见性
-        bool     locked = false;     // 锁定
+        uint32_t id = 0;              // 图层 ID
+        char name[256] = {};          // 图层名称
+        uint32_t color = 0xFF000000;  // ARGB 颜色
+        bool visible = true;          // 可见性
+        bool locked = false;          // 锁定
     };
 
     /// 硬件信息视图（POD，固定长度缓冲区）
     struct FILEIO_API SyHardwareInfo
     {
-        char   laserType[128] = {};       // 激光类型
-        char   controllerModel[128] = {}; // 控制器型号
-        double maxPower = 0.0;            // 最大功率 (W)
-        double workAreaWidth = 0.0;       // 工作区宽度 (mm)
-        double workAreaHeight = 0.0;      // 工作区高度 (mm)
+        char laserType[128] = {};        // 激光类型
+        char controllerModel[128] = {};  // 控制器型号
+        double maxPower = 0.0;           // 最大功率 (W)
+        double workAreaWidth = 0.0;      // 工作区宽度 (mm)
+        double workAreaHeight = 0.0;     // 工作区高度 (mm)
     };
 
     ////////////////////////////////////////////////////////////////////
@@ -71,23 +71,23 @@ namespace Fio
         // ---- 元数据 ----
 
         int32_t metadataVersion() const;
-        void    setMetadataVersion(int32_t version);
+        void setMetadataVersion(int32_t version);
         int32_t metadataFileVersion() const;
-        void    setMetadataFileVersion(int32_t fileVersion);
+        void setMetadataFileVersion(int32_t fileVersion);
         const char* author() const;
-        void        setAuthor(const char* author);
+        void setAuthor(const char* author);
         const char* softwareName() const;
-        void        setSoftwareName(const char* name);
+        void setSoftwareName(const char* name);
         const char* softwareVersion() const;
-        void        setSoftwareVersion(const char* version);
+        void setSoftwareVersion(const char* version);
         const char* createdTime() const;
-        void        setCreatedTime(const char* time);
+        void setCreatedTime(const char* time);
         const char* modifiedTime() const;
-        void        setModifiedTime(const char* time);
+        void setModifiedTime(const char* time);
         const char* operatingSystem() const;
-        void        setOperatingSystem(const char* os);
+        void setOperatingSystem(const char* os);
         const char* description() const;
-        void        setDescription(const char* desc);
+        void setDescription(const char* desc);
 
         // ---- 图层 ----
 
@@ -117,4 +117,4 @@ namespace Fio
 
         SyDocumentData* m_data;
     };
-} // namespace Fio
+}  // namespace Fio

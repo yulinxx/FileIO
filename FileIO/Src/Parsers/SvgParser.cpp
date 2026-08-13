@@ -17,7 +17,7 @@
 #include <fstream>
 
 #ifdef FILEIO_HAS_ZLIB
-#include <zlib.h>
+    #include <zlib.h>
 #endif
 
 namespace Fio
@@ -30,9 +30,12 @@ namespace Fio
             void operator()(NSVGimage* image) const
             {
                 if (image)
+                {
                     nsvgDelete(image);
+                }
             }
         };
+
         using NsvgImagePtr = std::unique_ptr<NSVGimage, NsvgImageDeleter>;
 
 #ifdef FILEIO_HAS_ZLIB
@@ -51,7 +54,9 @@ namespace Fio
             // 15 + 16 = gzip decoding
             int ret = inflateInit2(&strm, 15 + 16);
             if (ret != Z_OK)
+            {
                 return decompressed;
+            }
 
             constexpr size_t CHUNK_SIZE = 16384;
             char outBuffer[CHUNK_SIZE];
@@ -76,13 +81,12 @@ namespace Fio
             inflateEnd(&strm);
             return decompressed;
         }
-#endif // FILEIO_HAS_ZLIB
+#endif  // FILEIO_HAS_ZLIB
 
         // Check if data starts with gzip magic number (0x1f, 0x8b)
         bool isGzipData(const std::vector<char>& data)
         {
-            return data.size() >= 2 &&
-                static_cast<unsigned char>(data[0]) == 0x1f &&
+            return data.size() >= 2 && static_cast<unsigned char>(data[0]) == 0x1f &&
                 static_cast<unsigned char>(data[1]) == 0x8b;
         }
 
@@ -91,17 +95,23 @@ namespace Fio
         {
             std::ifstream file(filePath, std::ios::binary | std::ios::ate);
             if (!file)
+            {
                 return {};
+            }
 
             std::streamsize size = file.tellg();
             if (size <= 0)
+            {
                 return {};
+            }
 
             file.seekg(0, std::ios::beg);
             std::vector<char> buffer(static_cast<size_t>(size));
 
             if (!file.read(buffer.data(), size))
+            {
                 return {};
+            }
 
             return buffer;
         }
@@ -123,14 +133,15 @@ namespace Fio
 
         // Adaptive bezier sampling based on chord error
         // Returns number of segments needed for the given cubic bezier curve
-        int computeAdaptiveSegments(const Ut::Vec2d& p0, const Ut::Vec2d& c1,
-            const Ut::Vec2d& c2, const Ut::Vec2d& p1,
-            double tolerance = 0.1)
+        int computeAdaptiveSegments(
+            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1, double tolerance = 0.1)
         {
             // Calculate chord length
             double chordLen = (p1 - p0).length();
             if (chordLen < 1e-10)
+            {
                 return 1;
+            }
 
             // Calculate maximum distance from curve to chord (flatness test)
             // Sample at t=0.5 and measure distance to chord
@@ -142,13 +153,15 @@ namespace Fio
 
             // Estimate segments needed based on flatness
             if (flatness < tolerance)
+            {
                 return 1;
+            }
 
             // Use empirical formula: segments = ceil(sqrt(flatness / tolerance))
             int segs = static_cast<int>(std::ceil(std::sqrt(flatness / tolerance)));
             return std::clamp(segs, 2, 32);
         }
-    }
+    }  // namespace
 
     class NsvgInterpreter
     {
@@ -192,9 +205,9 @@ namespace Fio
                     return;
                 }
 #else
-                m_warnings.push_back(
-                    "SVGZ file detected but zlib not available. "
-                    "Please install zlib to support .svgz files: " + filePath);
+                m_warnings.push_back("SVGZ file detected but zlib not available. "
+                                     "Please install zlib to support .svgz files: " +
+                    filePath);
                 return;
 #endif
             }
@@ -223,21 +236,31 @@ namespace Fio
                 bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
 
                 if (!visible)
+                {
                     continue;
+                }
                 if (!hasFill && !hasStroke)
+                {
                     continue;
+                }
 
                 // Extract color from shape (prefer stroke color for lines, fill for closed shapes)
                 Ut::Vec3f shapeColor = Ut::Vec3f(0.0f, 0.0f, 0.0f);
                 if (hasStroke)
+                {
                     shapeColor = extractSvgColor(shape->stroke);
+                }
                 else if (hasFill)
+                {
                     shapeColor = extractSvgColor(shape->fill);
+                }
 
                 // Extract layer name from shape id
                 std::string layerName;
-                if (shape->id && shape->id[0] != '\0')
+                if (shape->id[0] != '\0')
+                {
                     layerName = shape->id;
+                }
 
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
@@ -254,8 +277,8 @@ namespace Fio
         std::vector<std::string>& m_warnings;
         bool m_success;
 
-        Ut::Vec2d evalCubicBezier(const Ut::Vec2d& p0, const Ut::Vec2d& c1,
-            const Ut::Vec2d& c2, const Ut::Vec2d& p1, double t)
+        Ut::Vec2d evalCubicBezier(
+            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1, double t)
         {
             double t1 = 1.0 - t;
             double t1t1t1 = t1 * t1 * t1;
@@ -263,17 +286,16 @@ namespace Fio
             double t1tt = t1 * t * t;
             double ttt = t * t * t;
 
-            return Ut::Vec2d(
-                t1t1t1 * p0.x() + 3.0 * t1t1t * c1.x() + 3.0 * t1tt * c2.x() + ttt * p1.x(),
-                t1t1t1 * p0.y() + 3.0 * t1t1t * c1.y() + 3.0 * t1tt * c2.y() + ttt * p1.y()
-            );
+            return Ut::Vec2d(t1t1t1 * p0.x() + 3.0 * t1t1t * c1.x() + 3.0 * t1tt * c2.x() + ttt * p1.x(),
+                t1t1t1 * p0.y() + 3.0 * t1t1t * c1.y() + 3.0 * t1tt * c2.y() + ttt * p1.y());
         }
 
-        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& /*shapeColor*/,
-            const std::string& /*layerName*/)
+        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& /*shapeColor*/, const std::string& /*layerName*/)
         {
             if (!svgPath || svgPath->npts < 4)
+            {
                 return;
+            }
 
             float* pts = svgPath->pts;
             int npts = svgPath->npts;
@@ -310,11 +332,15 @@ namespace Fio
                 double dx = points.front().x() - points.back().x();
                 double dy = points.front().y() - points.back().y();
                 if (std::hypot(dx, dy) > 1e-6)
+                {
                     points.push_back(points.front());
+                }
             }
 
             if (points.size() < 2)
+            {
                 return;
+            }
 
             // Remove duplicate consecutive points
             std::vector<Ut::Vec2d> cleaned;
@@ -323,10 +349,14 @@ namespace Fio
             for (size_t i = 1; i < points.size(); ++i)
             {
                 if ((points[i] - cleaned.back()).length() > 1e-6)
+                {
                     cleaned.push_back(points[i]);
+                }
             }
             if (cleaned.size() < 2)
+            {
                 return;
+            }
 
             // 收集顶点为 double 序列（x0,y0,x1,y1,...）
             std::vector<double> verts;
@@ -381,9 +411,8 @@ namespace Fio
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
-                const std::string message = s_warnings.empty()
-                    ? std::string("Failed to parse SVG file: ") + filePath
-                    : s_warnings.back();
+                const std::string message =
+                    s_warnings.empty() ? std::string("Failed to parse SVG file: ") + filePath : s_warnings.back();
                 SY_ERRORF("[SvgParser] parseToIR: %s", message.c_str());
                 return FioParseResult{};
             }
@@ -416,8 +445,8 @@ namespace Fio
         std::strncpy(result.sourceFormat, "SVG", sizeof(result.sourceFormat) - 1);
         result.warningCount = static_cast<uint32_t>(s_warnings.size());
 
-        SY_INFOF("[SvgParser] parseToIR END: %u entities, %u warnings: %s",
-            result.entityCount, result.warningCount, filePath);
+        SY_INFOF(
+            "[SvgParser] parseToIR END: %u entities, %u warnings: %s", result.entityCount, result.warningCount, filePath);
         return result;
     }
 
@@ -431,13 +460,15 @@ namespace Fio
         const char* name = "SVG";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
-    void SvgParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void SvgParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("svg", ctx);
         visitor("svgz", ctx);
     }
-} // namespace Fio
+}  // namespace Fio

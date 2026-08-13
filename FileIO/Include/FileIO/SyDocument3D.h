@@ -21,7 +21,7 @@ namespace Fio
     // 也不再暴露任何 std 类型。网格图元数据存放于内部数据模型。
     // ============================================================
 
-    struct SyDocument3DData; // 内部数据模型（前向声明，仅在 DLL 内部定义）
+    struct SyDocument3DData;  // 内部数据模型（前向声明，仅在 DLL 内部定义）
 
     class FILEIO_API SyDocument3D
     {
@@ -47,4 +47,4 @@ namespace Fio
 
         SyDocument3DData* m_data;
     };
-} // namespace Fio
+}  // namespace Fio

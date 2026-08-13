@@ -119,8 +119,7 @@ TEST(FileIORegressionTest, Serialization_DeserializeCorruptedData)
     std::vector<uint8_t> corrupted = { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00 };
     Fio::SyDocument doc;
 
-    auto result = serializer.deserializeFromMemory(
-        Fio::BinaryBlob{ corrupted.data(), corrupted.size() }, doc);
+    auto result = serializer.deserializeFromMemory(Fio::BinaryBlob{ corrupted.data(), corrupted.size() }, doc);
     EXPECT_FALSE(result.success);
 }
 
@@ -360,14 +359,19 @@ TEST(FileIORegressionTest, FileIOManager_FormatDetection_AllFormats)
 {
     Fio::FileIOManager mgr;
 
-    struct FormatCase { const char* ext; Fio::FileFormat expected; };
+    struct FormatCase
+    {
+        const char* ext;
+        Fio::FileFormat expected;
+    };
+
     std::vector<FormatCase> cases = {
         { "dxf", Fio::FileFormat::DXF },
         { "svg", Fio::FileFormat::SVG },
-        { "sy",  Fio::FileFormat::Native },
+        { "sy", Fio::FileFormat::Native },
         { "syx", Fio::FileFormat::Native3D },
         { "plt", Fio::FileFormat::PLT },
-        { "ai",  Fio::FileFormat::AI },
+        { "ai", Fio::FileFormat::AI },
         { "pdf", Fio::FileFormat::PDF },
         { "step", Fio::FileFormat::STEP },
         { "stp", Fio::FileFormat::STEP },
@@ -406,10 +410,8 @@ TEST(FileIORegressionTest, Serialization_Idempotent)
     EXPECT_EQ(data1, data2);
 
     Fio::SyDocument restored1, restored2;
-    auto r3 = serializer.deserializeFromMemory(
-        Fio::BinaryBlob{ data1.data(), data1.size() }, restored1);
-    auto r4 = serializer.deserializeFromMemory(
-        Fio::BinaryBlob{ data1.data(), data1.size() }, restored2);
+    auto r3 = serializer.deserializeFromMemory(Fio::BinaryBlob{ data1.data(), data1.size() }, restored1);
+    auto r4 = serializer.deserializeFromMemory(Fio::BinaryBlob{ data1.data(), data1.size() }, restored2);
     ASSERT_TRUE(r3.success);
     ASSERT_TRUE(r4.success);
     EXPECT_STREQ(restored1.author(), restored2.author());

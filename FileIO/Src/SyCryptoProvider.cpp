@@ -17,7 +17,9 @@ namespace Fio
     bool XorCryptoProvider::setKey(const char* key)
     {
         if (key == nullptr || key[0] == '\0')
+        {
             return false;
+        }
 
         const size_t keyLen = std::strlen(key);
         m_key.assign(key, key + keyLen);
@@ -57,7 +59,9 @@ namespace Fio
         const char* name = "XOR";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
@@ -65,4 +69,4 @@ namespace Fio
     {
         delete[] data;
     }
-} // namespace Fio
+}  // namespace Fio

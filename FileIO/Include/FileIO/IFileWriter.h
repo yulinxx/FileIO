@@ -25,4 +25,4 @@ namespace Fio
         /// 默认扩展名（buffer 模式替代 std::string 返回）
         virtual size_t defaultExtension(char* buffer, size_t bufferSize) const = 0;
     };
-} // namespace Fio
+}  // namespace Fio

@@ -47,21 +47,30 @@ namespace Fio
         // ==================== 导入 ====================
         // 成功返回 true，*outEntities 指向 FileIO 分配的图元数组，*outCount 为个数。
         // 错误消息写入 errorBuffer（尽力截断 + '\0'）。
-        bool importFile(const char* filePath, FileFormat format,
-            Eg::SyEntity*** outEntities, size_t* outCount,
-            char* errorBuffer, size_t errorBufferSize);
+        bool importFile(const char* filePath,
+            FileFormat format,
+            Eg::SyEntity*** outEntities,
+            size_t* outCount,
+            char* errorBuffer,
+            size_t errorBufferSize);
 
         // 带警告回调与 DXF 图层数输出的导入
-        bool importFile(const char* filePath, FileFormat format,
-            Eg::SyEntity*** outEntities, size_t* outCount,
-            char* errorBuffer, size_t errorBufferSize,
-            WarningCallback warningCb, void* warningCtx,
+        bool importFile(const char* filePath,
+            FileFormat format,
+            Eg::SyEntity*** outEntities,
+            size_t* outCount,
+            char* errorBuffer,
+            size_t errorBufferSize,
+            WarningCallback warningCb,
+            void* warningCtx,
             size_t* outLayerCount);
 
         // 自动检测格式导入
         bool importFile(const char* filePath,
-            Eg::SyEntity*** outEntities, size_t* outCount,
-            char* errorBuffer, size_t errorBufferSize);
+            Eg::SyEntity*** outEntities,
+            size_t* outCount,
+            char* errorBuffer,
+            size_t errorBufferSize);
 
         // ==================== IR 导入（中立 POD 路径） ====================
         // 新版导入：输出中立 IR（FioParseResult），不实例化 Engine 对象。
@@ -70,9 +79,8 @@ namespace Fio
         // 注意：FioParseResult 内的指针指向解析器内部缓冲区，仅在本函数返回后
         // 到下一次同线程解析调用前有效，调用方需立即消费（如立即转换）。
         // 若解析失败返回 false，错误消息写入 errorBuffer。
-        bool importToIR(const char* filePath, FileFormat format,
-            FioParseResult* outResult,
-            char* errorBuffer, size_t errorBufferSize);
+        bool importToIR(
+            const char* filePath, FileFormat format, FioParseResult* outResult, char* errorBuffer, size_t errorBufferSize);
 
         // 释放 importFile() 产生的图元数组（删除每个图元 + 数组本身）
         static void deleteEntities(Eg::SyEntity** entities, size_t count);
@@ -82,13 +90,18 @@ namespace Fio
 
         // ==================== 导出 ====================
         // 图元以裸指针数组传入（借用，不转移所有权）。
-        bool exportFile(const char* filePath, FileFormat format,
-            const Eg::SyEntity* const* entities, size_t entityCount,
-            char* errorBuffer, size_t errorBufferSize);
+        bool exportFile(const char* filePath,
+            FileFormat format,
+            const Eg::SyEntity* const* entities,
+            size_t entityCount,
+            char* errorBuffer,
+            size_t errorBufferSize);
 
         bool exportFile(const char* filePath,
-            const Eg::SyEntity* const* entities, size_t entityCount,
-            char* errorBuffer, size_t errorBufferSize);
+            const Eg::SyEntity* const* entities,
+            size_t entityCount,
+            char* errorBuffer,
+            size_t errorBufferSize);
 
         // ==================== 查询 ====================
         FileFormat detectFormat(const char* filePath) const;
@@ -106,4 +119,4 @@ namespace Fio
         ExportCallback m_exportCallback = nullptr;
         void* m_exportCtx = nullptr;
     };
-} // namespace Fio
+}  // namespace Fio

@@ -17,7 +17,7 @@ namespace Fio
     class FILEIO_API FileParserFactory
     {
     public:
-        using CreatorFunc = IFileParser * (*)();
+        using CreatorFunc = IFileParser* (*)();
 
         static FileParserFactory& instance();
 
@@ -44,10 +44,9 @@ namespace Fio
         FileParserFactory& operator=(const FileParserFactory&) = delete;
 
         /// 批量注册一个解析器及其扩展名映射（扩展名为静态数组，不跨 DLL 传递 STL）
-        void registerWithExtensions(FileFormat format, CreatorFunc creator,
-            const char* const* extensions, size_t count);
+        void registerWithExtensions(FileFormat format, CreatorFunc creator, const char* const* extensions, size_t count);
 
         class Impl;
         Impl* m_impl;
     };
-} // namespace Fio
+}  // namespace Fio

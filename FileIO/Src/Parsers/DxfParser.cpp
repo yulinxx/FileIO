@@ -35,12 +35,14 @@ namespace Fio
         const size_t len = std::strlen(name);
 
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
 
         return len;
     }
 
-    void DxfParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void DxfParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("dxf", ctx);
     }
@@ -48,11 +50,6 @@ namespace Fio
     static bool isFinite2(const Ut::Vec2d& p)
     {
         return std::isfinite(p.x()) && std::isfinite(p.y());
-    }
-
-    static bool isFinite3(const Ut::Vec3f& p)
-    {
-        return std::isfinite(p.x()) && std::isfinite(p.y()) && std::isfinite(p.z());
     }
 
     static bool isFiniteScalar(double v)
@@ -72,92 +69,36 @@ namespace Fio
         return oss.str();
     }
 
-    static Ut::Vec3f aciToRgb(int aci)
-    {
-        static const float table[][3] = {
-            {0,0,0},       // 0 = black
-            {1,0,0},       // 1 = red
-            {1,1,0},       // 2 = yellow
-            {0,1,0},       // 3 = green
-            {0,1,1},       // 4 = cyan
-            {0,0,1},       // 5 = blue
-            {1,0,1},       // 6 = magenta
-            {1,1,1},       // 7 = white
-        };
-
-        int idx = aci;
-        if (idx < 0) idx = 7;
-        if (idx == 256) idx = 7;
-        idx = idx % 256;
-
-        if (idx < 8)
-            return Ut::Vec3f(table[idx][0], table[idx][1], table[idx][2]);
-
-        int group = (idx - 8) / 10;
-        int sub = (idx - 8) % 10;
-        float hue = (group * 30.0f);
-        float val = (sub < 5) ? 1.0f : 0.5f + sub * 0.05f;
-
-        float h = hue / 60.0f;
-        int hi = static_cast<int>(h) % 6;
-        float f = h - static_cast<int>(h);
-        float p = val * 0.5f;
-        float q = val * (1.0f - 0.5f * f);
-        float t = val * (1.0f - 0.5f * (1.0f - f));
-
-        switch (hi)
-        {
-            case 0: return Ut::Vec3f(val, t, p);
-            case 1: return Ut::Vec3f(q, val, p);
-            case 2: return Ut::Vec3f(p, val, t);
-            case 3: return Ut::Vec3f(p, q, val);
-            case 4: return Ut::Vec3f(t, p, val);
-            case 5: return Ut::Vec3f(val, p, q);
-        }
-        return Ut::Vec3f(1, 1, 1);
-    }
-
     class DxfConverter : public DRW_Interface
     {
     public:
         DxfConverter(VecSyEntityPtr& outEntities, std::vector<std::string>& warnings)
-            : m_outEntities(outEntities), m_warnings(warnings)
+            : m_outEntities(outEntities)
+            , m_warnings(warnings)
         {
         }
 
-        void addHeader(const DRW_Header* data) override
-        {
-        }
-        void addLType(const DRW_LType& data) override
-        {
-        }
-        void addDimStyle(const DRW_Dimstyle& data) override
-        {
-        }
-        void addVport(const DRW_Vport& data) override
-        {
-        }
-        void addTextStyle(const DRW_Textstyle& data) override
-        {
-        }
-        void addAppId(const DRW_AppId& data) override
-        {
-        }
-        void addBlock(const DRW_Block& data) override
-        {
-        }
-        void setBlock(const int handle) override
-        {
-        }
-        void endBlock() override
-        {
-        }
-        void addRay(const DRW_Ray& data) override
-        {
-        }
-        void addXline(const DRW_Xline& data) override
-        {
-        }
+        void addHeader(const DRW_Header*) override {}
+
+        void addLType(const DRW_LType&) override {}
+
+        void addDimStyle(const DRW_Dimstyle&) override {}
+
+        void addVport(const DRW_Vport&) override {}
+
+        void addTextStyle(const DRW_Textstyle&) override {}
+
+        void addAppId(const DRW_AppId&) override {}
+
+        void addBlock(const DRW_Block&) override {}
+
+        void setBlock(const int) override {}
+
+        void endBlock() override {}
+
+        void addRay(const DRW_Ray&) override {}
+
+        void addXline(const DRW_Xline&) override {}
 
         void addLWPolyline(const DRW_LWPolyline& data) override
         {
@@ -171,7 +112,9 @@ namespace Fio
             for (const auto& vert : data.vertlist)
             {
                 if (!vert)
+                {
                     continue;
+                }
 
                 Ut::Vec2d p(vert->x, vert->y);
 
@@ -195,6 +138,7 @@ namespace Fio
             applyEntityStyle(syLine.get(), data);
             m_outEntities.push_back(std::move(syLine));
         }
+
         void addSpline(const DRW_Spline* data) override
         {
             if (!data || data->controllist.empty())
@@ -211,7 +155,9 @@ namespace Fio
             for (const auto& cp : data->controllist)
             {
                 if (!cp)
+                {
                     continue;
+                }
 
                 Ut::Vec2d p(cp->x, cp->y);
                 if (!isFinite2(p))
@@ -252,21 +198,15 @@ namespace Fio
             m_outEntities.push_back(std::move(sySpline));
         }
 
-        void addKnot(const DRW_Entity& data) override
-        {
-        }
-        void addInsert(const DRW_Insert& data) override
-        {
-        }
-        void addTrace(const DRW_Trace& data) override
-        {
-        }
-        void add3dFace(const DRW_3Dface& data) override
-        {
-        }
-        void addSolid(const DRW_Solid& data) override
-        {
-        }
+        void addKnot(const DRW_Entity&) override {}
+
+        void addInsert(const DRW_Insert&) override {}
+
+        void addTrace(const DRW_Trace&) override {}
+
+        void add3dFace(const DRW_3Dface&) override {}
+
+        void addSolid(const DRW_Solid&) override {}
 
         void addMText(const DRW_MText& data) override
         {
@@ -287,81 +227,55 @@ namespace Fio
             m_outEntities.push_back(std::move(syText));
         }
 
-        void addDimAlign(const DRW_DimAligned* data) override
-        {
-        }
-        void addDimLinear(const DRW_DimLinear* data) override
-        {
-        }
-        void addDimRadial(const DRW_DimRadial* data) override
-        {
-        }
-        void addDimDiametric(const DRW_DimDiametric* data) override
-        {
-        }
-        void addDimAngular(const DRW_DimAngular* data) override
-        {
-        }
-        void addDimAngular3P(const DRW_DimAngular3p* data) override
-        {
-        }
-        void addDimOrdinate(const DRW_DimOrdinate* data) override
-        {
-        }
-        void addLeader(const DRW_Leader* data) override
-        {
-        }
-        void addHatch(const DRW_Hatch* data) override
-        {
-        }
-        void addViewport(const DRW_Viewport& data) override
-        {
-        }
-        void addImage(const DRW_Image* data) override
-        {
-        }
-        void linkImage(const DRW_ImageDef* data) override
-        {
-        }
-        void addComment(const char* comment) override
-        {
-        }
-        void addPlotSettings(const DRW_PlotSettings* data) override
-        {
-        }
-        void writeHeader(DRW_Header& data) override
-        {
-        }
-        void writeBlocks() override
-        {
-        }
-        void writeBlockRecords() override
-        {
-        }
-        void writeEntities() override
-        {
-        }
-        void writeLTypes() override
-        {
-        }
-        void writeLayers() override
-        {
-        }
-        void writeTextstyles() override
-        {
-        }
-        void writeVports() override
-        {
-        }
-        void writeDimstyles() override
-        {
-        }
-        void writeObjects() override
-        {
-        }
-        void writeAppId() override
-        {
-        }
+        void addDimAlign(const DRW_DimAligned*) override {}
+
+        void addDimLinear(const DRW_DimLinear*) override {}
+
+        void addDimRadial(const DRW_DimRadial*) override {}
+
+        void addDimDiametric(const DRW_DimDiametric*) override {}
+
+        void addDimAngular(const DRW_DimAngular*) override {}
+
+        void addDimAngular3P(const DRW_DimAngular3p*) override {}
+
+        void addDimOrdinate(const DRW_DimOrdinate*) override {}
+
+        void addLeader(const DRW_Leader*) override {}
+
+        void addHatch(const DRW_Hatch*) override {}
+
+        void addViewport(const DRW_Viewport&) override {}
+
+        void addImage(const DRW_Image*) override {}
+
+        void linkImage(const DRW_ImageDef*) override {}
+
+        void addComment(const char*) override {}
+
+        void addPlotSettings(const DRW_PlotSettings*) override {}
+
+        void writeHeader(DRW_Header&) override {}
+
+        void writeBlocks() override {}
+
+        void writeBlockRecords() override {}
+
+        void writeEntities() override {}
+
+        void writeLTypes() override {}
+
+        void writeLayers() override {}
+
+        void writeTextstyles() override {}
+
+        void writeVports() override {}
+
+        void writeDimstyles() override {}
+
+        void writeObjects() override {}
+
+        void writeAppId() override {}
 
         void addLayer(const DRW_Layer& layer) override
         {
@@ -426,8 +340,7 @@ namespace Fio
             Ut::Vec2d c(arc.basePoint.x, arc.basePoint.y);
             double r = arc.radious;
 
-            if (!isFinite2(c) || !isPositiveFinite(r) ||
-                !isFiniteScalar(arc.staangle) || !isFiniteScalar(arc.endangle))
+            if (!isFinite2(c) || !isPositiveFinite(r) || !isFiniteScalar(arc.staangle) || !isFiniteScalar(arc.endangle))
             {
                 warnSkip("ARC", "invalid center, radius, or angle");
                 return;
@@ -446,17 +359,14 @@ namespace Fio
         {
             Ut::Vec2d c(ellipse.basePoint.x, ellipse.basePoint.y);
 
-            double majorLen = std::sqrt(ellipse.secPoint.x * ellipse.secPoint.x +
-                ellipse.secPoint.y * ellipse.secPoint.y);
+            double majorLen =
+                std::sqrt(ellipse.secPoint.x * ellipse.secPoint.x + ellipse.secPoint.y * ellipse.secPoint.y);
             double ratio = ellipse.ratio;
             double rotation = std::atan2(ellipse.secPoint.y, ellipse.secPoint.x);
 
-            if (!isFinite2(c) ||
-                !isFiniteScalar(ellipse.secPoint.x) || !isFiniteScalar(ellipse.secPoint.y) ||
-                !isPositiveFinite(majorLen) ||
-                !isFiniteScalar(ratio) || ratio <= 0.0 ||
-                !isFiniteScalar(ellipse.staparam) || !isFiniteScalar(ellipse.endparam) ||
-                !isFiniteScalar(rotation))
+            if (!isFinite2(c) || !isFiniteScalar(ellipse.secPoint.x) || !isFiniteScalar(ellipse.secPoint.y) ||
+                !isPositiveFinite(majorLen) || !isFiniteScalar(ratio) || ratio <= 0.0 ||
+                !isFiniteScalar(ellipse.staparam) || !isFiniteScalar(ellipse.endparam) || !isFiniteScalar(rotation))
             {
                 warnSkip("ELLIPSE", "invalid geometry");
                 return;
@@ -485,7 +395,9 @@ namespace Fio
             for (const auto& vert : polyline.vertlist)
             {
                 if (!vert)
+                {
                     continue;
+                }
 
                 Ut::Vec2d p(vert->basePoint.x, vert->basePoint.y);
                 if (!isFinite2(p))
@@ -551,6 +463,7 @@ namespace Fio
 
         void applyEntityStyle(Eg::SyEntity* entity, const DRW_Entity& drwEntity)
         {
+            (void)entity;
             size_t idx = m_outEntities.size();
 
             if (!drwEntity.layer.empty())
@@ -584,129 +497,87 @@ namespace Fio
         {
         }
 
-        void addHeader(const DRW_Header*) override
-        {
-        }
-        void addLType(const DRW_LType&) override
-        {
-        }
-        void addDimStyle(const DRW_Dimstyle&) override
-        {
-        }
-        void addVport(const DRW_Vport&) override
-        {
-        }
-        void addTextStyle(const DRW_Textstyle&) override
-        {
-        }
-        void addAppId(const DRW_AppId&) override
-        {
-        }
-        void addBlock(const DRW_Block&) override
-        {
-        }
-        void setBlock(const int) override
-        {
-        }
-        void endBlock() override
-        {
-        }
-        void addRay(const DRW_Ray&) override
-        {
-        }
-        void addXline(const DRW_Xline&) override
-        {
-        }
-        void addKnot(const DRW_Entity&) override
-        {
-        }
-        void addInsert(const DRW_Insert&) override
-        {
-        }
-        void addTrace(const DRW_Trace&) override
-        {
-        }
-        void add3dFace(const DRW_3Dface&) override
-        {
-        }
-        void addSolid(const DRW_Solid&) override
-        {
-        }
-        void addDimAlign(const DRW_DimAligned*) override
-        {
-        }
-        void addDimLinear(const DRW_DimLinear*) override
-        {
-        }
-        void addDimRadial(const DRW_DimRadial*) override
-        {
-        }
-        void addDimDiametric(const DRW_DimDiametric*) override
-        {
-        }
-        void addDimAngular(const DRW_DimAngular*) override
-        {
-        }
-        void addDimAngular3P(const DRW_DimAngular3p*) override
-        {
-        }
-        void addDimOrdinate(const DRW_DimOrdinate*) override
-        {
-        }
-        void addLeader(const DRW_Leader*) override
-        {
-        }
-        void addHatch(const DRW_Hatch*) override
-        {
-        }
-        void addViewport(const DRW_Viewport&) override
-        {
-        }
-        void addImage(const DRW_Image*) override
-        {
-        }
-        void linkImage(const DRW_ImageDef*) override
-        {
-        }
-        void addComment(const char*) override
-        {
-        }
-        void addPlotSettings(const DRW_PlotSettings*) override
-        {
-        }
-        void writeHeader(DRW_Header&) override
-        {
-        }
-        void writeBlocks() override
-        {
-        }
-        void writeBlockRecords() override
-        {
-        }
-        void writeEntities() override
-        {
-        }
-        void writeLTypes() override
-        {
-        }
-        void writeLayers() override
-        {
-        }
-        void writeTextstyles() override
-        {
-        }
-        void writeVports() override
-        {
-        }
-        void writeDimstyles() override
-        {
-        }
-        void writeObjects() override
-        {
-        }
-        void writeAppId() override
-        {
-        }
+        void addHeader(const DRW_Header*) override {}
+
+        void addLType(const DRW_LType&) override {}
+
+        void addDimStyle(const DRW_Dimstyle&) override {}
+
+        void addVport(const DRW_Vport&) override {}
+
+        void addTextStyle(const DRW_Textstyle&) override {}
+
+        void addAppId(const DRW_AppId&) override {}
+
+        void addBlock(const DRW_Block&) override {}
+
+        void setBlock(const int) override {}
+
+        void endBlock() override {}
+
+        void addRay(const DRW_Ray&) override {}
+
+        void addXline(const DRW_Xline&) override {}
+
+        void addKnot(const DRW_Entity&) override {}
+
+        void addInsert(const DRW_Insert&) override {}
+
+        void addTrace(const DRW_Trace&) override {}
+
+        void add3dFace(const DRW_3Dface&) override {}
+
+        void addSolid(const DRW_Solid&) override {}
+
+        void addDimAlign(const DRW_DimAligned*) override {}
+
+        void addDimLinear(const DRW_DimLinear*) override {}
+
+        void addDimRadial(const DRW_DimRadial*) override {}
+
+        void addDimDiametric(const DRW_DimDiametric*) override {}
+
+        void addDimAngular(const DRW_DimAngular*) override {}
+
+        void addDimAngular3P(const DRW_DimAngular3p*) override {}
+
+        void addDimOrdinate(const DRW_DimOrdinate*) override {}
+
+        void addLeader(const DRW_Leader*) override {}
+
+        void addHatch(const DRW_Hatch*) override {}
+
+        void addViewport(const DRW_Viewport&) override {}
+
+        void addImage(const DRW_Image*) override {}
+
+        void linkImage(const DRW_ImageDef*) override {}
+
+        void addComment(const char*) override {}
+
+        void addPlotSettings(const DRW_PlotSettings*) override {}
+
+        void writeHeader(DRW_Header&) override {}
+
+        void writeBlocks() override {}
+
+        void writeBlockRecords() override {}
+
+        void writeEntities() override {}
+
+        void writeLTypes() override {}
+
+        void writeLayers() override {}
+
+        void writeTextstyles() override {}
+
+        void writeVports() override {}
+
+        void writeDimstyles() override {}
+
+        void writeObjects() override {}
+
+        void writeAppId() override {}
 
         void addLayer(const DRW_Layer& layer) override
         {
@@ -773,8 +644,7 @@ namespace Fio
         {
             Ut::Vec2d c(arc.basePoint.x, arc.basePoint.y);
             double r = arc.radious;
-            if (!isFinite2(c) || !isPositiveFinite(r) ||
-                !isFiniteScalar(arc.staangle) || !isFiniteScalar(arc.endangle))
+            if (!isFinite2(c) || !isPositiveFinite(r) || !isFiniteScalar(arc.staangle) || !isFiniteScalar(arc.endangle))
             {
                 warnSkip("ARC", "invalid center, radius, or angle");
                 return;
@@ -794,17 +664,14 @@ namespace Fio
         void addEllipse(const DRW_Ellipse& ellipse) override
         {
             Ut::Vec2d c(ellipse.basePoint.x, ellipse.basePoint.y);
-            double majorLen = std::sqrt(ellipse.secPoint.x * ellipse.secPoint.x +
-                ellipse.secPoint.y * ellipse.secPoint.y);
+            double majorLen =
+                std::sqrt(ellipse.secPoint.x * ellipse.secPoint.x + ellipse.secPoint.y * ellipse.secPoint.y);
             double ratio = ellipse.ratio;
             double rotation = std::atan2(ellipse.secPoint.y, ellipse.secPoint.x);
 
-            if (!isFinite2(c) ||
-                !isFiniteScalar(ellipse.secPoint.x) || !isFiniteScalar(ellipse.secPoint.y) ||
-                !isPositiveFinite(majorLen) ||
-                !isFiniteScalar(ratio) || ratio <= 0.0 ||
-                !isFiniteScalar(ellipse.staparam) || !isFiniteScalar(ellipse.endparam) ||
-                !isFiniteScalar(rotation))
+            if (!isFinite2(c) || !isFiniteScalar(ellipse.secPoint.x) || !isFiniteScalar(ellipse.secPoint.y) ||
+                !isPositiveFinite(majorLen) || !isFiniteScalar(ratio) || ratio <= 0.0 ||
+                !isFiniteScalar(ellipse.staparam) || !isFiniteScalar(ellipse.endparam) || !isFiniteScalar(rotation))
             {
                 warnSkip("ELLIPSE", "invalid geometry");
                 return;
@@ -879,7 +746,9 @@ namespace Fio
             for (const auto& vert : data.vertlist)
             {
                 if (!vert)
+                {
                     continue;
+                }
                 Ut::Vec2d p(vert->x, vert->y);
                 if (!isFinite2(p))
                 {
@@ -919,7 +788,9 @@ namespace Fio
             for (const auto& vert : polyline.vertlist)
             {
                 if (!vert)
+                {
                     continue;
+                }
                 Ut::Vec2d p(vert->basePoint.x, vert->basePoint.y);
                 if (!isFinite2(p))
                 {
@@ -962,7 +833,9 @@ namespace Fio
             for (const auto& cp : data->controllist)
             {
                 if (!cp)
+                {
                     continue;
+                }
                 Ut::Vec2d p(cp->x, cp->y);
                 if (!isFinite2(p))
                 {
@@ -1000,9 +873,7 @@ namespace Fio
             }
 
             const uint32_t knotCount = static_cast<uint32_t>(data->knotslist.size());
-            const size_t byteSize =
-                cpCoords.size() * sizeof(double) +
-                data->knotslist.size() * sizeof(double) +
+            const size_t byteSize = cpCoords.size() * sizeof(double) + data->knotslist.size() * sizeof(double) +
                 data->weightlist.size() * sizeof(double);
 
             EntityInfo info;
@@ -1014,9 +885,13 @@ namespace Fio
             info.extensionDataSize = static_cast<uint32_t>(byteSize);
             appendExtensionData(cpCoords.data(), cpCoords.size() * sizeof(double));
             if (!data->knotslist.empty())
+            {
                 appendExtensionData(data->knotslist.data(), data->knotslist.size() * sizeof(double));
+            }
             if (!data->weightlist.empty())
+            {
                 appendExtensionData(data->weightlist.data(), data->weightlist.size() * sizeof(double));
+            }
             applyEntityMeta(info, *data);
             m_outEntities.push_back(info);
         }
@@ -1025,10 +900,12 @@ namespace Fio
         {
             return m_layerDefs;
         }
+
         const std::map<size_t, std::string>& getEntityLayerMap() const
         {
             return m_entityLayerMap;
         }
+
         const std::map<size_t, int>& getEntityColorMap() const
         {
             return m_entityColorMap;
@@ -1045,9 +922,13 @@ namespace Fio
             size_t idx = m_outEntities.size();
             info.sourceId = idx;
             if (!drwEntity.layer.empty())
+            {
                 m_entityLayerMap[idx] = drwEntity.layer;
+            }
             if (drwEntity.color >= 0 && drwEntity.color != 256)
+            {
                 m_entityColorMap[idx] = drwEntity.color;
+            }
         }
 
         void appendExtensionData(const void* data, size_t byteSize)
@@ -1103,8 +984,8 @@ namespace Fio
                 li.sourceId = static_cast<uint32_t>(s_layers.size());
                 std::strncpy(li.name, dl.name.c_str(), sizeof(li.name) - 1);
                 li.name[sizeof(li.name) - 1] = '\0';
-                li.color = 0xFF000000 | ((dl.color & 0xFF) << 16) |
-                    (((dl.color >> 8) & 0xFF) << 8) | ((dl.color >> 16) & 0xFF);
+                li.color = 0xFF000000 | ((dl.color & 0xFF) << 16) | (((dl.color >> 8) & 0xFF) << 8) |
+                    ((dl.color >> 16) & 0xFF);
                 li.visible = (dl.flags & 1) == 0;
                 s_layers.push_back(li);
             }
@@ -1119,8 +1000,7 @@ namespace Fio
             result.warningCount = static_cast<uint32_t>(warnings.size());
             std::strncpy(result.sourceFormat, "DXF", sizeof(result.sourceFormat) - 1);
 
-            SY_INFOF("[DxfParser] parseToIR END: %u entities, %u layers",
-                result.entityCount, result.layerCount);
+            SY_INFOF("[DxfParser] parseToIR END: %u entities, %u layers", result.entityCount, result.layerCount);
             return result;
         }
         catch (const std::exception& ex)
@@ -1188,18 +1068,12 @@ namespace Fio
         catch (const std::exception& ex)
         {
             SY_CRITICALF("[DxfParser] Parse exception: %s - %s", filePath, ex.what());
-            return ParseResult::fail(
-                std::string("Exception during DXF parsing: ") + ex.what(),
-                warnings
-            );
+            return ParseResult::fail(std::string("Exception during DXF parsing: ") + ex.what(), warnings);
         }
         catch (...)
         {
             SY_CRITICALF("[DxfParser] Parse unknown exception: %s", filePath);
-            return ParseResult::fail(
-                std::string("Unknown exception during DXF parsing"),
-                warnings
-            );
+            return ParseResult::fail(std::string("Unknown exception during DXF parsing"), warnings);
         }
     }
-} // namespace Fio
+}  // namespace Fio

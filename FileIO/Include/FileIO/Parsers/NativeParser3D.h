@@ -22,16 +22,14 @@ namespace Fio
         // ---- IFileParser 接口 (仅返回 2D 图元) ----
         FileFormat format() const override;
         size_t formatName(char* buffer, size_t bufferSize) const override;
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
-        ParseResult parse(const char* filePath,
-            VecSyEntityPtr& outEntities) override;
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
+        ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) override;
 
         // ---- 3D 完整文档读取 (同时返回 2D 图元和 3D 网格) ----
-        ParseResult parseDocument(const char* filePath,
-            SyDocument& outDoc);
+        ParseResult parseDocument(const char* filePath, SyDocument& outDoc);
 
     private:
         class Impl;
         std::unique_ptr<Impl> m_impl;
     };
-} // namespace Fio
+}  // namespace Fio

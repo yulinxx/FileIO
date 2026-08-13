@@ -42,14 +42,13 @@ namespace Fio
                 return;
             }
 
-            std::string content((std::istreambuf_iterator<char>(inFile)),
-                std::istreambuf_iterator<char>());
+            std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
             inFile.close();
 
             std::string hash = generateHash(originalPath);
             std::string ext = fsPath.extension().string();
-            std::filesystem::path tempPath = std::filesystem::temp_directory_path()
-                / ("sanyi_" + tempPrefix + "_" + hash + ext);
+            std::filesystem::path tempPath =
+                std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + hash + ext);
             m_tempPath = tempPath.string();
 
             std::ofstream outFile(tempPath, std::ios::binary | std::ios::trunc);
@@ -66,7 +65,9 @@ namespace Fio
         ~TempFileCopy()
         {
             if (!m_tempPath.empty())
+            {
                 std::filesystem::remove(m_tempPath);
+            }
         }
 
         TempFileCopy(const TempFileCopy&) = delete;
@@ -76,10 +77,12 @@ namespace Fio
         {
             return !m_tempPath.empty();
         }
+
         const std::string& error() const
         {
             return m_error;
         }
+
         const std::string& path() const
         {
             return m_tempPath.empty() ? m_originalPath : m_tempPath;
@@ -90,4 +93,4 @@ namespace Fio
         std::string m_tempPath;
         std::string m_error;
     };
-} // namespace Fio
+}  // namespace Fio

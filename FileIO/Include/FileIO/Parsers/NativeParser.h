@@ -19,12 +19,11 @@ namespace Fio
 
         FileFormat format() const override;
         size_t formatName(char* buffer, size_t bufferSize) const override;
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
-        ParseResult parse(const char* filePath,
-            VecSyEntityPtr& outEntities) override;
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
+        ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) override;
 
     private:
         class Impl;
         std::unique_ptr<Impl> m_impl;
     };
-} // namespace Fio
+}  // namespace Fio

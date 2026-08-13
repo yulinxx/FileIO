@@ -21,53 +21,53 @@
 
 // ---- 编译器/平台检测 ----
 #if defined(_WIN32) || defined(_WIN64)
-#  define FILEIO_PLATFORM_WINDOWS 1
+    #define FILEIO_PLATFORM_WINDOWS 1
 #elif defined(__APPLE__)
-#  define FILEIO_PLATFORM_APPLE 1
+    #define FILEIO_PLATFORM_APPLE 1
 #elif defined(__linux__) || defined(__unix__)
-#  define FILEIO_PLATFORM_LINUX 1
+    #define FILEIO_PLATFORM_LINUX 1
 #else
-#  define FILEIO_PLATFORM_UNKNOWN 1
+    #define FILEIO_PLATFORM_UNKNOWN 1
 #endif
 
 // ---- C++ 类/函数导出宏 (FILEIO_API) ----
 #if defined(FILEIO_PLATFORM_WINDOWS)
-#  ifdef FILEIO_EXPORTS
-#    define FILEIO_API __declspec(dllexport)
-#  else
-#    define FILEIO_API __declspec(dllimport)
-#  endif
+    #ifdef FILEIO_EXPORTS
+        #define FILEIO_API __declspec(dllexport)
+    #else
+        #define FILEIO_API __declspec(dllimport)
+    #endif
 #elif defined(FILEIO_PLATFORM_APPLE) || defined(FILEIO_PLATFORM_LINUX)
-#  ifdef FILEIO_EXPORTS
-#    define FILEIO_API __attribute__((visibility("default")))
-#  else
-#    define FILEIO_API
-#  endif
+    #ifdef FILEIO_EXPORTS
+        #define FILEIO_API __attribute__((visibility("default")))
+    #else
+        #define FILEIO_API
+    #endif
 #else
-#  define FILEIO_API
+    #define FILEIO_API
 #endif
 
 // ---- C 函数导出宏 (FILEIO_C_API) ----
 // 专为 extern "C" 函数设计，在所有平台上均导出，且 Windows 上使用 __stdcall。
 // 调用者需用 FARPROC / GetProcAddress 或隐式链接导入。
 #if defined(FILEIO_PLATFORM_WINDOWS)
-#  ifdef FILEIO_EXPORTS
-#    define FILEIO_C_API extern "C" __declspec(dllexport) __stdcall
-#  else
-#    define FILEIO_C_API extern "C" __declspec(dllimport) __stdcall
-#  endif
+    #ifdef FILEIO_EXPORTS
+        #define FILEIO_C_API extern "C" __declspec(dllexport) __stdcall
+    #else
+        #define FILEIO_C_API extern "C" __declspec(dllimport) __stdcall
+    #endif
 #else
-#  ifdef FILEIO_EXPORTS
-#    define FILEIO_C_API extern "C" __attribute__((visibility("default")))
-#  else
-#    define FILEIO_C_API extern "C"
-#  endif
+    #ifdef FILEIO_EXPORTS
+        #define FILEIO_C_API extern "C" __attribute__((visibility("default")))
+    #else
+        #define FILEIO_C_API extern "C"
+    #endif
 #endif
 
 // ---- 辅助宏 ----
 // 在需要显式控制调用约定的 Windows 平台上声明 C 函数指针类型
 #if defined(FILEIO_PLATFORM_WINDOWS)
-#  define FILEIO_CDECL __cdecl
+    #define FILEIO_CDECL __cdecl
 #else
-#  define FILEIO_CDECL
+    #define FILEIO_CDECL
 #endif

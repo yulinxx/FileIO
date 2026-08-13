@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "FileIO/IFileParser.h"
@@ -11,9 +12,10 @@ namespace Fio
         DxfParser() = default;
         ~DxfParser() override = default;
 
+    public:
         FileFormat format() const override;
         size_t formatName(char* buffer, size_t bufferSize) const override;
-        void forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const override;
+        void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
 
         // 旧版 API（直接输出 Engine 类型，deprecated）
         ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) override;
@@ -21,4 +23,4 @@ namespace Fio
         // 新版 API（输出中立 IR，跨 DLL 安全）
         FioParseResult parseToIR(const char* filePath) override;
     };
-} // namespace Fio
+}  // namespace Fio

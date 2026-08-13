@@ -12,11 +12,13 @@ namespace Fio
         const char* name = "PDF";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
+        {
             std::strcpy(buffer, name);
+        }
         return len;
     }
 
-    void PdfParser::forEachSupportedExtension(void(*visitor)(const char*, void*), void* ctx) const
+    void PdfParser::forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const
     {
         visitor("pdf", ctx);
     }
@@ -25,4 +27,4 @@ namespace Fio
     {
         return PdfToSvgConverter::isPdfFile(filePath);
     }
-} // namespace Fio
+}  // namespace Fio

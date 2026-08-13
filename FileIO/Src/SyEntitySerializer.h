@@ -11,5 +11,5 @@ namespace Fio
     {
         FILEIO_API void serializeEntity(const Eg::SyEntity& entity, sanyi::proto::EntityData* out);
         FILEIO_API std::unique_ptr<Eg::SyEntity> deserializeEntity(const sanyi::proto::EntityData& protoEntity);
-    }
-}
+    }  // namespace SyEntitySerializer
+}  // namespace Fio

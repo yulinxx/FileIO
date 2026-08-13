@@ -18,84 +18,88 @@
 #include <string>
 #include <vector>
 
-namespace Eg { struct SyEntity; }
-
-namespace Fio {
-
-/// DXF 图层定义信息（旧版内部 API）
-struct DxfLayerInfo
+namespace Eg
 {
-    std::string name;       // 图层名称
-    int color{ 7 };           // ACI 颜色索引 (1-255)
-    bool visible{ true };     // 是否可见
-};
+    struct SyEntity;
+}
 
-/// 旧版解析结果结构体（仅 DLL 内部使用）
-struct ParseResult
+namespace Fio
 {
-    bool success = false;
-    std::string errorMessage;
-    std::vector<std::string> warnings;
 
-    /// DXF 图层定义（仅 DXF 导入时填充）
-    std::vector<DxfLayerInfo> dxfLayers;
-    /// 图元索引 -> DXF 图层名 映射（仅 DXF 导入时填充）
-    std::map<size_t, std::string> entityLayerMap;
-    /// 图元索引 -> DXF 颜色索引 映射（仅 DXF 导入时填充）
-    std::map<size_t, int> entityColorMap;
-
-    static ParseResult ok()
+    /// DXF 图层定义信息（旧版内部 API）
+    struct DxfLayerInfo
     {
-        return { true, {}, {}, {}, {}, {} };
-    }
+        std::string name;      // 图层名称
+        int color{ 7 };        // ACI 颜色索引 (1-255)
+        bool visible{ true };  // 是否可见
+    };
 
-    static ParseResult ok(const std::vector<std::string>& warns)
+    /// 旧版解析结果结构体（仅 DLL 内部使用）
+    struct ParseResult
     {
-        return { true, {}, warns, {}, {}, {} };
-    }
+        bool success = false;
+        std::string errorMessage;
+        std::vector<std::string> warnings;
 
-    static ParseResult fail(const std::string& msg)
+        /// DXF 图层定义（仅 DXF 导入时填充）
+        std::vector<DxfLayerInfo> dxfLayers;
+        /// 图元索引 -> DXF 图层名 映射（仅 DXF 导入时填充）
+        std::map<size_t, std::string> entityLayerMap;
+        /// 图元索引 -> DXF 颜色索引 映射（仅 DXF 导入时填充）
+        std::map<size_t, int> entityColorMap;
+
+        static ParseResult ok()
+        {
+            return { true, {}, {}, {}, {}, {} };
+        }
+
+        static ParseResult ok(const std::vector<std::string>& warns)
+        {
+            return { true, {}, warns, {}, {}, {} };
+        }
+
+        static ParseResult fail(const std::string& msg)
+        {
+            return { false, msg, {}, {}, {}, {} };
+        }
+
+        static ParseResult fail(const std::string& msg, const std::vector<std::string>& warns)
+        {
+            return { false, msg, warns, {}, {}, {} };
+        }
+    };
+
+    /// 旧版写入结果结构体（仅 DLL 内部使用）
+    struct WriteResult
     {
-        return { false, msg, {}, {}, {}, {} };
-    }
+        bool success = false;
+        std::string errorMessage;
 
-    static ParseResult fail(const std::string& msg, const std::vector<std::string>& warns)
+        static WriteResult ok()
+        {
+            return { true, {} };
+        }
+
+        static WriteResult fail(const std::string& msg)
+        {
+            return { false, msg };
+        }
+    };
+
+    /// 旧版解析接口（仅 DLL 内部使用，不再作为导出接口跨 DLL）
+    class ILegacyParser
     {
-        return { false, msg, warns, {}, {}, {} };
-    }
-};
+    public:
+        virtual ~ILegacyParser() = default;
+        virtual ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) = 0;
+    };
 
-/// 旧版写入结果结构体（仅 DLL 内部使用）
-struct WriteResult
-{
-    bool success = false;
-    std::string errorMessage;
-
-    static WriteResult ok()
+    /// 旧版写入接口（仅 DLL 内部使用，不再作为导出接口跨 DLL）
+    class ILegacyWriter
     {
-        return { true, {} };
-    }
+    public:
+        virtual ~ILegacyWriter() = default;
+        virtual WriteResult write(const char* filePath, const VecSyEntityPtr& entities) = 0;
+    };
 
-    static WriteResult fail(const std::string& msg)
-    {
-        return { false, msg };
-    }
-};
-
-/// 旧版解析接口（仅 DLL 内部使用，不再作为导出接口跨 DLL）
-class ILegacyParser
-{
-public:
-    virtual ~ILegacyParser() = default;
-    virtual ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) = 0;
-};
-
-/// 旧版写入接口（仅 DLL 内部使用，不再作为导出接口跨 DLL）
-class ILegacyWriter
-{
-public:
-    virtual ~ILegacyWriter() = default;
-    virtual WriteResult write(const char* filePath, const VecSyEntityPtr& entities) = 0;
-};
-
-} // namespace Fio
+}  // namespace Fio
