@@ -27,8 +27,6 @@ namespace Fio
 {
     namespace
     {
-        constexpr double kRadToDeg = 180.0 / M_PI;
-
         // 格式化双精度为 IGES 参数字符串
         std::string igesDouble(double v)
         {

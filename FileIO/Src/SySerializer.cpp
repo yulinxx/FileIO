@@ -7,7 +7,6 @@
 #include "Engine/Layer/SyLayer.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -78,29 +77,6 @@ namespace Fio
                 props[entry.key()] = entry.value();
             }
             return props;
-        }
-
-        std::string currentIsoTime()
-        {
-            const auto now = std::chrono::system_clock::now();
-            const auto time = std::chrono::system_clock::to_time_t(now);
-
-            std::ostringstream oss;
-            oss << std::put_time(std::localtime(&time), "%Y-%m-%dT%H:%M:%S");
-            return oss.str();
-        }
-
-        std::string currentOS()
-        {
-#ifdef _WIN32
-            return "Windows";
-#elif defined(__linux__)
-            return "Linux";
-#elif defined(__APPLE__)
-            return "macOS";
-#else
-            return "Unknown";
-#endif
         }
 
         bool serializeToProto(const SyDocument& doc, std::vector<uint8_t>& out)
