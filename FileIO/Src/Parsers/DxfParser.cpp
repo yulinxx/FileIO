@@ -990,6 +990,26 @@ namespace Fio
                 s_layers.push_back(li);
             }
 
+            // 解析图元图层引用：按图层名在图层表中查找，填充 EntityInfo.layerSourceId。
+            // 未在图层表中定义的图层引用保持 0（表示不还原到具体图层）。
+            const auto& entityLayerMap = converter.getEntityLayerMap();
+            for (size_t ei = 0; ei < s_entities.size(); ++ei)
+            {
+                auto it = entityLayerMap.find(ei);
+                if (it == entityLayerMap.end())
+                {
+                    continue;
+                }
+                for (size_t li = 0; li < s_layers.size(); ++li)
+                {
+                    if (it->second == s_layers[li].name)
+                    {
+                        s_entities[ei].layerSourceId = s_layers[li].sourceId;
+                        break;
+                    }
+                }
+            }
+
             FioParseResult result;
             result.entities = s_entities.data();
             result.entityCount = static_cast<uint32_t>(s_entities.size());

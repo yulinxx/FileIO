@@ -100,9 +100,14 @@ target_sources(${LIB_NAME} PRIVATE ${LIB_DXFRW_SOURCES})
 
 protobuf_generate(
     TARGET ${LIB_NAME}
-    PROTO_PATH "${PROTO_DIR}"
+    APPEND_PATH
     PROTOC_OUT_DIR "${PROTO_GEN_DIR}"
     PROTOS "${PROTO_FILE}"
+)
+
+# 暴露 protobuf 生成目录给下游目标（如 MainTests 需要直接编译 .pb.cc）
+set_target_properties(${LIB_NAME} PROPERTIES
+    INTERFACE_SANYI_PROTO_GEN_DIR "${PROTO_GEN_DIR}"
 )
 
 # --- 可选模块条件块 ---
