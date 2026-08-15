@@ -168,9 +168,11 @@ namespace Fio
     public:
         NsvgInterpreter(std::vector<EntityInfo>& outEntities,
             std::vector<uint8_t>& extensionBlob,
+            std::vector<IrLayerInfo>& outLayers,
             std::vector<std::string>& warnings)
             : m_outEntities(outEntities)
             , m_extensionBlob(extensionBlob)
+            , m_outLayers(outLayers)
             , m_warnings(warnings)
             , m_success(false)
         {
@@ -255,16 +257,18 @@ namespace Fio
                     shapeColor = extractSvgColor(shape->fill);
                 }
 
-                // Extract layer name from shape id
+                // Extract layer name from shape id (nanosvg propagates the <g> group id down to child shapes)
                 std::string layerName;
                 if (shape->id[0] != '\0')
                 {
                     layerName = shape->id;
                 }
 
+                uint32_t layerSourceId = getOrCreateLayer(layerName, shapeColor);
+
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
-                    convertPathToEntity(svgPath, shapeColor, layerName);
+                    convertPathToEntity(svgPath, shapeColor, layerSourceId);
                 }
             }
 
@@ -274,8 +278,36 @@ namespace Fio
     private:
         std::vector<EntityInfo>& m_outEntities;
         std::vector<uint8_t>& m_extensionBlob;
+        std::vector<IrLayerInfo>& m_outLayers;
         std::vector<std::string>& m_warnings;
         bool m_success;
+
+        // 按图层名查找或创建图层，返回图层 sourceId。
+        // SVG 无显式图层定义，以 shape/group 的 id 作为图层名。
+        uint32_t getOrCreateLayer(const std::string& name, const Ut::Vec3f& color)
+        {
+            const std::string layerName = name.empty() ? std::string("SVG") : name;
+
+            for (const auto& layer : m_outLayers)
+            {
+                if (layerName == layer.name)
+                {
+                    return layer.sourceId;
+                }
+            }
+
+            IrLayerInfo layer;
+            layer.sourceId = static_cast<uint32_t>(m_outLayers.size());
+            std::strncpy(layer.name, layerName.c_str(), sizeof(layer.name) - 1);
+            layer.name[sizeof(layer.name) - 1] = '\0';
+            layer.color = 0xFF000000 |
+                (static_cast<uint8_t>(color.x() * 255.0f) << 16) |
+                (static_cast<uint8_t>(color.y() * 255.0f) << 8) |
+                static_cast<uint8_t>(color.z() * 255.0f);
+            layer.visible = true;
+            m_outLayers.push_back(layer);
+            return layer.sourceId;
+        }
 
         Ut::Vec2d evalCubicBezier(
             const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1, double t)
@@ -290,7 +322,7 @@ namespace Fio
                 t1t1t1 * p0.y() + 3.0 * t1t1t * c1.y() + 3.0 * t1tt * c2.y() + ttt * p1.y());
         }
 
-        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& /*shapeColor*/, const std::string& /*layerName*/)
+        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& /*shapeColor*/, uint32_t layerSourceId)
         {
             if (!svgPath || svgPath->npts < 4)
             {
@@ -371,6 +403,7 @@ namespace Fio
             EntityInfo info{};
             info.type = EntityType::Polyline;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.layerSourceId = layerSourceId;
             info.visible = true;
             info.vertexCount = static_cast<uint32_t>(cleaned.size());
             info.extensionDataOffset = static_cast<uint32_t>(m_extensionBlob.size());
@@ -394,9 +427,11 @@ namespace Fio
         // thread_local 缓冲区管理生命周期（与 StepParser/PltParser 一致）
         thread_local std::vector<EntityInfo> s_entities;
         thread_local std::vector<uint8_t> s_extensionBlob;
+        thread_local std::vector<IrLayerInfo> s_layers;
         thread_local std::vector<std::string> s_warnings;
         s_entities.clear();
         s_extensionBlob.clear();
+        s_layers.clear();
         s_warnings.clear();
 
         if (!filePath)
@@ -407,7 +442,7 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(s_entities, s_extensionBlob, s_warnings);
+            NsvgInterpreter interpreter(s_entities, s_extensionBlob, s_layers, s_warnings);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
@@ -438,15 +473,15 @@ namespace Fio
         FioParseResult result;
         result.entities = s_entities.data();
         result.entityCount = static_cast<uint32_t>(s_entities.size());
-        result.layers = nullptr;
-        result.layerCount = 0;
+        result.layers = s_layers.data();
+        result.layerCount = static_cast<uint32_t>(s_layers.size());
         result.extensionBlob.data = s_extensionBlob.data();
         result.extensionBlob.size = s_extensionBlob.size();
         std::strncpy(result.sourceFormat, "SVG", sizeof(result.sourceFormat) - 1);
         result.warningCount = static_cast<uint32_t>(s_warnings.size());
 
         SY_INFOF(
-            "[SvgParser] parseToIR END: %u entities, %u warnings: %s", result.entityCount, result.warningCount, filePath);
+            "[SvgParser] parseToIR END: %u entities, %u layers, %u warnings: %s", result.entityCount, result.layerCount, result.warningCount, filePath);
         return result;
     }
 
