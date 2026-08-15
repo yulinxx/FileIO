@@ -17,6 +17,7 @@
 #include "libdxfrw.h"
 
 #include <cmath>
+#include <fstream>
 #include <memory>
 #include <iostream>
 #include <limits>
@@ -946,6 +947,35 @@ namespace Fio
         std::map<size_t, int> m_entityColorMap;
     };
 
+    // libdxfrw 的 ASCII 读取器用 std::getline 按行切分，无法识别多字节编码（如 GBK/ANSI_936）
+    // 中第二字节恰好为 0x0A 的字符，会把这个字节误判为换行，导致整份文件记录错位、解析失败。
+    // 在交给 libdxfrw 前，把这类"嵌入字符串内部的 0x0A"替换为空格，从而避免错位，无需修改第三方库。
+    // 仅当 0x0A 的前一个字节 >= 0x80（即它是多字节字符的延续字节）时才处理，因此不会破坏
+    // CRLF 换行，也不会破坏 Unix 风格 LF-only 换行的文件。
+    static void sanitizeDxfBytes(std::string& content)
+    {
+        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(content.data());
+        const size_t n = content.size();
+        for (size_t i = 1; i < n; ++i)
+        {
+            if (bytes[i] == 0x0A && bytes[i - 1] >= 0x80)
+            {
+                content[i] = ' ';
+            }
+        }
+    }
+
+    static bool readFileBytes(const std::string& filePath, std::string& content)
+    {
+        std::ifstream in(filePath, std::ios::binary);
+        if (!in)
+        {
+            return false;
+        }
+        content.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        return true;
+    }
+
     FioParseResult DxfParser::parseToIR(const char* filePath)
     {
         SY_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath);
@@ -959,7 +989,15 @@ namespace Fio
 
         std::vector<std::string> warnings;
 
-        TempFileCopy tempCopy(filePath, "dxf");
+        std::string content;
+        if (!readFileBytes(filePath, content))
+        {
+            SY_ERRORF("[DxfParser] parseToIR: Cannot open file: %s", filePath);
+            return FioParseResult{};
+        }
+        sanitizeDxfBytes(content);
+
+        TempFileCopy tempCopy(content, filePath, "dxf");
         if (!tempCopy.isValid())
         {
             SY_ERRORF("[DxfParser] parseToIR: Temp file copy failed: %s", tempCopy.error().c_str());
@@ -1040,7 +1078,15 @@ namespace Fio
         SY_INFOF("[DxfParser] parse START: filePath=%s", filePath);
         std::vector<std::string> warnings;
 
-        TempFileCopy tempCopy(filePath, "dxf");
+        std::string content;
+        if (!readFileBytes(filePath, content))
+        {
+            SY_ERRORF("[DxfParser] parse: Cannot open file: %s", filePath);
+            return ParseResult::fail(std::string("Cannot open file: ") + filePath);
+        }
+        sanitizeDxfBytes(content);
+
+        TempFileCopy tempCopy(content, filePath, "dxf");
 
         if (!tempCopy.isValid())
         {

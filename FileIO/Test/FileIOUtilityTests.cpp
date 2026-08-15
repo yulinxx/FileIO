@@ -272,3 +272,20 @@ TEST(TempFileCopyTest, CopyPreservesBinaryContent)
 
     std::filesystem::remove(testFile);
 }
+
+TEST(TempFileCopyTest, ContentConstructorWritesProvidedContent)
+{
+    std::string originalPath = std::filesystem::temp_directory_path().string() + "/fio_test_orig.txt";
+    const std::string provided = "preprocessed\x0Acontent\x80\x0A";
+
+    {
+        Fio::TempFileCopy tempCopy(provided, originalPath, "contenttest");
+        ASSERT_TRUE(tempCopy.isValid());
+        EXPECT_TRUE(tempCopy.error().empty());
+
+        std::ifstream inFile(tempCopy.path(), std::ios::binary);
+        ASSERT_TRUE(inFile.is_open());
+        std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+        EXPECT_EQ(content, provided);
+    }
+}

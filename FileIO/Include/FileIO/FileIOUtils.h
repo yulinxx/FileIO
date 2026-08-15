@@ -30,6 +30,7 @@ namespace Fio
     class FILEIO_API TempFileCopy
     {
     public:
+        // 从原始路径读取内容并复制到临时文件（通用路径，字节级原样复制）
         TempFileCopy(const std::string& originalPath, const std::string& tempPrefix)
             : m_originalPath(originalPath)
         {
@@ -45,21 +46,14 @@ namespace Fio
             std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
             inFile.close();
 
-            std::string hash = generateHash(originalPath);
-            std::string ext = fsPath.extension().string();
-            std::filesystem::path tempPath =
-                std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + hash + ext);
-            m_tempPath = tempPath.string();
+            writeToTemp(originalPath, tempPrefix, content);
+        }
 
-            std::ofstream outFile(tempPath, std::ios::binary | std::ios::trunc);
-            if (!outFile)
-            {
-                m_error = "Cannot create temp file: " + tempPath.string();
-                m_tempPath.clear();
-                return;
-            }
-            outFile.write(content.data(), content.size());
-            outFile.close();
+        // 使用调用方提供的（可能已预处理过的）内容写入临时文件，避免重复读取原始文件
+        TempFileCopy(const std::string& content, const std::string& originalPath, const std::string& tempPrefix)
+            : m_originalPath(originalPath)
+        {
+            writeToTemp(originalPath, tempPrefix, content);
         }
 
         ~TempFileCopy()
@@ -89,6 +83,26 @@ namespace Fio
         }
 
     private:
+        void writeToTemp(const std::string& originalPath, const std::string& tempPrefix, const std::string& content)
+        {
+            std::filesystem::path fsPath = std::filesystem::u8path(originalPath);
+            std::string hash = generateHash(originalPath);
+            std::string ext = fsPath.extension().string();
+            std::filesystem::path tempPath =
+                std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + hash + ext);
+            m_tempPath = tempPath.string();
+
+            std::ofstream outFile(tempPath, std::ios::binary | std::ios::trunc);
+            if (!outFile)
+            {
+                m_error = "Cannot create temp file: " + tempPath.string();
+                m_tempPath.clear();
+                return;
+            }
+            outFile.write(content.data(), content.size());
+            outFile.close();
+        }
+
         std::string m_originalPath;
         std::string m_tempPath;
         std::string m_error;
