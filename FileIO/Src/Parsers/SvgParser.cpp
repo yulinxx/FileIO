@@ -431,53 +431,9 @@ namespace Fio
         }
 
         // 点到线段距离（用于曲线扁平度估计）
-        double pointToSegmentDistance(const Ut::Vec2d& p, const Ut::Vec2d& a, const Ut::Vec2d& b)
-        {
-            Ut::Vec2d ab = b - a;
-            double len2 = ab.x() * ab.x() + ab.y() * ab.y();
-            if (len2 < 1e-18)
-            {
-                return (p - a).length();
-            }
-            double t = ((p.x() - a.x()) * ab.x() + (p.y() - a.y()) * ab.y()) / len2;
-            t = std::clamp(t, 0.0, 1.0);
-            Ut::Vec2d proj = a + ab * t;
-            return (p - proj).length();
-        }
+        // 注：保留贝塞尔曲线后不再需要把曲线离散为折线，此函数及 computeAdaptiveSegments 已移除。
 
-        // 根据曲线控制多边形计算自适应采样段数。
-        // 关键修复：旧实现只采样中点，对 Cross/S 形（曲线穿越弦线）会误判为"平直"→ 仅 1 段，
-        // 导致曲线严重不平滑。这里改用两个内部控制点到弦线的最大距离作为扁平度上界，
-        // 并对接近直线的情况仍至少 2 段，保证采样随曲率自适应。
-        int computeAdaptiveSegments(
-            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1)
-        {
-            double chordLen = (p1 - p0).length();
-            if (chordLen < 1e-9)
-            {
-                return 1;
-            }
-
-            // 控制多边形包围盒对角线长度，作为 tolerance 的基准，自适应于图形尺度
-            double minX = std::min({p0.x(), c1.x(), c2.x(), p1.x()});
-            double maxX = std::max({p0.x(), c1.x(), c2.x(), p1.x()});
-            double minY = std::min({p0.y(), c1.y(), c2.y(), p1.y()});
-            double maxY = std::max({p0.y(), c1.y(), c2.y(), p1.y()});
-            double diag = std::sqrt((maxX - minX) * (maxX - minX) + (maxY - minY) * (maxY - minY));
-            double tolerance = std::clamp(diag * 0.0015, 0.01, 4.0);
-
-            // 扁平度上界：两个内部控制点到弦 p0-p1 的最大距离
-            double flatness = std::max(pointToSegmentDistance(c1, p0, p1), pointToSegmentDistance(c2, p0, p1));
-
-            if (flatness < tolerance)
-            {
-                return 2;
-            }
-
-            int segs = static_cast<int>(std::ceil(std::sqrt(flatness / tolerance)));
-            return std::clamp(segs, 2, 256);
-        }
-    }  // namespace
+        }  // namespace
 
     class NsvgInterpreter
     {
@@ -596,7 +552,7 @@ namespace Fio
 
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
-                    convertPathToEntity(svgPath, shapeColor, layerSourceId);
+                    convertPathToBezierEntities(svgPath, shapeColor, layerSourceId);
                 }
             }
 
@@ -639,20 +595,7 @@ namespace Fio
             return layer.sourceId;
         }
 
-        Ut::Vec2d evalCubicBezier(
-            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1, double t)
-        {
-            double t1 = 1.0 - t;
-            double t1t1t1 = t1 * t1 * t1;
-            double t1t1t = t1 * t1 * t;
-            double t1tt = t1 * t * t;
-            double ttt = t * t * t;
-
-            return Ut::Vec2d(t1t1t1 * p0.x() + 3.0 * t1t1t * c1.x() + 3.0 * t1tt * c2.x() + ttt * p1.x(),
-                t1t1t1 * p0.y() + 3.0 * t1t1t * c1.y() + 3.0 * t1tt * c2.y() + ttt * p1.y());
-        }
-
-        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId)
+        void convertPathToBezierEntities(NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId)
         {
             if (!svgPath || svgPath->npts < 4)
             {
@@ -662,96 +605,51 @@ namespace Fio
             float* pts = svgPath->pts;
             int npts = svgPath->npts;
 
-            std::vector<Ut::Vec2d> points;
-            points.reserve(static_cast<size_t>(npts));
-
-            // First point (Y axis flip: SVG Y down -> system Y up)
-            points.emplace_back(pts[0], -pts[1]);
-
-            // Process cubic bezier segments
-            // nanosvg pts layout: [x0,y0, cpx1,cpy1, cpx2,cpy2, x1,y1, ...]
-            // Step through in groups of 3 control points (6 floats per segment)
+            // nanosvg pts 布局: [x0,y0, cpx1,cpy1, cpx2,cpy2, x1,y1, ...]
+            // 每段三次贝塞尔 = 一个起点 + 两个控制点 + 一个终点（相对起点增加 3 个点）。
+            // 保留贝塞尔曲线本身（而非离散成折线），每段生成一条 Bezier 实体。
+            // 注意：闭合路径时 nanosvg 已在 addPath 中补上一条回到起点的闭合线段（直线贝塞尔），
+            // 因此这里无需再额外处理闭合，直接逐段生成即可。
             for (int i = 0; i + 3 < npts; i += 3)
             {
+                // Y 轴翻转：SVG Y 向下 -> 系统 Y 向上
                 Ut::Vec2d p0(pts[i * 2], -pts[i * 2 + 1]);
                 Ut::Vec2d c1(pts[i * 2 + 2], -pts[i * 2 + 3]);
                 Ut::Vec2d c2(pts[i * 2 + 4], -pts[i * 2 + 5]);
                 Ut::Vec2d p1(pts[i * 2 + 6], -pts[i * 2 + 7]);
 
-                // Adaptive sampling based on curve flatness
-                int segs = computeAdaptiveSegments(p0, c1, c2, p1);
-
-                for (int s = 1; s <= segs; ++s)
+                // 跳过退化段：所有点几乎重合（零长度/退化贝塞尔）
+                double extent = std::max({ std::fabs(p0.x() - c1.x()), std::fabs(p0.y() - c1.y()),
+                    std::fabs(p0.x() - c2.x()), std::fabs(p0.y() - c2.y()),
+                    std::fabs(p0.x() - p1.x()), std::fabs(p0.y() - p1.y()) });
+                if (extent < 1e-9)
                 {
-                    double t = static_cast<double>(s) / segs;
-                    points.push_back(evalCubicBezier(p0, c1, c2, p1, t));
+                    continue;
                 }
-            }
 
-            // Close path if needed
-            if (svgPath->closed && points.size() >= 2)
-            {
-                double dx = points.front().x() - points.back().x();
-                double dy = points.front().y() - points.back().y();
-                if (std::hypot(dx, dy) > 1e-6)
-                {
-                    points.push_back(points.front());
-                }
+                // 填充 EntityInfo：Bezier 类型（起点在 line.x1/y1，控制点/终点在 bezier 字段）
+                EntityInfo info{};
+                info.type = EntityType::Bezier;
+                info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+                info.layerSourceId = layerSourceId;
+                info.visible = true;
+                info.color = packSvgColor(shapeColor);
+                info.line.x1 = p0.x();
+                info.line.y1 = p0.y();
+                info.bezier.c0x = c1.x();
+                info.bezier.c0y = c1.y();
+                info.bezier.c1x = c2.x();
+                info.bezier.c1y = c2.y();
+                info.bezier.ex = p1.x();
+                info.bezier.ey = p1.y();
+                m_outEntities.push_back(info);
             }
-
-            if (points.size() < 2)
-            {
-                return;
-            }
-
-            // Remove duplicate consecutive points
-            std::vector<Ut::Vec2d> cleaned;
-            cleaned.reserve(points.size());
-            cleaned.push_back(points[0]);
-            for (size_t i = 1; i < points.size(); ++i)
-            {
-                if ((points[i] - cleaned.back()).length() > 1e-6)
-                {
-                    cleaned.push_back(points[i]);
-                }
-            }
-            if (cleaned.size() < 2)
-            {
-                return;
-            }
-
-            // 收集顶点为 double 序列（x0,y0,x1,y1,...）
-            std::vector<double> verts;
-            verts.reserve(cleaned.size() * 2);
-            for (const auto& pt : cleaned)
-            {
-                verts.push_back(pt.x());
-                verts.push_back(pt.y());
-            }
-
-            // 填充 EntityInfo：闭合路径用 Polygon（渲染为闭合环），开放路径用 Polyline（渲染为开放折线）。
-            // 关键：若不区分闭合/开放而统一用 Polyline，转换后的 SyPolygon 会被渲染层当作闭合多边形，
-            // 给每条开放子路径多加一条首尾相连的“封闭线”（蜂窝六边形内部的斜线正是由此产生）。
-            EntityInfo info{};
-            info.type = svgPath->closed ? EntityType::Polygon : EntityType::Polyline;
-            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
-            info.layerSourceId = layerSourceId;
-            info.visible = true;
-            // 使用图形自身的描边/填充色作为实体颜色（覆盖色），保证导入后保留颜色
-            info.color = packSvgColor(shapeColor);
-            info.vertexCount = static_cast<uint32_t>(cleaned.size());
-            info.extensionDataOffset = static_cast<uint32_t>(m_extensionBlob.size());
-            info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
-            m_extensionBlob.insert(m_extensionBlob.end(),
-                reinterpret_cast<const uint8_t*>(verts.data()),
-                reinterpret_cast<const uint8_t*>(verts.data()) + info.extensionDataSize);
-            m_outEntities.push_back(info);
         }
     };
 
     // ========================================================================
     // SvgParser::parseToIR() — 中立 IR 解析路径
-    // SVG path → 贝塞尔自适应采样 → Polyline(POD) + 顶点数据存入 extensionBlob
+    // SVG path → 保留三次贝塞尔曲线 → 每段生成一条 Bezier 实体（不离散为折线）
     // 不依赖 Engine2D 类型，跨 DLL 安全
     // ========================================================================
     FioParseResult SvgParser::parseToIR(const char* filePath)
