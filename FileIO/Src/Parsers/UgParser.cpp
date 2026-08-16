@@ -129,53 +129,51 @@ namespace Fio
         }
 
         // ---- 2. 收集目录段 (D) 的实体类型与参数起始行 ----
-        // 目录条目每个实体占 2 行；第 1 行的前 8 列是实体类型，第 2 行的第 41-48 列是参数行号
+        // IGES 目录段每个实体占 2 行：第一行含实体类型(1-8列)与指针信息，
+        // 第二行含参数数据起始行号(41-48列)。两行均以 'D' 为段字母(index 72)。
         std::vector<IgesEntity> entities;
-        bool inDirectory = false;
-        for (std::size_t i = 0; i < lines.size(); ++i)
+        std::vector<std::pair<std::string, std::string>> directoryRows;  // 收集 D 段行（按出现顺序）
         {
-            const std::string& l = lines[i];
-            if (l.size() < kIgesSectionCol)
+            bool inDirectory = false;
+            for (std::size_t i = 0; i < lines.size(); ++i)
             {
-                continue;
+                const std::string& l = lines[i];
+                if (l.size() < kIgesSectionCol)
+                {
+                    continue;
+                }
+                const char section = l[kIgesSectionCol];
+                if (section == 'S' || section == 'G')
+                {
+                    inDirectory = false;
+                    continue;
+                }
+                if (section == 'D')
+                {
+                    inDirectory = true;
+                }
+                else if (section == 'P' || section == 'T')
+                {
+                    inDirectory = false;  // 目录段结束
+                }
+                if (inDirectory)
+                {
+                    // 每行记录两类信息：实体类型(1-8列) 与 参数数据指针(9-16列)
+                    directoryRows.emplace_back(l.substr(0, 8), l.substr(8, 8));
+                }
             }
-            const char section = l[kIgesSectionCol];
-            if (section == 'S' || section == 'G')
-            {
-                inDirectory = false;
-                continue;
-            }
-            if (section == 'D')
-            {
-                inDirectory = true;
-            }
-            else if (section == 'P')
-            {
-                inDirectory = false;  // 参数段开始，目录段已结束
-            }
+        }
 
-            if (!inDirectory)
-            {
-                continue;
-            }
-
-            // 目录条目第一行（偶数行，实体类型在 1-8 列）
-            // 目录段每个实体占两行，第一行以类型号开头
-            // 通过「前一行的第 73 列是 D」且当前行类型列有内容来判断
-            if (i == 0 || lines[i - 1].size() < kIgesSectionCol || lines[i - 1][kIgesSectionCol] != 'D')
-            {
-                continue;  // 必须紧跟在 D 段行之后
-            }
-
+        // 每 2 行构成一个实体目录条目：第一行的类型与参数指针即可（第二行多为颜色/权重等外观属性）
+        for (std::size_t i = 0; i + 1 < directoryRows.size(); i += 2)
+        {
             IgesEntity ent;
-            // 第一行 1-8 列：实体类型
-            ent.type = static_cast<int>(parseField(l.substr(0, 8)));
-            // 参数起始行在第二行（当前行）的 41-48 列（0-based index 40-47）
-            if (l.size() >= 48)
+            ent.type = static_cast<int>(parseField(directoryRows[i].first));      // 第一行 1-8 列：实体类型
+            ent.paramLineStart = static_cast<int>(parseField(directoryRows[i].second));  // 第一行 9-16 列：参数数据指针(行号)
+            if (ent.type > 0)
             {
-                ent.paramLineStart = static_cast<int>(parseField(l.substr(40, 8)));
+                entities.push_back(ent);
             }
-            entities.push_back(ent);
         }
 
         // ---- 3. 预建「参数行号 → 参数文本」映射（参数段 P） ----

@@ -15,6 +15,7 @@
 #include "FileIO/FileImporter.h"
 #include "FileIO/FileIOManager.h"
 #include "FileIO/FileFormat.h"
+#include "FileIO/Parsers/UgParser.h"
 #include "FileIO/SySerializer.h"
 #include "FileIO/SyDocument.h"
 #include "FileIO/FioTypes.h"
@@ -426,4 +427,97 @@ TEST(FileIORegressionTest, Serialization_EmptyDocumentIsValid)
     auto result = serializer.serializeToMemory(emptyDoc, &query);
     ASSERT_TRUE(result.success);
     EXPECT_GT(query.written, 0u);  // 空文档也能序列化出有效数据
+}
+
+// ==================== IGES (UG) 导入解析测试 ====================
+
+namespace
+{
+    // 构造一个严格 80 列的 IGES 行：数据(0-71列) + 段字母(index 72) + 序号(74-80)
+    std::string igesLine(const std::string& data, char section, int seq)
+    {
+        std::string line = data;
+        if (line.size() > 72)
+        {
+            line.resize(72);
+        }
+        else
+        {
+            line.append(72 - line.size(), ' ');
+        }
+        line.push_back(section);
+        char seqBuf[8] = { 0 };
+        std::snprintf(seqBuf, sizeof(seqBuf), "%7d", seq);
+        line += seqBuf;
+        return line;
+    }
+
+    // 写一个最小 IGES 文件（含 110 直线 + 100 圆弧 + 116 点），返回临时路径
+    // 实体: 110 直线 (0,0)->(10,10); 100 圆弧(圆心0,0 半径10); 116 点 (5,5)
+    std::string writeMinimalIgesFile(const std::string& path)
+    {
+        std::string content;
+        content += igesLine(std::string(72, ' '), 'S', 1) + "\n";
+        content += igesLine("1H,,1H;,8HSANYI,32HMINIMAL_IGES_TEST,,,,2Hmm,1,0.01,13H20260816.01,2.0,2,2Hmm",
+                       'G',
+                       1)
+            + "\n";
+        // 目录段：每实体 2 行；第一行 1-8列类型、9-16列参数数据指针(行号)
+        content += igesLine("     110       1", 'D', 1) + "\n";
+        content += igesLine("     110       0", 'D', 2) + "\n";
+        content += igesLine("     100       2", 'D', 3) + "\n";
+        content += igesLine("     100       0", 'D', 4) + "\n";
+        content += igesLine("     116       3", 'D', 5) + "\n";
+        content += igesLine("     116       0", 'D', 6) + "\n";
+        // 参数段：110 直线 (0,0)->(10,10)；100 圆弧 = 圆心(0,0) 半径10
+        content += igesLine("110,0.,0.,0.,10.,10.,10.;", 'P', 1) + "\n";
+        content += igesLine("100,0.,10.,0.,0.,10.,-10.,0.,0.,0.;", 'P', 2) + "\n";
+        content += igesLine("116,0.,5.,5.,0.;", 'P', 3) + "\n";
+        // 终止段
+        content += igesLine("S      1G      1D      6P      3", 'T', 1) + "\n";
+
+        FILE* fp = std::fopen(path.c_str(), "w");
+        if (!fp)
+        {
+            return "";
+        }
+        std::fputs(content.c_str(), fp);
+        std::fclose(fp);
+        return path;
+    }
+}  // namespace
+
+TEST(FileIORegressionTest, IgesParser_LineArcPoint)
+{
+    const std::string path = writeMinimalIgesFile("/tmp/sanyi_iges_test.igs");
+    ASSERT_FALSE(path.empty());
+
+    // 直接调用 UgParser，便于调试解析结果
+    Fio::UgParser parser;
+    Fio::FioParseResult result = parser.parseToIR(path.c_str());
+    std::remove(path.c_str());
+
+    if (result.entityCount != 3u)
+    {
+        ADD_FAILURE() << "expected 3 entities, got " << result.entityCount;
+        return;
+    }
+
+    // 直线: type=Line, (0,0)->(10,10)
+    EXPECT_EQ(result.entities[0].type, Fio::EntityType::Line);
+    EXPECT_DOUBLE_EQ(result.entities[0].line.x1, 0.0);
+    EXPECT_DOUBLE_EQ(result.entities[0].line.y1, 0.0);
+    EXPECT_DOUBLE_EQ(result.entities[0].line.x2, 10.0);
+    EXPECT_DOUBLE_EQ(result.entities[0].line.y2, 10.0);
+
+    // 圆弧: type=Arc, 圆心(0,0) 半径10
+    EXPECT_EQ(result.entities[1].type, Fio::EntityType::Arc);
+    EXPECT_DOUBLE_EQ(result.entities[1].arc.cx, 0.0);
+    EXPECT_DOUBLE_EQ(result.entities[1].arc.cy, 0.0);
+    EXPECT_NEAR(result.entities[1].arc.r, 10.0, 1e-6);
+
+    // 点: type=Point, (5,5)
+    EXPECT_EQ(result.entities[2].type, Fio::EntityType::Point);
+    EXPECT_DOUBLE_EQ(result.entities[2].line.x1, 5.0);
+    EXPECT_DOUBLE_EQ(result.entities[2].line.y1, 5.0);
 }

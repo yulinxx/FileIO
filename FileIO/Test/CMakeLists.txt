@@ -18,6 +18,7 @@ target_compile_features(FileIOTests PRIVATE cxx_std_17)
 target_include_directories(FileIOTests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../Include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../Src/Internal"
 )
 
 target_link_libraries(FileIOTests PRIVATE
