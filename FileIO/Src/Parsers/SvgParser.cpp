@@ -297,7 +297,8 @@ namespace Fio
             }
 
             IrLayerInfo layer;
-            layer.sourceId = static_cast<uint32_t>(m_outLayers.size());
+            // 1-based sourceId：0 保留为「未分配图层」哨兵
+            layer.sourceId = static_cast<uint32_t>(m_outLayers.size()) + 1;
             std::strncpy(layer.name, layerName.c_str(), sizeof(layer.name) - 1);
             layer.name[sizeof(layer.name) - 1] = '\0';
             layer.color = 0xFF000000 |

@@ -17,6 +17,7 @@
 #include "libdxfrw.h"
 
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <iostream>
@@ -967,7 +968,9 @@ namespace Fio
 
     static bool readFileBytes(const std::string& filePath, std::string& content)
     {
-        std::ifstream in(filePath, std::ios::binary);
+        // Windows 下 std::ifstream(const char*) 按 ANSI 码页解析路径，无法打开 UTF-8 中文路径；
+        // 统一用 std::filesystem::u8path 构造宽字符路径（与 FileIO 其余解析器一致）
+        std::ifstream in(std::filesystem::u8path(filePath), std::ios::binary);
         if (!in)
         {
             return false;
@@ -1019,7 +1022,8 @@ namespace Fio
             for (const auto& dl : converter.getLayerDefs())
             {
                 IrLayerInfo li;
-                li.sourceId = static_cast<uint32_t>(s_layers.size());
+                // 1-based sourceId：0 保留为「未分配图层」哨兵（与 EntityInfo.layerSourceId 默认一致）
+                li.sourceId = static_cast<uint32_t>(s_layers.size()) + 1;
                 std::strncpy(li.name, dl.name.c_str(), sizeof(li.name) - 1);
                 li.name[sizeof(li.name) - 1] = '\0';
                 li.color = 0xFF000000 | ((dl.color & 0xFF) << 16) | (((dl.color >> 8) & 0xFF) << 8) |
