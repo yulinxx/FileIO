@@ -3,6 +3,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <webp/decode.h>
+#include <tiffio.h>
+
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <vector>
+
 namespace Fio
 {
     const float MM_PER_INCH = 25.4f;
@@ -36,6 +44,129 @@ namespace Fio
         }
 
         return info;
+    }
+
+    namespace
+    {
+        /// 判断文件是否为 WebP（RIFF....WEBP）
+        bool isWebPFile(const char* strUtf8Path)
+        {
+            FILE* f = std::fopen(strUtf8Path, "rb");
+            if (!f)
+            {
+                return false;
+            }
+            unsigned char hdr[12];
+            const size_t n = std::fread(hdr, 1, sizeof(hdr), f);
+            std::fclose(f);
+            if (n != sizeof(hdr))
+            {
+                return false;
+            }
+            return std::memcmp(hdr, "RIFF", 4) == 0 && std::memcmp(hdr + 8, "WEBP", 4) == 0;
+        }
+
+        bool decodeWebPToRgba(const char* strUtf8Path, std::vector<unsigned char>& outRgba, int& outW, int& outH)
+        {
+            FILE* f = std::fopen(strUtf8Path, "rb");
+            if (!f)
+            {
+                return false;
+            }
+            std::fseek(f, 0, SEEK_END);
+            const long sz = std::ftell(f);
+            if (sz <= 0)
+            {
+                std::fclose(f);
+                return false;
+            }
+            std::fseek(f, 0, SEEK_SET);
+            std::vector<unsigned char> fileData(static_cast<size_t>(sz));
+            if (std::fread(fileData.data(), 1, static_cast<size_t>(sz), f) != static_cast<size_t>(sz))
+            {
+                std::fclose(f);
+                return false;
+            }
+            std::fclose(f);
+
+            int w = 0, h = 0;
+            uint8_t* px = WebPDecodeRGBA(fileData.data(), static_cast<size_t>(sz), &w, &h);
+            if (!px || w <= 0 || h <= 0)
+            {
+                WebPFree(px);
+                return false;
+            }
+            outRgba.assign(px, px + static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+            WebPFree(px);
+            outW = w;
+            outH = h;
+            return true;
+        }
+
+        bool decodeTiffToRgba(const char* strUtf8Path, std::vector<unsigned char>& outRgba, int& outW, int& outH)
+        {
+            TIFF* tif = TIFFOpen(strUtf8Path, "r");
+            if (!tif)
+            {
+                return false;
+            }
+
+            uint32_t w = 0, h = 0;
+            TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &w);
+            TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &h);
+            if (w == 0 || h == 0 || w > 65536u || h > 65536u)
+            {
+                TIFFClose(tif);
+                return false;
+            }
+
+            const size_t npix = static_cast<size_t>(w) * static_cast<size_t>(h);
+            std::vector<uint32_t> raster(npix);
+            if (!TIFFReadRGBAImageOriented(tif, w, h, raster.data(), ORIENTATION_TOPLEFT, 0))
+            {
+                TIFFClose(tif);
+                return false;
+            }
+            TIFFClose(tif);
+
+            // TIFFReadRGBAImage 输出为 0xAARRGGBB（小端内存顺序 R,G,B,A），
+            // 直接按 RGBA8 拷贝即可。
+            outRgba.assign(reinterpret_cast<const unsigned char*>(raster.data()),
+                reinterpret_cast<const unsigned char*>(raster.data()) + npix * 4);
+            outW = static_cast<int>(w);
+            outH = static_cast<int>(h);
+            return true;
+        }
+    }  // namespace
+
+    bool loadImageToRgba(const char* strUtf8Path, std::vector<unsigned char>& outRgba, int& outW, int& outH)
+    {
+        if (!strUtf8Path || !strUtf8Path[0])
+        {
+            return false;
+        }
+
+        // 1) WebP：libwebp 解码
+        if (isWebPFile(strUtf8Path))
+        {
+            return decodeWebPToRgba(strUtf8Path, outRgba, outW, outH);
+        }
+
+        // 2) 其余格式：stb_image（png/jpg/bmp/tga/gif 等）
+        int w = 0, h = 0, comp = 0;
+        stbi_uc* px = stbi_load(strUtf8Path, &w, &h, &comp, 4);
+        if (px && w > 0 && h > 0)
+        {
+            outRgba.assign(px, px + static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+            stbi_image_free(px);
+            outW = w;
+            outH = h;
+            return true;
+        }
+        stbi_image_free(px);
+
+        // 3) TIFF：libtiff 解码
+        return decodeTiffToRgba(strUtf8Path, outRgba, outW, outH);
     }
 
     float pixelsToUnit(int pixelSize, float dpi, UnitType targetUnit)
