@@ -21,5 +21,21 @@ namespace Fio
         // 输出中立 IR，跨 DLL 安全
         // SVG path 采样为 Polyline，顶点数据存入 extensionBlob
         FioParseResult parseToIR(const char* filePath) override;
+
+        /// 配置：是否把纯填充(fill-only)色块也导入为闭合轮廓线。
+        /// 默认 false = 只保留描边线条，跳过纯填充色块。
+        /// 开启后，纯填充色块按自身填充色绘制其轮廓（闭合多边形）。
+        void setImportFillAsOutline(bool enable)
+        {
+            m_importFillAsOutline = enable;
+        }
+
+        bool importFillAsOutline() const
+        {
+            return m_importFillAsOutline;
+        }
+
+    private:
+        bool m_importFillAsOutline = false;
     };
 }  // namespace Fio

@@ -44,6 +44,18 @@ namespace Fio
         void setImportCallback(ImportCallback callback, void* ctx = nullptr);
         void setExportCallback(ExportCallback callback, void* ctx = nullptr);
 
+        /// SVG 导入开关：是否把纯填充(fill-only)色块也导入为闭合轮廓线。
+        /// 默认 false = 只保留描边线条（跳过纯填充色块）。
+        void setSvgImportFillAsOutline(bool enable)
+        {
+            m_svgImportFillAsOutline = enable;
+        }
+
+        bool svgImportFillAsOutline() const
+        {
+            return m_svgImportFillAsOutline;
+        }
+
         // ==================== 导入 ====================
         // 成功返回 true，*outEntities 指向 FileIO 分配的图元数组，*outCount 为个数。
         // 错误消息写入 errorBuffer（尽力截断 + '\0'）。
@@ -118,5 +130,6 @@ namespace Fio
         void* m_importCtx = nullptr;
         ExportCallback m_exportCallback = nullptr;
         void* m_exportCtx = nullptr;
+        bool m_svgImportFillAsOutline = false;
     };
 }  // namespace Fio

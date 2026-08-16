@@ -1,6 +1,7 @@
 #include "FileIO/FileIOManager.h"
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/FileWriterFactory.h"
+#include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/IFileParser.h"
 #include "FileIO/IFileWriter.h"
 #include "FileIOInternal.h"
@@ -263,6 +264,12 @@ namespace Fio
             }
             writeError(errorBuffer, errorBufferSize, "Failed to create parser");
             return false;
+        }
+
+        // SVG 导入开关：是否把纯填充色块也导入为轮廓线
+        if (auto* svgParser = dynamic_cast<SvgParser*>(parser))
+        {
+            svgParser->setImportFillAsOutline(m_svgImportFillAsOutline);
         }
 
         FioParseResult result;

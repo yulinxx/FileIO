@@ -485,11 +485,13 @@ namespace Fio
         NsvgInterpreter(std::vector<EntityInfo>& outEntities,
             std::vector<uint8_t>& extensionBlob,
             std::vector<IrLayerInfo>& outLayers,
-            std::vector<std::string>& warnings)
+            std::vector<std::string>& warnings,
+            bool importFillAsOutline)
             : m_outEntities(outEntities)
             , m_extensionBlob(extensionBlob)
             , m_outLayers(outLayers)
             , m_warnings(warnings)
+            , m_importFillAsOutline(importFillAsOutline)
             , m_success(false)
         {
         }
@@ -557,22 +559,31 @@ namespace Fio
             for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next)
             {
                 bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
+                bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
                 bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
 
                 if (!visible)
                 {
                     continue;
                 }
-                // 仅保留描边线条：丢弃纯填充（fill-only）图形。
+
+                // 默认“只保留描边线条”：丢弃纯填充（fill-only）图形。
                 // nanosvg 会把填充区域自动闭合并给出轮廓多边形，若直接绘成线条就会多出
                 // 一条把首尾连起来的“封闭线”，与浏览器中实心填充的观感不符。
+                // 可通过 setImportFillAsOutline(true) 开启：把纯填充色块也导入为闭合轮廓线。
+                Ut::Vec3f shapeColor;
                 if (!hasStroke)
                 {
-                    continue;
+                    if (!m_importFillAsOutline)
+                    {
+                        continue;
+                    }
+                    shapeColor = extractSvgColor(shape->fill);
                 }
-
-                // 描边颜色（线条颜色）
-                Ut::Vec3f shapeColor = extractSvgColor(shape->stroke);
+                else
+                {
+                    shapeColor = extractSvgColor(shape->stroke);
+                }
 
                 // Extract layer name from shape id (nanosvg propagates the <g> group id down to child shapes)
                 std::string layerName;
@@ -597,6 +608,7 @@ namespace Fio
         std::vector<uint8_t>& m_extensionBlob;
         std::vector<IrLayerInfo>& m_outLayers;
         std::vector<std::string>& m_warnings;
+        bool m_importFillAsOutline;
         bool m_success;
 
         // 按图层名查找或创建图层，返回图层 sourceId。
@@ -764,7 +776,7 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(s_entities, s_extensionBlob, s_layers, s_warnings);
+            NsvgInterpreter interpreter(s_entities, s_extensionBlob, s_layers, s_warnings, m_importFillAsOutline);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
