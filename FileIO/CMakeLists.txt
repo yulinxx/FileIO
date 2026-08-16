@@ -42,6 +42,8 @@ list(FILTER LIB_HEADERS EXCLUDE REGEX "${SANYI_HEADER_EXCLUDE_REGEX}")
 find_package(protobuf CONFIG REQUIRED)
 find_package(NanoSVG CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(WebP CONFIG REQUIRED)
+find_package(TIFF REQUIRED)
 
 get_target_property(NANOSVG_INCLUDE_DIR NanoSVG::nanosvg INTERFACE_INCLUDE_DIRECTORIES)
 
@@ -84,6 +86,8 @@ sanyi_add_shared_library(${LIB_NAME}
         "${SANYI_ENGINE_2D_DIR}/Include/Engine2D"
         "${SANYI_ENGINE_3D_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Src/Internal"
+        ${WebP_INCLUDE_DIRS}
+        ${TIFF_INCLUDE_DIRS}
     LINK_LIBRARIES
         PUBLIC
             EngineCommon
@@ -93,6 +97,8 @@ sanyi_add_shared_library(${LIB_NAME}
             Engine2D
             Engine3D
             Log
+            ${WebP_LIBRARIES}
+            TIFF::TIFF
 )
 
 # libdxfrw 第三方源码添加到目标(统一入口将其归入 External 源组)
