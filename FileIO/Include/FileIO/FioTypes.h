@@ -79,6 +79,11 @@ namespace Fio
         bool visible = true;
         bool locked = false;
 
+        // 解析出的实体颜色（0xAARRGGBB，0 = 未指定，渲染时回退到图层颜色）。
+        // 由 DXF/SVG 解析器解析实体自身颜色（真彩色 > ACI 索引 > BYLAYER 图层色）后填充，
+        // 转换层以覆盖色（override color）形式应用，确保导入颜色不被图层去重/复用逻辑吞掉。
+        uint32_t color = 0;
+
         // ---- 基础几何参数（按 type 使用对应字段） ----
 
         // 线段: (x1,y1) → (x2,y2)

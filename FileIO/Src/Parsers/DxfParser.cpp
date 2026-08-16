@@ -71,6 +71,42 @@ namespace Fio
         return oss.str();
     }
 
+    // 将 0-255 RGB 打包为 0xAARRGGBB（与 Ut::Color / EntityInfo.color 约定一致）
+    static uint32_t packRgb255(uint8_t r, uint8_t g, uint8_t b)
+    {
+        return 0xFF000000u | (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) |
+            static_cast<uint32_t>(b);
+    }
+
+    // 解析 DXF 实体颜色，返回 0xAARRGGBB；0 表示未指定（渲染回退到图层/黑色）。
+    // 优先级：真彩色(420/color24) > ACI 索引(62/color) > BYLAYER/BYBLOCK 用图层颜色。
+    static uint32_t resolveDxfColor(const DRW_Entity& e, const std::map<std::string, uint32_t>& layerColors)
+    {
+        // 真彩色（24 位 0x00RRGGBB）
+        if (e.color24 >= 0)
+        {
+            return 0xFF000000u | (static_cast<uint32_t>(e.color24) & 0x00FFFFFFu);
+        }
+
+        const int aci = e.color;
+        if (aci == 256 || aci == 0)
+        {
+            // BYLAYER / BYBLOCK：用图层颜色；未知图层回退为未指定
+            auto it = layerColors.find(e.layer);
+            if (it != layerColors.end())
+            {
+                return it->second;
+            }
+            return 0u;
+        }
+        if (aci >= 1 && aci <= 255)
+        {
+            const auto& c = DRW::dxfColors[aci];
+            return packRgb255(c[0], c[1], c[2]);
+        }
+        return 0u;
+    }
+
     class DxfConverter : public DRW_Interface
     {
     public:
@@ -282,6 +318,17 @@ namespace Fio
         void addLayer(const DRW_Layer& layer) override
         {
             m_layerDefs.push_back(layer);
+
+            // 记录图层颜色，供 BYLAYER 实体解析（与 parseToIR 中 IrLayerInfo 的颜色口径一致）
+            if (layer.color24 >= 0)
+            {
+                m_layerColorMap[layer.name] = 0xFF000000u | (static_cast<uint32_t>(layer.color24) & 0x00FFFFFFu);
+            }
+            else if (layer.color >= 1 && layer.color <= 255)
+            {
+                const auto& c = DRW::dxfColors[layer.color];
+                m_layerColorMap[layer.name] = packRgb255(c[0], c[1], c[2]);
+            }
         }
 
         void addPoint(const DRW_Point& point) override
@@ -393,6 +440,14 @@ namespace Fio
                 return;
             }
 
+            // 跳过 3D 多边形网格 / 多面网格（flags 的 16/64 位）：它们不是 2D 轮廓，
+            // 若按顶点顺序连成一条线会产生大量多余线段。
+            if ((polyline.flags & 16) != 0 || (polyline.flags & 64) != 0)
+            {
+                warnSkip("POLYLINE", "3D mesh / polyface mesh, not drawn as 2D line");
+                return;
+            }
+
             auto syLine = std::make_unique<Eg::SyLine>();
             for (const auto& vert : polyline.vertlist)
             {
@@ -483,6 +538,7 @@ namespace Fio
         VecSyEntityPtr& m_outEntities;
         std::vector<std::string>& m_warnings;
         std::vector<DRW_Layer> m_layerDefs;
+        std::map<std::string, uint32_t> m_layerColorMap;
         std::map<size_t, std::string> m_entityLayerMap;
         std::map<size_t, int> m_entityColorMap;
     };
@@ -584,6 +640,17 @@ namespace Fio
         void addLayer(const DRW_Layer& layer) override
         {
             m_layerDefs.push_back(layer);
+
+            // 记录图层颜色，供 BYLAYER 实体解析（与 parseToIR 中 IrLayerInfo 的颜色口径一致）
+            if (layer.color24 >= 0)
+            {
+                m_layerColorMap[layer.name] = 0xFF000000u | (static_cast<uint32_t>(layer.color24) & 0x00FFFFFFu);
+            }
+            else if (layer.color >= 1 && layer.color <= 255)
+            {
+                const auto& c = DRW::dxfColors[layer.color];
+                m_layerColorMap[layer.name] = packRgb255(c[0], c[1], c[2]);
+            }
         }
 
         void addPoint(const DRW_Point& point) override
@@ -785,6 +852,14 @@ namespace Fio
                 return;
             }
 
+            // 跳过 3D 多边形网格 / 多面网格（flags 的 16/64 位）：它们不是 2D 轮廓，
+            // 若按顶点顺序连成一条线会产生大量多余线段。
+            if ((polyline.flags & 16) != 0 || (polyline.flags & 64) != 0)
+            {
+                warnSkip("POLYLINE", "3D mesh / polyface mesh, not drawn as 2D line");
+                return;
+            }
+
             std::vector<double> verts;
             verts.reserve(polyline.vertlist.size() * 2);
             for (const auto& vert : polyline.vertlist)
@@ -931,6 +1006,10 @@ namespace Fio
             {
                 m_entityColorMap[idx] = drwEntity.color;
             }
+
+            // 解析实体自身颜色（真彩色 > ACI > BYLAYER 图层色），以覆盖色形式随 IR 带回，
+            // 渲染时优先于图层颜色，避免导入后整图变黑。0 表示未指定。
+            info.color = resolveDxfColor(drwEntity, m_layerColorMap);
         }
 
         void appendExtensionData(const void* data, size_t byteSize)
@@ -944,6 +1023,7 @@ namespace Fio
         std::vector<uint8_t>& m_outExtensionBlob;
         std::vector<std::string>& m_warnings;
         std::vector<DRW_Layer> m_layerDefs;
+        std::map<std::string, uint32_t> m_layerColorMap;
         std::map<size_t, std::string> m_entityLayerMap;
         std::map<size_t, int> m_entityColorMap;
     };

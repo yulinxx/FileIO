@@ -10,6 +10,8 @@
 
 #include <cmath>
 #include <cstring>
+#include <cctype>
+#include <map>
 #include <memory>
 #include <vector>
 #include <algorithm>
@@ -117,49 +119,363 @@ namespace Fio
         }
 
         // Extract SVG color from nanosvg paint, returns normalized RGB (0-1)
+        // 注意：nanosvg 的颜色格式为 0xAABBGGRR（见 NSVG_RGB: r | g<<8 | b<<16，alpha 在高字节），
+        // 与常见的 0xAARRGGBB 不同，直接按高位取会红蓝互换。
         Ut::Vec3f extractSvgColor(const NSVGpaint& paint)
         {
             if (paint.type == NSVG_PAINT_COLOR)
             {
                 unsigned int color = paint.color;
-                float r = ((color >> 16) & 0xFF) / 255.0f;
-                float g = ((color >> 8) & 0xFF) / 255.0f;
-                float b = (color & 0xFF) / 255.0f;
+                float r = static_cast<float>(color & 0xFF) / 255.0f;
+                float g = static_cast<float>((color >> 8) & 0xFF) / 255.0f;
+                float b = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
                 return Ut::Vec3f(r, g, b);
             }
             // For gradients or unknown types, return default color
             return Ut::Vec3f(0.0f, 0.0f, 0.0f);
         }
 
-        // Adaptive bezier sampling based on chord error
-        // Returns number of segments needed for the given cubic bezier curve
-        int computeAdaptiveSegments(
-            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1, double tolerance = 0.1)
+        // 将 0-1 RGB 打包为 0xAARRGGBB（与 EntityInfo.color / Ut::Color 约定一致）
+        uint32_t packSvgColor(const Ut::Vec3f& c)
         {
-            // Calculate chord length
+            auto toByte = [](float v) {
+                int i = static_cast<int>(std::lround(v * 255.0f));
+                return static_cast<uint8_t>(std::clamp(i, 0, 255));
+            };
+            return 0xFF000000u | (static_cast<uint32_t>(toByte(c.x())) << 16) |
+                (static_cast<uint32_t>(toByte(c.y())) << 8) | static_cast<uint32_t>(toByte(c.z()));
+        }
+
+        // ===== SVG CSS <style> 类样式内联 =====
+        // nanosvg 不解析 <style> 中的 .class 规则，只认元素内联属性。大量（尤其 Illustrator
+        // 导出）SVG 把颜色/描边放在 class 里，导致 nanosvg 看不到颜色 → 整图变黑。
+        // 这里在交给 nanosvg 前，把 class 引用的样式内联成元素属性。
+
+        // nanosvg 实际可消费的表现属性白名单（其余 class 属性内联后会被解析器忽略，无需加入）
+        static const char* kSvgInlineProps[] = {
+            "fill", "stroke", "stroke-width", "fill-opacity", "stroke-opacity", "opacity",
+            "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", nullptr};
+
+        static bool isSvgInlineProp(const std::string& name)
+        {
+            for (int i = 0; kSvgInlineProps[i] != nullptr; ++i)
+            {
+                if (name == kSvgInlineProps[i])
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        static std::string trimWhitespace(const std::string& s)
+        {
+            size_t a = 0, b = s.size();
+            while (a < b && std::isspace(static_cast<unsigned char>(s[a])))
+                ++a;
+            while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1])))
+                --b;
+            return s.substr(a, b - a);
+        }
+
+        // 读取标签中某个属性的值（name="..." 或 name='...'），找不到返回空串
+        static std::string getSvgAttr(const std::string& tag, const std::string& name)
+        {
+            size_t p = 0;
+            while (p < tag.size())
+            {
+                size_t found = tag.find(name, p);
+                if (found == std::string::npos)
+                {
+                    break;
+                }
+                // 属性名前必须是空白或 '<'，避免匹配到属性值里的子串
+                if (found == 0 || tag[found - 1] == ' ' || tag[found - 1] == '\t' ||
+                    tag[found - 1] == '\n' || tag[found - 1] == '\r' || tag[found - 1] == '<')
+                {
+                    size_t after = found + name.size();
+                    while (after < tag.size() && (tag[after] == ' ' || tag[after] == '\t'))
+                        ++after;
+                    if (after < tag.size() && tag[after] == '=')
+                    {
+                        ++after;
+                        while (after < tag.size() && (tag[after] == ' ' || tag[after] == '\t'))
+                            ++after;
+                        if (after < tag.size() && (tag[after] == '"' || tag[after] == '\''))
+                        {
+                            char q = tag[after];
+                            size_t start = after + 1;
+                            size_t end = tag.find(q, start);
+                            if (end != std::string::npos)
+                            {
+                                return tag.substr(start, end - start);
+                            }
+                        }
+                    }
+                }
+                p = found + name.size();
+            }
+            return "";
+        }
+
+        static bool hasSvgAttr(const std::string& tag, const std::string& name)
+        {
+            return !getSvgAttr(tag, name).empty();
+        }
+
+        // 解析 <style> 文本中的 .class 规则 → class 名 → (属性 → 值)
+        static std::map<std::string, std::map<std::string, std::string>> parseCssRules(const std::string& css)
+        {
+            std::map<std::string, std::map<std::string, std::string>> rules;
+            size_t i = 0;
+            const size_t n = css.size();
+            while (i < n)
+            {
+                size_t brace = css.find('{', i);
+                if (brace == std::string::npos)
+                {
+                    break;
+                }
+                size_t close = css.find('}', brace);
+                if (close == std::string::npos)
+                {
+                    break;
+                }
+                std::string selectors = css.substr(i, brace - i);
+                std::string body = css.substr(brace + 1, close - brace - 1);
+
+                // 解析声明：prop: value;
+                std::map<std::string, std::string> decls;
+                size_t pos = 0;
+                const size_t pb = body.size();
+                while (pos < pb)
+                {
+                    size_t colon = body.find(':', pos);
+                    if (colon == std::string::npos)
+                    {
+                        break;
+                    }
+                    size_t semi = body.find(';', colon);
+                    if (semi == std::string::npos)
+                    {
+                        semi = pb;
+                    }
+                    std::string key = trimWhitespace(body.substr(pos, colon - pos));
+                    std::string val = trimWhitespace(body.substr(colon + 1, semi - colon - 1));
+                    if (!key.empty() && !val.empty())
+                    {
+                        decls[key] = val;
+                    }
+                    pos = semi + 1;
+                }
+
+                // 多个选择器（逗号分隔），只处理 .class
+                size_t s = 0;
+                while (s < selectors.size())
+                {
+                    size_t comma = selectors.find(',', s);
+                    std::string sel = trimWhitespace(
+                        selectors.substr(s, comma == std::string::npos ? std::string::npos : comma - s));
+                    if (!sel.empty() && sel[0] == '.')
+                    {
+                        std::string cls = sel.substr(1);
+                        for (const auto& kv : decls)
+                        {
+                            if (isSvgInlineProp(kv.first))
+                            {
+                                rules[cls][kv.first] = kv.second;
+                            }
+                        }
+                    }
+                    if (comma == std::string::npos)
+                    {
+                        break;
+                    }
+                    s = comma + 1;
+                }
+
+                i = close + 1;
+            }
+            return rules;
+        }
+
+        // 将 <style> 中的 class 样式内联到引用它的元素上（元素自身属性优先，不被覆盖）
+        static std::string inlineSvgCss(const std::string& svg)
+        {
+            // 1) 收集所有 <style> 块内容
+            std::string css;
+            size_t pos = 0;
+            while (true)
+            {
+                size_t open = svg.find("<style", pos);
+                if (open == std::string::npos)
+                {
+                    break;
+                }
+                size_t tagEnd = svg.find('>', open);
+                if (tagEnd == std::string::npos)
+                {
+                    break;
+                }
+                size_t close = svg.find("</style>", tagEnd);
+                if (close == std::string::npos)
+                {
+                    break;
+                }
+                css += svg.substr(tagEnd + 1, close - tagEnd - 1);
+                pos = close + 8;
+            }
+            if (css.empty())
+            {
+                return svg;
+            }
+
+            auto rules = parseCssRules(css);
+            if (rules.empty())
+            {
+                return svg;
+            }
+
+            // 2) 扫描每个元素标签，内联 class 样式
+            std::string out;
+            out.reserve(svg.size());
+            size_t i = 0;
+            const size_t n = svg.size();
+            while (i < n)
+            {
+                size_t lt = svg.find('<', i);
+                if (lt == std::string::npos)
+                {
+                    out += svg.substr(i);
+                    break;
+                }
+                out += svg.substr(i, lt - i);
+
+                // 闭合/声明/注释标签：原样复制
+                if (lt + 1 < n && (svg[lt + 1] == '/' || svg[lt + 1] == '?' || svg[lt + 1] == '!'))
+                {
+                    size_t gt = svg.find('>', lt);
+                    if (gt == std::string::npos)
+                    {
+                        out += svg.substr(lt);
+                        break;
+                    }
+                    out += svg.substr(lt, gt - lt + 1);
+                    i = gt + 1;
+                    continue;
+                }
+
+                size_t gt = svg.find('>', lt);
+                if (gt == std::string::npos)
+                {
+                    out += svg.substr(lt);
+                    break;
+                }
+                std::string tag = svg.substr(lt, gt - lt + 1);
+
+                std::string cls = getSvgAttr(tag, "class");
+                if (!cls.empty())
+                {
+                    // 合并 class 列表中的样式（后者覆盖前者）
+                    std::map<std::string, std::string> merged;
+                    size_t c = 0;
+                    while (c < cls.size())
+                    {
+                        size_t sp = cls.find_first_of(" \t\r\n", c);
+                        std::string one = trimWhitespace(cls.substr(c, sp == std::string::npos ? std::string::npos : sp - c));
+                        if (!one.empty())
+                        {
+                            auto it = rules.find(one);
+                            if (it != rules.end())
+                            {
+                                for (const auto& kv : it->second)
+                                {
+                                    merged[kv.first] = kv.second;
+                                }
+                            }
+                        }
+                        if (sp == std::string::npos)
+                        {
+                            break;
+                        }
+                        c = sp + 1;
+                    }
+
+                    if (!merged.empty())
+                    {
+                        std::string insertion;
+                        for (const auto& kv : merged)
+                        {
+                            if (!hasSvgAttr(tag, kv.first))
+                            {
+                                insertion += " " + kv.first + "=\"" + kv.second + "\"";
+                            }
+                        }
+                        if (!insertion.empty())
+                        {
+                            size_t endPos = tag.size() - 1;  // 指向 '>'
+                            size_t insertAt = endPos;
+                            if (tag[endPos - 1] == '/')
+                            {
+                                insertAt = endPos - 1;  // 写在 '/>' 的 '/' 之前
+                            }
+                            tag.insert(insertAt, insertion);
+                        }
+                    }
+                }
+
+                out += tag;
+                i = gt + 1;
+            }
+            return out;
+        }
+
+        // 点到线段距离（用于曲线扁平度估计）
+        double pointToSegmentDistance(const Ut::Vec2d& p, const Ut::Vec2d& a, const Ut::Vec2d& b)
+        {
+            Ut::Vec2d ab = b - a;
+            double len2 = ab.x() * ab.x() + ab.y() * ab.y();
+            if (len2 < 1e-18)
+            {
+                return (p - a).length();
+            }
+            double t = ((p.x() - a.x()) * ab.x() + (p.y() - a.y()) * ab.y()) / len2;
+            t = std::clamp(t, 0.0, 1.0);
+            Ut::Vec2d proj = a + ab * t;
+            return (p - proj).length();
+        }
+
+        // 根据曲线控制多边形计算自适应采样段数。
+        // 关键修复：旧实现只采样中点，对 Cross/S 形（曲线穿越弦线）会误判为"平直"→ 仅 1 段，
+        // 导致曲线严重不平滑。这里改用两个内部控制点到弦线的最大距离作为扁平度上界，
+        // 并对接近直线的情况仍至少 2 段，保证采样随曲率自适应。
+        int computeAdaptiveSegments(
+            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1)
+        {
             double chordLen = (p1 - p0).length();
-            if (chordLen < 1e-10)
+            if (chordLen < 1e-9)
             {
                 return 1;
             }
 
-            // Calculate maximum distance from curve to chord (flatness test)
-            // Sample at t=0.5 and measure distance to chord
-            double t = 0.5;
-            double t1 = 1.0 - t;
-            Ut::Vec2d mid = t1 * t1 * t1 * p0 + 3 * t1 * t1 * t * c1 + 3 * t1 * t * t * c2 + t * t * t * p1;
-            Ut::Vec2d chordMid = (p0 + p1) * 0.5;
-            double flatness = (mid - chordMid).length();
+            // 控制多边形包围盒对角线长度，作为 tolerance 的基准，自适应于图形尺度
+            double minX = std::min({p0.x(), c1.x(), c2.x(), p1.x()});
+            double maxX = std::max({p0.x(), c1.x(), c2.x(), p1.x()});
+            double minY = std::min({p0.y(), c1.y(), c2.y(), p1.y()});
+            double maxY = std::max({p0.y(), c1.y(), c2.y(), p1.y()});
+            double diag = std::sqrt((maxX - minX) * (maxX - minX) + (maxY - minY) * (maxY - minY));
+            double tolerance = std::clamp(diag * 0.0015, 0.01, 4.0);
 
-            // Estimate segments needed based on flatness
+            // 扁平度上界：两个内部控制点到弦 p0-p1 的最大距离
+            double flatness = std::max(pointToSegmentDistance(c1, p0, p1), pointToSegmentDistance(c2, p0, p1));
+
             if (flatness < tolerance)
             {
-                return 1;
+                return 2;
             }
 
-            // Use empirical formula: segments = ceil(sqrt(flatness / tolerance))
             int segs = static_cast<int>(std::ceil(std::sqrt(flatness / tolerance)));
-            return std::clamp(segs, 2, 32);
+            return std::clamp(segs, 2, 256);
         }
     }  // namespace
 
@@ -218,6 +534,13 @@ namespace Fio
                 svgData = std::move(fileContent);
             }
 
+            // 内联 <style> 中的 class 样式，使 nanosvg 能识别颜色/描边（否则整图变黑）
+            {
+                std::string svgStr(svgData.data(), svgData.size());
+                std::string inlined = inlineSvgCss(svgStr);
+                svgData.assign(inlined.begin(), inlined.end());
+            }
+
             // Parse SVG from memory (null-terminated string)
             svgData.push_back('\0');
 
@@ -234,28 +557,22 @@ namespace Fio
             for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next)
             {
                 bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
-                bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
                 bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
 
                 if (!visible)
                 {
                     continue;
                 }
-                if (!hasFill && !hasStroke)
+                // 仅保留描边线条：丢弃纯填充（fill-only）图形。
+                // nanosvg 会把填充区域自动闭合并给出轮廓多边形，若直接绘成线条就会多出
+                // 一条把首尾连起来的“封闭线”，与浏览器中实心填充的观感不符。
+                if (!hasStroke)
                 {
                     continue;
                 }
 
-                // Extract color from shape (prefer stroke color for lines, fill for closed shapes)
-                Ut::Vec3f shapeColor = Ut::Vec3f(0.0f, 0.0f, 0.0f);
-                if (hasStroke)
-                {
-                    shapeColor = extractSvgColor(shape->stroke);
-                }
-                else if (hasFill)
-                {
-                    shapeColor = extractSvgColor(shape->fill);
-                }
+                // 描边颜色（线条颜色）
+                Ut::Vec3f shapeColor = extractSvgColor(shape->stroke);
 
                 // Extract layer name from shape id (nanosvg propagates the <g> group id down to child shapes)
                 std::string layerName;
@@ -323,7 +640,7 @@ namespace Fio
                 t1t1t1 * p0.y() + 3.0 * t1t1t * c1.y() + 3.0 * t1tt * c2.y() + ttt * p1.y());
         }
 
-        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& /*shapeColor*/, uint32_t layerSourceId)
+        void convertPathToEntity(NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId)
         {
             if (!svgPath || svgPath->npts < 4)
             {
@@ -400,12 +717,16 @@ namespace Fio
                 verts.push_back(pt.y());
             }
 
-            // 填充 EntityInfo：Polyline 类型，顶点数据存入 extensionBlob
+            // 填充 EntityInfo：闭合路径用 Polygon（渲染为闭合环），开放路径用 Polyline（渲染为开放折线）。
+            // 关键：若不区分闭合/开放而统一用 Polyline，转换后的 SyPolygon 会被渲染层当作闭合多边形，
+            // 给每条开放子路径多加一条首尾相连的“封闭线”（蜂窝六边形内部的斜线正是由此产生）。
             EntityInfo info{};
-            info.type = EntityType::Polyline;
+            info.type = svgPath->closed ? EntityType::Polygon : EntityType::Polyline;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.layerSourceId = layerSourceId;
             info.visible = true;
+            // 使用图形自身的描边/填充色作为实体颜色（覆盖色），保证导入后保留颜色
+            info.color = packSvgColor(shapeColor);
             info.vertexCount = static_cast<uint32_t>(cleaned.size());
             info.extensionDataOffset = static_cast<uint32_t>(m_extensionBlob.size());
             info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
