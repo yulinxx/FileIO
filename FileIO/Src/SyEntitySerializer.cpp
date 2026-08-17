@@ -13,6 +13,7 @@
 #include "Engine2D/SyEntity/SyPolygon.h"
 #include "Engine2D/SyEntity/SyQRCode.h"
 #include "Engine2D/SyEntity/SyText.h"
+#include "Engine3D/SyEntity/SyMeshEntity.h"
 #include "Engine/Layer/SyLayer.h"
 
 namespace Fio
@@ -51,6 +52,8 @@ namespace Fio
                 return sanyi::proto::ENTITY_QR_CODE;
             case Eg::EType::IMAGE:
                 return sanyi::proto::ENTITY_IMAGE;
+            case Eg::EType::MESH:
+                return sanyi::proto::ENTITY_MESH;
             case Eg::EType::GROUP:
                 return sanyi::proto::ENTITY_GROUP;
             default:
@@ -92,6 +95,8 @@ namespace Fio
                 return Eg::EType::QR_CODE;
             case sanyi::proto::ENTITY_IMAGE:
                 return Eg::EType::IMAGE;
+            case sanyi::proto::ENTITY_MESH:
+                return Eg::EType::MESH;
             case sanyi::proto::ENTITY_GROUP:
                 return Eg::EType::GROUP;
             default:
@@ -108,6 +113,18 @@ namespace Fio
         Ut::Vec2d fromProtoVec2(const sanyi::proto::Vec2d& p)
         {
             return Ut::Vec2d(p.x(), p.y());
+        }
+
+        void toProtoVec3(const Ut::Vec3f& v, sanyi::proto::Vec3fData* p)
+        {
+            p->set_x(v[0]);
+            p->set_y(v[1]);
+            p->set_z(v[2]);
+        }
+
+        Ut::Vec3f fromProtoVec3(const sanyi::proto::Vec3fData& p)
+        {
+            return Ut::Vec3f(p.x(), p.y(), p.z());
         }
     }  // namespace
 
@@ -269,6 +286,39 @@ namespace Fio
             toProtoVec2(img->topRight, data->mutable_top_right());
             toProtoVec2(img->bottomLeft, data->mutable_bottom_left());
             toProtoVec2(img->bottomRight, data->mutable_bottom_right());
+            break;
+        }
+
+        case Eg::EType::MESH:
+        {
+            // 3D 网格图元序列化：顶点、法线、材质属性
+            const auto* mesh = static_cast<const Eg::SyMeshEntity*>(&entity);
+            auto* data = out->mutable_mesh_data();
+            data->set_name(mesh->name());
+
+            // 顶点数据
+            for (const auto& v : mesh->vertices)
+            {
+                toProtoVec3(v, data->add_vertices());
+            }
+
+            // 法线数据
+            for (const auto& n : mesh->normals)
+            {
+                toProtoVec3(n, data->add_normals());
+            }
+
+            // 材质属性
+            data->set_ambient_r(mesh->ambientColor[0]);
+            data->set_ambient_g(mesh->ambientColor[1]);
+            data->set_ambient_b(mesh->ambientColor[2]);
+            data->set_diffuse_r(mesh->diffuseColor[0]);
+            data->set_diffuse_g(mesh->diffuseColor[1]);
+            data->set_diffuse_b(mesh->diffuseColor[2]);
+            data->set_specular_r(mesh->specularColor[0]);
+            data->set_specular_g(mesh->specularColor[1]);
+            data->set_specular_b(mesh->specularColor[2]);
+            data->set_shininess(mesh->shininess);
             break;
         }
 
@@ -471,11 +521,43 @@ namespace Fio
             break;
         }
 
+        case Eg::EType::MESH:
+        {
+            // 3D 网格图元反序列化：顶点、法线、材质属性
+            auto mesh = std::make_unique<Eg::SyMeshEntity>();
+            if (protoEntity.has_mesh_data())
+            {
+                const auto& md = protoEntity.mesh_data();
+
+                // 顶点数据
+                mesh->vertices.reserve(md.vertices_size());
+                for (int j = 0; j < md.vertices_size(); ++j)
+                {
+                    mesh->vertices.push_back(fromProtoVec3(md.vertices(j)));
+                }
+
+                // 法线数据
+                mesh->normals.reserve(md.normals_size());
+                for (int j = 0; j < md.normals_size(); ++j)
+                {
+                    mesh->normals.push_back(fromProtoVec3(md.normals(j)));
+                }
+
+                // 材质属性
+                mesh->ambientColor = Ut::Vec3f(md.ambient_r(), md.ambient_g(), md.ambient_b());
+                mesh->diffuseColor = Ut::Vec3f(md.diffuse_r(), md.diffuse_g(), md.diffuse_b());
+                mesh->specularColor = Ut::Vec3f(md.specular_r(), md.specular_g(), md.specular_b());
+                mesh->shininess = md.shininess();
+            }
+            result = std::move(mesh);
+            break;
+        }
+
         default:
             return nullptr;
         }
 
-        // 璁剧疆閫氱敤灞炴€э紙id / basePoint / bClosed / bCCW锛夛紝浣?deserializeEntity 鑷寘鍚?
+        // 设置通用属性（id / basePoint / bClosed / bCCW），deserializeEntity 自包含
         if (result)
         {
             result->id = static_cast<Eg::EntityId>(protoEntity.id());
