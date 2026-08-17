@@ -119,10 +119,7 @@ namespace Fio
             SY_INFOF("[FileIO] STEP/STP import requested: %s", filePath ? filePath : "");
         }
 
-        if (m_importCallback)
-        {
-            m_importCallback(filePath, true, m_importCtx);
-        }
+        // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
 
         auto& factory = FileParserFactory::instance();
         if (!factory.hasParser(format))
@@ -239,10 +236,8 @@ namespace Fio
 
         SY_INFOF("[FileIO] Importing to IR: %s (format=%d)", filePath ? filePath : "", static_cast<int>(format));
 
-        if (m_importCallback)
-        {
-            m_importCallback(filePath, true, m_importCtx);
-        }
+        // [F9-P1 修复] 移除操作开始前的"成功"回调。旧代码在解析前就报 success=true，
+        // 导致调用方无法区分"操作开始"和"操作完成成功"。回调仅在操作完成后触发。
 
         auto& factory = FileParserFactory::instance();
         if (!factory.hasParser(format))
@@ -344,10 +339,7 @@ namespace Fio
             static_cast<int>(format),
             entityCount);
 
-        if (m_exportCallback)
-        {
-            m_exportCallback(filePath, true, m_exportCtx);
-        }
+        // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
 
         auto& factory = FileWriterFactory::instance();
         if (!factory.hasWriter(format))

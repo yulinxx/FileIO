@@ -9,7 +9,26 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <vector>
+
+namespace
+{
+    // [F8-P1 修复] Windows 下 fopen 不支持 UTF-8 路径，需要转换为宽字符路径。
+    // 此辅助函数在所有平台上接受 UTF-8 路径并正确打开文件。
+    FILE* fopenUtf8(const char* utf8Path, const char* mode)
+    {
+#ifdef _WIN32
+        // Windows: 将 UTF-8 转换为宽字符后调用 _wfopen
+        std::wstring wPath = std::filesystem::u8path(utf8Path).wstring();
+        std::wstring wMode(mode, mode + std::strlen(mode));
+        return _wfopen(wPath.c_str(), wMode.c_str());
+#else
+        // Unix/macOS: 直接使用 fopen（UTF-8 是原生编码）
+        return std::fopen(utf8Path, mode);
+#endif
+    }
+}
 
 namespace Fio
 {
@@ -51,7 +70,7 @@ namespace Fio
         /// 判断文件是否为 WebP（RIFF....WEBP）
         bool isWebPFile(const char* strUtf8Path)
         {
-            FILE* f = std::fopen(strUtf8Path, "rb");
+            FILE* f = fopenUtf8(strUtf8Path, "rb");
             if (!f)
             {
                 return false;
@@ -68,7 +87,7 @@ namespace Fio
 
         bool decodeWebPToRgba(const char* strUtf8Path, std::vector<unsigned char>& outRgba, int& outW, int& outH)
         {
-            FILE* f = std::fopen(strUtf8Path, "rb");
+            FILE* f = fopenUtf8(strUtf8Path, "rb");
             if (!f)
             {
                 return false;

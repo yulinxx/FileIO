@@ -1,4 +1,5 @@
 #include "FileIO/Parsers/StlParser.h"
+#include "Log/SyLogger.h"
 
 #include <fstream>
 #include <sstream>
@@ -58,10 +59,19 @@ namespace Fio
         std::vector<float> vertices;
         std::vector<float> normals;
 
+        // [F3-P1 防护] STL 二进制格式的三角形数量来自文件头，恶意文件可能声明极大值导致 OOM。
+        // 设置上限：最大 5000 万三角形（约 5.7GB 顶点数据），超出视为格式错误。
+        constexpr uint32_t MAX_STL_TRIANGLES = 50'000'000;
+
         if (data.size() >= 84)
         {
             uint32_t count = 0;
             std::memcpy(&count, data.data() + 80, 4);
+            if (count > MAX_STL_TRIANGLES)
+            {
+                SY_WARNF("[StlParser] Binary STL triangle count %u exceeds limit %u, rejecting file", count, MAX_STL_TRIANGLES);
+                return result;
+            }
             size_t expectedSize = 84 + static_cast<size_t>(count) * 50;
             if (expectedSize == data.size())
             {
@@ -192,6 +202,14 @@ namespace Fio
                     }
                     else if (lower.find("vertex") != std::string::npos)
                     {
+                        // [F1-P0 修复] 恶意 STL 文件可能在单个 facet 内写入超过 3 个 vertex 行，
+                        // 导致 vertRead >= 3 时 v[vertRead*3] 越界写栈缓冲区。
+                        // 此处加守卫：超出 3 个顶点时跳过，防止栈溢出。
+                        if (vertRead >= 3)
+                        {
+                            SY_WARNF("[StlParser] ASCII STL: facet vertex count exceeds 3 (vertRead=%d), skipping extra vertex", vertRead);
+                            continue;
+                        }
                         std::istringstream ls(trimmed);
                         std::string token;
                         ls >> token;
