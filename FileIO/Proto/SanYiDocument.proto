@@ -74,6 +74,12 @@ message DocumentMetadata {
 
     // === 未来扩展 ===
     repeated PropertyEntry custom_properties = 10;  // 任意键值对扩展
+
+    // === 环境溯源信息 ===
+    string serial_number     = 11;  // 设备序列号 (用于追溯文件来源设备)
+    string computer_username = 12;  // 创建/修改文件的电脑用户名
+    string os_version        = 13;  // 操作系统版本详情 (如 "Windows 11 23H2", "macOS 14.5")
+
     bytes  reserved          = 20;  // 保留用于未来结构扩展
 }
 

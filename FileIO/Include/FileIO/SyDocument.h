@@ -89,6 +89,15 @@ namespace Fio
         const char* description() const;
         void setDescription(const char* desc);
 
+        // ---- 环境溯源信息 ----
+
+        const char* serialNumber() const;
+        void setSerialNumber(const char* serial);
+        const char* computerUsername() const;
+        void setComputerUsername(const char* username);
+        const char* osVersion() const;
+        void setOsVersion(const char* version);
+
         // ---- 图层 ----
 
         size_t layerCount() const;

@@ -1,42 +1,11 @@
 #include "FileIO/Writers/NativeWriter3D.h"
 #include "FileIO/SySerializer.h"
+#include "MetadataFiller.h"
 
 #include "Engine/SyEntity/SyEntity.h"
-#include <chrono>
-#include <cstring>
-#include <iomanip>
-#include <sstream>
 
 namespace Fio
 {
-    namespace
-    {
-        void fillMetadata(SyDocument& doc)
-        {
-            doc.setMetadataVersion(SyFileConst::FILE_VERSION);
-            doc.setMetadataFileVersion(1);
-            doc.setSoftwareName("SanYi CAD 3D");
-            doc.setSoftwareVersion("1.0.0");
-
-            const auto now = std::chrono::system_clock::now();
-            const auto time = std::chrono::system_clock::to_time_t(now);
-            std::ostringstream oss;
-            oss << std::put_time(std::localtime(&time), "%Y-%m-%dT%H:%M:%S");
-            doc.setCreatedTime(oss.str().c_str());
-            doc.setModifiedTime(oss.str().c_str());
-
-#ifdef _WIN32
-            doc.setOperatingSystem("Windows");
-#elif defined(__linux__)
-            doc.setOperatingSystem("Linux");
-#elif defined(__APPLE__)
-            doc.setOperatingSystem("macOS");
-#else
-            doc.setOperatingSystem("Unknown");
-#endif
-        }
-    }  // anonymous namespace
-
     class NativeWriter3D::Impl
     {
     public:
@@ -81,9 +50,11 @@ namespace Fio
 
     WriteResult NativeWriter3D::write(const char* filePath, const VecSyEntityPtr& entities)
     {
-        // 构建文档并克隆 2D 图元
         SyDocument doc;
-        fillMetadata(doc);
+
+        // 使用共享元数据填充工具
+        MetadataFiller::fillMetadata(doc, "SanYi CAD 3D", "1.0.0");
+
         for (const auto& entity : entities)
         {
             if (entity)

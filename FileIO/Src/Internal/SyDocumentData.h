@@ -33,6 +33,11 @@ namespace Fio
         std::string operatingSystem;   // 操作系统
         std::string description;       // 描述
         PropertyMap customProperties;  // 扩展属性
+
+        // === 环境溯源信息 ===
+        std::string serialNumber;      // 设备序列号
+        std::string computerUsername;   // 电脑用户名
+        std::string osVersion;         // 操作系统版本详情
     };
 
     struct LayerInfo

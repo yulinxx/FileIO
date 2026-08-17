@@ -96,6 +96,11 @@ namespace Fio
                 meta->set_operating_system(docData.metadata.operatingSystem);
                 meta->set_description(docData.metadata.description);
 
+                // === 环境溯源信息 ===
+                meta->set_serial_number(docData.metadata.serialNumber);
+                meta->set_computer_username(docData.metadata.computerUsername);
+                meta->set_os_version(docData.metadata.osVersion);
+
                 toProtoProperties(docData.metadata.customProperties, protoDoc, meta->mutable_custom_properties());
             }
 
@@ -185,6 +190,9 @@ namespace Fio
                 docData.metadata.modifiedTime = meta.modified_time();
                 docData.metadata.operatingSystem = meta.operating_system();
                 docData.metadata.description = meta.description();
+                docData.metadata.serialNumber = meta.serial_number();
+                docData.metadata.computerUsername = meta.computer_username();
+                docData.metadata.osVersion = meta.os_version();
                 docData.metadata.customProperties = fromProtoProperties(meta.custom_properties());
             }
 

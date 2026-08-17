@@ -180,6 +180,50 @@ namespace Fio
         m_data->metadata.description = desc ? desc : "";
     }
 
+    // ---- 环境溯源信息 ----
+
+    const char* SyDocument::serialNumber() const
+    {
+        return m_data ? m_data->metadata.serialNumber.c_str() : "";
+    }
+
+    void SyDocument::setSerialNumber(const char* serial)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->metadata.serialNumber = serial ? serial : "";
+    }
+
+    const char* SyDocument::computerUsername() const
+    {
+        return m_data ? m_data->metadata.computerUsername.c_str() : "";
+    }
+
+    void SyDocument::setComputerUsername(const char* username)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->metadata.computerUsername = username ? username : "";
+    }
+
+    const char* SyDocument::osVersion() const
+    {
+        return m_data ? m_data->metadata.osVersion.c_str() : "";
+    }
+
+    void SyDocument::setOsVersion(const char* version)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->metadata.osVersion = version ? version : "";
+    }
+
     // ---- 图层 ----
 
     size_t SyDocument::layerCount() const
