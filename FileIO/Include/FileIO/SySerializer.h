@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FileIO/FileIOAPI.h"
+#include "FileIO/FileFormat.h"
 #include "FileIO/SyDocument.h"
 #include "FileIO/FioTypes.h"
 
@@ -112,6 +113,18 @@ namespace Fio
         SerializeResult saveToFile(const char* filePath,
             const SyDocument& doc,
             bool encrypt = false,
+            SerializeWarningCallback warningCb = nullptr,
+            void* warningCtx = nullptr);
+
+        /// 将文档保存到 .sy/.syx 文件（格式感知版本）
+        /// @param filePath 文件路径（UTF-8）
+        /// @param doc      文档数据
+        /// @param encrypt  是否加密
+        /// @param fmt      目标格式，决定魔数选择（Native→SYPB, Native3D→SXPB）
+        SerializeResult saveToFile(const char* filePath,
+            const SyDocument& doc,
+            bool encrypt,
+            FileFormat fmt,
             SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
 

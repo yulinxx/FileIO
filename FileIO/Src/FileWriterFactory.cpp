@@ -4,7 +4,6 @@
 #include "FileIO/Writers/SvgWriter.h"
 #include "FileIO/Writers/PltWriter.h"
 #include "FileIO/Writers/NativeWriter.h"
-#include "FileIO/Writers/NativeWriter3D.h"
 #include "FileIO/Writers/UgWriter.h"
 #include "Engine/SyEntity/SyEntity.h"
 
@@ -79,40 +78,51 @@ namespace Fio
 
     void FileWriterFactory::initDefaults()
     {
+        // DXF 格式
         registerWriter(
             FileFormat::DXF,
             []() -> IFileWriter* {
                 return new DxfWriter();
             },
             "dxf");
+
+        // SVG 格式
         registerWriter(
             FileFormat::SVG,
             []() -> IFileWriter* {
                 return new SvgWriter();
             },
             "svg");
+
+        // PLT/HPGL 格式
         registerWriter(
             FileFormat::PLT,
             []() -> IFileWriter* {
                 return new PltWriter();
             },
             "plt");
+
+        // UG/IGES 格式
         registerWriter(
             FileFormat::UG,
             []() -> IFileWriter* {
                 return new UgWriter();
             },
             "igs");
+
+        // 2D 原生格式 (.sy) —— 统一 NativeWriter，传入 FileFormat::Native
         registerWriter(
             FileFormat::Native,
             []() -> IFileWriter* {
-                return new NativeWriter();
+                return new NativeWriter(FileFormat::Native);
             },
             "sy");
+
+        // 3D 原生格式 (.syx) —— 统一 NativeWriter，传入 FileFormat::Native3D
         registerWriter(
             FileFormat::Native3D,
             []() -> IFileWriter* {
-                return new NativeWriter3D();
+                return new NativeWriter(FileFormat::Native3D);
             },
             "syx");
     }

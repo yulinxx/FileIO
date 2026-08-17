@@ -8,7 +8,6 @@
 #include "FileIO/Parsers/PdfParser.h"
 #include "FileIO/Parsers/AiParser.h"
 #include "FileIO/Parsers/NativeParser.h"
-#include "FileIO/Parsers/NativeParser3D.h"
 #include "FileIO/Parsers/StlParser.h"
 #include "Engine/SyEntity/SyEntity.h"
 
@@ -178,7 +177,7 @@ namespace Fio
         registerWithExtensions(
             FileFormat::Native,
             []() -> IFileParser* {
-                return new NativeParser();
+                return new NativeParser(FileFormat::Native);
             },
             nativeExts,
             1);
@@ -187,7 +186,7 @@ namespace Fio
         registerWithExtensions(
             FileFormat::Native3D,
             []() -> IFileParser* {
-                return new NativeParser3D();
+                return new NativeParser(FileFormat::Native3D);
             },
             native3DExts,
             1);

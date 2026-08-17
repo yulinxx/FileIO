@@ -336,6 +336,17 @@ namespace Fio
     SerializeResult SySerializer::saveToFile(const char* filePath,
         const SyDocument& doc,
         bool encrypt,
+        SerializeWarningCallback warningCb,
+        void* warningCtx)
+    {
+        // 原有接口默认使用 2D 格式（保持向后兼容）
+        return saveToFile(filePath, doc, encrypt, FileFormat::Native, warningCb, warningCtx);
+    }
+
+    SerializeResult SySerializer::saveToFile(const char* filePath,
+        const SyDocument& doc,
+        bool encrypt,
+        FileFormat fmt,
         SerializeWarningCallback /*warningCb*/,
         void* /*warningCtx*/)
     {
@@ -344,6 +355,9 @@ namespace Fio
         {
             return SerializeResult::fail("Empty file path");
         }
+
+        // 根据目标格式选择魔数
+        const char* magic = (fmt == FileFormat::Native3D) ? SyFileConst::MAGIC_SYX : SyFileConst::MAGIC_SY;
 
         std::vector<uint8_t> protoData;
         if (!serializeToProto(doc, protoData))
@@ -376,7 +390,7 @@ namespace Fio
         std::vector<uint8_t> fileBuffer;
         fileBuffer.resize(SyFileConst::HEADER_SIZE + finalData.size() + SyFileConst::FOOTER_SIZE);
 
-        std::memcpy(fileBuffer.data(), SyFileConst::MAGIC_SY, 4);
+        std::memcpy(fileBuffer.data(), magic, 4);
 
         fileBuffer[4] = static_cast<uint8_t>(SyFileConst::FILE_VERSION & 0xFF);
         fileBuffer[5] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 8) & 0xFF);
