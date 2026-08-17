@@ -15,11 +15,8 @@ namespace
     // IGES 行号：固定宽度格式下，行号位于每行末尾 8 列。
     // 段标记（S/G/D/P/T）位于第 73 列（1-based）。
     constexpr std::size_t kIgesSectionCol = 72;
-    constexpr std::size_t kIgesSeqNumCol = 73;
-
     // 常用 IGES 实体类型号
     constexpr int kEntityCircularArc = 100;
-    constexpr int kEntityCompositeCurve = 102;
     constexpr int kEntityCopiousData = 106;
     constexpr int kEntityLine = 110;
     constexpr int kEntityPoint = 116;

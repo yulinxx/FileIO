@@ -439,12 +439,10 @@ namespace Fio
     {
     public:
         NsvgInterpreter(std::vector<EntityInfo>& outEntities,
-            std::vector<uint8_t>& extensionBlob,
             std::vector<IrLayerInfo>& outLayers,
             std::vector<std::string>& warnings,
             bool importFillAsOutline)
             : m_outEntities(outEntities)
-            , m_extensionBlob(extensionBlob)
             , m_outLayers(outLayers)
             , m_warnings(warnings)
             , m_importFillAsOutline(importFillAsOutline)
@@ -515,7 +513,6 @@ namespace Fio
             for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next)
             {
                 bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
-                bool hasFill = shape->fill.type != NSVG_PAINT_NONE;
                 bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
 
                 if (!visible)
@@ -561,7 +558,6 @@ namespace Fio
 
     private:
         std::vector<EntityInfo>& m_outEntities;
-        std::vector<uint8_t>& m_extensionBlob;
         std::vector<IrLayerInfo>& m_outLayers;
         std::vector<std::string>& m_warnings;
         bool m_importFillAsOutline;
@@ -674,7 +670,7 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(s_entities, s_extensionBlob, s_layers, s_warnings, m_importFillAsOutline);
+            NsvgInterpreter interpreter(s_entities, s_layers, s_warnings, m_importFillAsOutline);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
