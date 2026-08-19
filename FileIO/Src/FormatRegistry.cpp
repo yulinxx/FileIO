@@ -130,9 +130,45 @@ namespace Fio
         return e ? e->importFilterStr.c_str() : nullptr;
     }
 
-    const char* FormatRegistry::exportFilter(FileFormat format) const
+const char* FormatRegistry::exportFilter(FileFormat format) const
+{
+    const Entry* e = find(format);
+    return e ? e->exportFilterStr.c_str() : nullptr;
+}
+
+FileFormat FormatRegistry::detectFormatByExtension(const char* ext) const
+{
+    if (!ext || ext[0] == '\0')
     {
-        const Entry* e = find(format);
-        return e ? e->exportFilterStr.c_str() : nullptr;
+        return FileFormat::Unknown;
     }
+
+    std::string e = toLower(ext);
+    for (const auto& entry : m_entries)
+    {
+        for (size_t i = 0; i < entry.extCount; ++i)
+        {
+            if (e == entry.extensions[i])
+            {
+                return entry.format;
+            }
+        }
+    }
+    return FileFormat::Unknown;
+}
+
+void FormatRegistry::forEachImportExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const
+{
+    if (!visitor)
+    {
+        return;
+    }
+    for (const auto& entry : m_entries)
+    {
+        for (size_t i = 0; i < entry.extCount; ++i)
+        {
+            visitor(entry.extensions[i], ctx);
+        }
+    }
+}
 }  // namespace Fio
