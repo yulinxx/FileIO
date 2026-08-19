@@ -1,6 +1,7 @@
 #include "FileIO/FileIOManager.h"
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/FileWriterFactory.h"
+#include "FileIO/FormatRegistry.h"
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/IFileParser.h"
 #include "FileIO/IFileWriter.h"
@@ -8,7 +9,6 @@
 #include "Log/SyLogger.h"
 #include "Engine/SyEntity/SyEntity.h"
 
-#include <filesystem>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -439,46 +439,7 @@ namespace Fio
 
     FileFormat FileIOManager::detectFormat(const char* filePath) const
     {
-        if (!filePath || !*filePath)
-        {
-            return FileFormat::Unknown;
-        }
-
-        std::filesystem::path path = std::filesystem::u8path(filePath);
-        std::string ext = path.extension().string();
-        if (!ext.empty() && ext[0] == '.')
-        {
-            ext = ext.substr(1);
-        }
-
-        FileFormat fmt = FileParserFactory::instance().detectFormat(ext.c_str());
-        if (fmt != FileFormat::Unknown)
-        {
-            return fmt;
-        }
-
-        if (ext == "sy")
-        {
-            return FileFormat::Native;
-        }
-        if (ext == "bmp")
-        {
-            return FileFormat::BMP;
-        }
-        if (ext == "png")
-        {
-            return FileFormat::PNG;
-        }
-        if (ext == "igs" || ext == "iges")
-        {
-            return FileFormat::UG;
-        }
-        if (ext == "stp" || ext == "step")
-        {
-            return FileFormat::STEP;
-        }
-
-        return FileFormat::Unknown;
+        return FormatRegistry::instance().detectFormat(filePath);
     }
 
     size_t FileIOManager::supportedImportExtensions(char* buffer, size_t bufferSize) const

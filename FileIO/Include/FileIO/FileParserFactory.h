@@ -30,9 +30,10 @@ namespace Fio
 
         bool hasParser(FileFormat format) const;
 
+        /// 根据扩展名检测格式（委托给 FormatRegistry 唯一入口）
         FileFormat detectFormat(const char* ext) const;
 
-        /// 遍历所有支持的扩展名（回调模式，替代 std::vector<std::string> 返回）
+        /// 遍历所有支持的导入扩展名（回调模式，委托给 FormatRegistry 唯一入口）
         void forEachSupportedExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const;
 
         void initDefaults();
@@ -42,9 +43,6 @@ namespace Fio
         ~FileParserFactory();
         FileParserFactory(const FileParserFactory&) = delete;
         FileParserFactory& operator=(const FileParserFactory&) = delete;
-
-        /// 批量注册一个解析器及其扩展名映射（扩展名为静态数组，不跨 DLL 传递 STL）
-        void registerWithExtensions(FileFormat format, CreatorFunc creator, const char* const* extensions, size_t count);
 
         class Impl;
         Impl* m_impl;
