@@ -33,9 +33,6 @@ namespace Fio
         /// 导出对话框过滤器字符串；未知格式返回 nullptr
         const char* exportFilter(FileFormat format) const;
 
-        /// 仅通过扩展名（如 "dxf"）检测格式
-        FileFormat detectFormatByExtension(const char* ext) const;
-
         /// 遍历所有导入扩展名，调用 visitor(ext, ctx)
         void forEachImportExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const;
 
