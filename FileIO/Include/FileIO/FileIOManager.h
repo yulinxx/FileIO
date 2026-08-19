@@ -130,6 +130,6 @@ namespace Fio
         void* m_importCtx = nullptr;
         ExportCallback m_exportCallback = nullptr;
         void* m_exportCtx = nullptr;
-        bool m_svgImportFillAsOutline = false;
+        bool m_svgImportFillAsOutline = true;
     };
 }  // namespace Fio

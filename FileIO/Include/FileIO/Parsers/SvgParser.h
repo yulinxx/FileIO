@@ -23,8 +23,9 @@ namespace Fio
         FioParseResult parseToIR(const char* filePath) override;
 
         /// 配置：是否把纯填充(fill-only)色块也导入为闭合轮廓线。
-        /// 默认 false = 只保留描边线条，跳过纯填充色块。
-        /// 开启后，纯填充色块按自身填充色绘制其轮廓（闭合多边形）。
+        /// 默认 true = 纯填充色块（无描边，常见于 Illustrator 导出的图标/Logo）按
+        /// 其填充色绘制轮廓（闭合曲线），避免整图被跳过、导入无图元。
+        /// 关闭后，仅保留带描边的线条，跳过纯填充色块。
         void setImportFillAsOutline(bool enable)
         {
             m_importFillAsOutline = enable;
@@ -36,6 +37,6 @@ namespace Fio
         }
 
     private:
-        bool m_importFillAsOutline = false;
+        bool m_importFillAsOutline = true;
     };
 }  // namespace Fio
