@@ -24,11 +24,17 @@ namespace Fio
         /// 根据文件路径（含扩展名）检测格式；无法识别时返回 FileFormat::Unknown
         FileFormat detectFormat(const char* filePath) const;
 
+        /// 仅根据扩展名（如 "dxf") 检测格式；无法识别时返回 FileFormat::Unknown
+        FileFormat detectFormatByExtension(const char* ext) const;
+
         /// 导入对话框过滤器字符串（如 "DXF Files (*.dxf)"）；未知格式返回 nullptr
         const char* importFilter(FileFormat format) const;
 
         /// 导出对话框过滤器字符串；未知格式返回 nullptr
         const char* exportFilter(FileFormat format) const;
+
+        /// 遍历所有支持导入的扩展名，对每个扩展名调用 visitor(ext, ctx)
+        void forEachImportExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const;
 
     private:
         FormatRegistry();
