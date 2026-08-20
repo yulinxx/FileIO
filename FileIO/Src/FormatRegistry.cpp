@@ -58,8 +58,8 @@ namespace Fio
         registerFormat(FileFormat::STL, "STL Files", kStlExts, 1);
     }
 
-    void FormatRegistry::registerFormat(FileFormat format, const char* label,
-                                        const char* const* extensions, size_t extCount)
+    void FormatRegistry::registerFormat(
+        FileFormat format, const char* label, const char* const* extensions, size_t extCount)
     {
         Entry e;
         e.format = format;
@@ -130,45 +130,45 @@ namespace Fio
         return e ? e->importFilterStr.c_str() : nullptr;
     }
 
-const char* FormatRegistry::exportFilter(FileFormat format) const
-{
-    const Entry* e = find(format);
-    return e ? e->exportFilterStr.c_str() : nullptr;
-}
-
-FileFormat FormatRegistry::detectFormatByExtension(const char* ext) const
-{
-    if (!ext || ext[0] == '\0')
+    const char* FormatRegistry::exportFilter(FileFormat format) const
     {
+        const Entry* e = find(format);
+        return e ? e->exportFilterStr.c_str() : nullptr;
+    }
+
+    FileFormat FormatRegistry::detectFormatByExtension(const char* ext) const
+    {
+        if (!ext || ext[0] == '\0')
+        {
+            return FileFormat::Unknown;
+        }
+
+        std::string e = toLower(ext);
+        for (const auto& entry : m_entries)
+        {
+            for (size_t i = 0; i < entry.extCount; ++i)
+            {
+                if (e == entry.extensions[i])
+                {
+                    return entry.format;
+                }
+            }
+        }
         return FileFormat::Unknown;
     }
 
-    std::string e = toLower(ext);
-    for (const auto& entry : m_entries)
+    void FormatRegistry::forEachImportExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const
     {
-        for (size_t i = 0; i < entry.extCount; ++i)
+        if (!visitor)
         {
-            if (e == entry.extensions[i])
+            return;
+        }
+        for (const auto& entry : m_entries)
+        {
+            for (size_t i = 0; i < entry.extCount; ++i)
             {
-                return entry.format;
+                visitor(entry.extensions[i], ctx);
             }
         }
     }
-    return FileFormat::Unknown;
-}
-
-void FormatRegistry::forEachImportExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const
-{
-    if (!visitor)
-    {
-        return;
-    }
-    for (const auto& entry : m_entries)
-    {
-        for (size_t i = 0; i < entry.extCount; ++i)
-        {
-            visitor(entry.extensions[i], ctx);
-        }
-    }
-}
 }  // namespace Fio

@@ -53,8 +53,7 @@ namespace Fio
             std::string exportFilterStr;
         };
 
-        void registerFormat(FileFormat format, const char* label,
-                            const char* const* extensions, size_t extCount);
+        void registerFormat(FileFormat format, const char* label, const char* const* extensions, size_t extCount);
 
         const Entry* find(FileFormat format) const;
 
