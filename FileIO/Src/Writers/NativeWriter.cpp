@@ -61,9 +61,8 @@ namespace Fio
 
     size_t NativeWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = (m_impl->targetFormat == FileFormat::Native3D)
-            ? "SanYi 3D Native (Protobuf)"
-            : "SanYi Native (Protobuf)";
+        const char* name =
+            (m_impl->targetFormat == FileFormat::Native3D) ? "SanYi 3D Native (Protobuf)" : "SanYi Native (Protobuf)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
         {
@@ -131,9 +130,7 @@ namespace Fio
             return WriteResult::fail("Empty file path");
         }
 
-        SY_INFOF("[NativeWriter] writeDocument(): path=%s, format=%d",
-            filePath,
-            static_cast<int>(m_impl->targetFormat));
+        SY_INFOF("[NativeWriter] writeDocument(): path=%s, format=%d", filePath, static_cast<int>(m_impl->targetFormat));
 
         auto result = m_impl->serializer.saveToFile(filePath, doc, false, m_impl->targetFormat);
         if (!result.success)

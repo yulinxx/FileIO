@@ -76,64 +76,44 @@ namespace Fio
 
     void FileParserFactory::initDefaults()
     {
-        registerParser(
-            FileFormat::DXF,
-            []() -> IFileParser* {
-                return new DxfParser();
-            });
+        registerParser(FileFormat::DXF, []() -> IFileParser* {
+            return new DxfParser();
+        });
 
-        registerParser(
-            FileFormat::PLT,
-            []() -> IFileParser* {
-                return new PltParser();
-            });
+        registerParser(FileFormat::PLT, []() -> IFileParser* {
+            return new PltParser();
+        });
 
-        registerParser(
-            FileFormat::SVG,
-            []() -> IFileParser* {
-                return new SvgParser();
-            });
+        registerParser(FileFormat::SVG, []() -> IFileParser* {
+            return new SvgParser();
+        });
 
-        registerParser(
-            FileFormat::UG,
-            []() -> IFileParser* {
-                return new UgParser();
-            });
+        registerParser(FileFormat::UG, []() -> IFileParser* {
+            return new UgParser();
+        });
 
-        registerParser(
-            FileFormat::STEP,
-            []() -> IFileParser* {
-                return new StepParser();
-            });
+        registerParser(FileFormat::STEP, []() -> IFileParser* {
+            return new StepParser();
+        });
 
-        registerParser(
-            FileFormat::PDF,
-            []() -> IFileParser* {
-                return new PdfParser();
-            });
+        registerParser(FileFormat::PDF, []() -> IFileParser* {
+            return new PdfParser();
+        });
 
-        registerParser(
-            FileFormat::AI,
-            []() -> IFileParser* {
-                return new AiParser();
-            });
+        registerParser(FileFormat::AI, []() -> IFileParser* {
+            return new AiParser();
+        });
 
-        registerParser(
-            FileFormat::Native,
-            []() -> IFileParser* {
-                return new NativeParser(FileFormat::Native);
-            });
+        registerParser(FileFormat::Native, []() -> IFileParser* {
+            return new NativeParser(FileFormat::Native);
+        });
 
-        registerParser(
-            FileFormat::Native3D,
-            []() -> IFileParser* {
-                return new NativeParser(FileFormat::Native3D);
-            });
+        registerParser(FileFormat::Native3D, []() -> IFileParser* {
+            return new NativeParser(FileFormat::Native3D);
+        });
 
-        registerParser(
-            FileFormat::STL,
-            []() -> IFileParser* {
-                return new StlParser();
-            });
+        registerParser(FileFormat::STL, []() -> IFileParser* {
+            return new StlParser();
+        });
     }
 }  // namespace Fio

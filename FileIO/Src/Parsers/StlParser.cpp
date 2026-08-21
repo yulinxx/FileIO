@@ -69,7 +69,9 @@ namespace Fio
             std::memcpy(&count, data.data() + 80, 4);
             if (count > MAX_STL_TRIANGLES)
             {
-                SY_WARNF("[StlParser] Binary STL triangle count %u exceeds limit %u, rejecting file", count, MAX_STL_TRIANGLES);
+                SY_WARNF("[StlParser] Binary STL triangle count %u exceeds limit %u, rejecting file",
+                    count,
+                    MAX_STL_TRIANGLES);
                 return result;
             }
             size_t expectedSize = 84 + static_cast<size_t>(count) * 50;
@@ -207,7 +209,9 @@ namespace Fio
                         // 此处加守卫：超出 3 个顶点时跳过，防止栈溢出。
                         if (vertRead >= 3)
                         {
-                            SY_WARNF("[StlParser] ASCII STL: facet vertex count exceeds 3 (vertRead=%d), skipping extra vertex", vertRead);
+                            SY_WARNF("[StlParser] ASCII STL: facet vertex count exceeds 3 (vertRead=%d), skipping "
+                                     "extra vertex",
+                                vertRead);
                             continue;
                         }
                         std::istringstream ls(trimmed);

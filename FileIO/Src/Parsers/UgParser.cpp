@@ -84,8 +84,7 @@ namespace Fio
 {
     ParseResult UgParser::parse(const char* /*filePath*/, VecSyEntityPtr& /*outEntities*/)
     {
-        return ParseResult::fail(
-            "Use parseToIR() for IGES import. Legacy parse() path is not supported for UG.");
+        return ParseResult::fail("Use parseToIR() for IGES import. Legacy parse() path is not supported for UG.");
     }
 
     FioParseResult UgParser::parseToIR(const char* filePath)
@@ -168,8 +167,9 @@ namespace Fio
         for (std::size_t i = 0; i + 1 < directoryRows.size(); i += 2)
         {
             IgesEntity ent;
-            ent.type = static_cast<int>(parseField(directoryRows[i].first));      // 第一行 1-8 列：实体类型
-            ent.paramLineStart = static_cast<int>(parseField(directoryRows[i].second));  // 第一行 9-16 列：参数数据指针(行号)
+            ent.type = static_cast<int>(parseField(directoryRows[i].first));  // 第一行 1-8 列：实体类型
+            ent.paramLineStart =
+                static_cast<int>(parseField(directoryRows[i].second));  // 第一行 9-16 列：参数数据指针(行号)
             if (ent.type > 0)
             {
                 entities.push_back(ent);
@@ -218,7 +218,8 @@ namespace Fio
 
             switch (ent.type)
             {
-            case kEntityLine: {
+            case kEntityLine:
+            {
                 // 110 直线参数：Z(1) X1(2) Y1(3) Z1(4) X2(5) Y2(6) Z2(7)
                 if (p.size() < 6)
                 {
@@ -231,7 +232,8 @@ namespace Fio
                 info.line.y2 = p[5];
                 break;
             }
-            case kEntityCircularArc: {
+            case kEntityCircularArc:
+            {
                 // 100 圆弧参数：ZT(1) X1(2) Y1(3) X2(4) Y2(5) X3(6) Y3(7) XC(8) YC(9)
                 // 其中 X1..Y3 为端点与中点（用于定圆心），XC/YC 为圆心，半径=sqrt((X1-XC)^2+(Y1-YC)^2)
                 if (p.size() < 9)
@@ -253,7 +255,8 @@ namespace Fio
                 info.arc.ea = endAngle;
                 break;
             }
-            case kEntityPoint: {
+            case kEntityPoint:
+            {
                 // 116 点参数：Z(1) X(2) Y(3) Z(4)
                 if (p.size() < 3)
                 {
@@ -266,7 +269,8 @@ namespace Fio
                 info.line.y2 = p[2];
                 break;
             }
-            case kEntityCopiousData: {
+            case kEntityCopiousData:
+            {
                 // 106 折线（点序列）：Z(1) ... IP 类型(2) ... X(3) Y(4) ... 由 N(某字段) 决定点数
                 // 简化处理：收集从第 4 个 token 起的所有成对坐标作为折线顶点。
                 if (p.size() < 4)
@@ -323,10 +327,8 @@ namespace Fio
         std::strncpy(result.sourceFormat, "UG/IGES", sizeof(result.sourceFormat) - 1);
         result.warningCount = static_cast<uint32_t>(warnings.size());
 
-        SY_INFOF("[UgParser] parseToIR END: %u entities, %zu warnings: %s",
-            result.entityCount,
-            warnings.size(),
-            filePath);
+        SY_INFOF(
+            "[UgParser] parseToIR END: %u entities, %zu warnings: %s", result.entityCount, warnings.size(), filePath);
         return result;
     }
 }  // namespace Fio

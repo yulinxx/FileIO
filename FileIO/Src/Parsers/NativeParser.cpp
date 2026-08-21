@@ -53,9 +53,8 @@ namespace Fio
 
     size_t NativeParser::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = (m_impl->targetFormat == FileFormat::Native3D)
-            ? "SanYi 3D Native (Protobuf)"
-            : "SanYi Native (Protobuf)";
+        const char* name =
+            (m_impl->targetFormat == FileFormat::Native3D) ? "SanYi 3D Native (Protobuf)" : "SanYi Native (Protobuf)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
         {

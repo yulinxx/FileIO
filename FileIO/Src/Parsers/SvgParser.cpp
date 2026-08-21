@@ -154,9 +154,17 @@ namespace Fio
         // 这里在交给 nanosvg 前，把 class 引用的样式内联成元素属性。
 
         // nanosvg 实际可消费的表现属性白名单（其余 class 属性内联后会被解析器忽略，无需加入）
-        static const char* kSvgInlineProps[] = {
-            "fill", "stroke", "stroke-width", "fill-opacity", "stroke-opacity", "opacity",
-            "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", nullptr};
+        static const char* kSvgInlineProps[] = { "fill",
+            "stroke",
+            "stroke-width",
+            "fill-opacity",
+            "stroke-opacity",
+            "opacity",
+            "stroke-linecap",
+            "stroke-linejoin",
+            "stroke-dasharray",
+            "stroke-dashoffset",
+            nullptr };
 
         static bool isSvgInlineProp(const std::string& name)
         {
@@ -192,8 +200,8 @@ namespace Fio
                     break;
                 }
                 // 属性名前必须是空白或 '<'，避免匹配到属性值里的子串
-                if (found == 0 || tag[found - 1] == ' ' || tag[found - 1] == '\t' ||
-                    tag[found - 1] == '\n' || tag[found - 1] == '\r' || tag[found - 1] == '<')
+                if (found == 0 || tag[found - 1] == ' ' || tag[found - 1] == '\t' || tag[found - 1] == '\n' ||
+                    tag[found - 1] == '\r' || tag[found - 1] == '<')
                 {
                     size_t after = found + name.size();
                     while (after < tag.size() && (tag[after] == ' ' || tag[after] == '\t'))
@@ -276,8 +284,8 @@ namespace Fio
                 while (s < selectors.size())
                 {
                     size_t comma = selectors.find(',', s);
-                    std::string sel = trimWhitespace(
-                        selectors.substr(s, comma == std::string::npos ? std::string::npos : comma - s));
+                    std::string sel =
+                        trimWhitespace(selectors.substr(s, comma == std::string::npos ? std::string::npos : comma - s));
                     if (!sel.empty() && sel[0] == '.')
                     {
                         std::string cls = sel.substr(1);
@@ -384,7 +392,8 @@ namespace Fio
                     while (c < cls.size())
                     {
                         size_t sp = cls.find_first_of(" \t\r\n", c);
-                        std::string one = trimWhitespace(cls.substr(c, sp == std::string::npos ? std::string::npos : sp - c));
+                        std::string one =
+                            trimWhitespace(cls.substr(c, sp == std::string::npos ? std::string::npos : sp - c));
                         if (!one.empty())
                         {
                             auto it = rules.find(one);
@@ -434,8 +443,7 @@ namespace Fio
 
         // 点到线段距离（用于曲线扁平度估计）
         // 注：保留贝塞尔曲线后不再需要把曲线离散为折线，此函数及 computeAdaptiveSegments 已移除。
-
-        }  // namespace
+    }  // namespace
 
     class NsvgInterpreter
     {
@@ -584,10 +592,8 @@ namespace Fio
             layer.sourceId = static_cast<uint32_t>(m_outLayers.size()) + 1;
             std::strncpy(layer.name, layerName.c_str(), sizeof(layer.name) - 1);
             layer.name[sizeof(layer.name) - 1] = '\0';
-            layer.color = 0xFF000000 |
-                (static_cast<uint8_t>(color.x() * 255.0f) << 16) |
-                (static_cast<uint8_t>(color.y() * 255.0f) << 8) |
-                static_cast<uint8_t>(color.z() * 255.0f);
+            layer.color = 0xFF000000 | (static_cast<uint8_t>(color.x() * 255.0f) << 16) |
+                (static_cast<uint8_t>(color.y() * 255.0f) << 8) | static_cast<uint8_t>(color.z() * 255.0f);
             layer.visible = true;
             m_outLayers.push_back(layer);
             return layer.sourceId;
@@ -618,9 +624,8 @@ namespace Fio
 
                 // [F2-P0 修复] NaN/Inf 坐标会导致后续 static_cast<int>(NaN) 产生 UB，
                 // 以及越界数组索引。此处对所有坐标做 finite 校验，非法点跳过并告警。
-                if (!std::isfinite(p0.x()) || !std::isfinite(p0.y()) ||
-                    !std::isfinite(c1.x()) || !std::isfinite(c1.y()) ||
-                    !std::isfinite(c2.x()) || !std::isfinite(c2.y()) ||
+                if (!std::isfinite(p0.x()) || !std::isfinite(p0.y()) || !std::isfinite(c1.x()) ||
+                    !std::isfinite(c1.y()) || !std::isfinite(c2.x()) || !std::isfinite(c2.y()) ||
                     !std::isfinite(p1.x()) || !std::isfinite(p1.y()))
                 {
                     SY_WARNF("[SvgParser] NaN/Inf coordinate detected at path segment %d, skipping", i);
@@ -628,9 +633,12 @@ namespace Fio
                 }
 
                 // 跳过退化段：所有点几乎重合（零长度/退化贝塞尔）
-                double extent = std::max({ std::fabs(p0.x() - c1.x()), std::fabs(p0.y() - c1.y()),
-                    std::fabs(p0.x() - c2.x()), std::fabs(p0.y() - c2.y()),
-                    std::fabs(p0.x() - p1.x()), std::fabs(p0.y() - p1.y()) });
+                double extent = std::max({ std::fabs(p0.x() - c1.x()),
+                    std::fabs(p0.y() - c1.y()),
+                    std::fabs(p0.x() - c2.x()),
+                    std::fabs(p0.y() - c2.y()),
+                    std::fabs(p0.x() - p1.x()),
+                    std::fabs(p0.y() - p1.y()) });
                 if (extent < 1e-9)
                 {
                     continue;
@@ -721,8 +729,11 @@ namespace Fio
         std::strncpy(result.sourceFormat, "SVG", sizeof(result.sourceFormat) - 1);
         result.warningCount = static_cast<uint32_t>(s_warnings.size());
 
-        SY_INFOF(
-            "[SvgParser] parseToIR END: %u entities, %u layers, %u warnings: %s", result.entityCount, result.layerCount, result.warningCount, filePath);
+        SY_INFOF("[SvgParser] parseToIR END: %u entities, %u layers, %u warnings: %s",
+            result.entityCount,
+            result.layerCount,
+            result.warningCount,
+            filePath);
         return result;
     }
 

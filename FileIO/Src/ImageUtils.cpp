@@ -28,7 +28,7 @@ namespace
         return std::fopen(utf8Path, mode);
 #endif
     }
-}
+}  // namespace
 
 namespace Fio
 {
