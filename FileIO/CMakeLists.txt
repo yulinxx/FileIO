@@ -118,9 +118,6 @@ set_target_properties(${LIB_NAME} PROPERTIES
 
 # --- 可选模块条件块 ---
 if(BUILD_GEOMODELCORE)
-    if(NOT TARGET GeoModelCore)
-        message(FATAL_ERROR "[${LIB_NAME}] BUILD_GEOMODELCORE=ON but GeoModelCore target is missing.")
-    endif()
     target_link_libraries(${LIB_NAME} PRIVATE GeoModelCore)
     target_compile_definitions(${LIB_NAME} PRIVATE FILEIO_HAS_GEOMODELCORE=1)
     message(STATUS "  GeoModelCore (STEP import): ENABLED")
@@ -148,3 +145,21 @@ endif()
 
 message(STATUS "  C++ Standard: 17")
 message(STATUS "  Protobuf: Enabled (lite runtime)")
+message(STATUS "----------------------------------------")
+
+sanyi_export_imported_target(${LIB_NAME}
+    LIB_NAME "${LIB_NAME}"
+    PUBLIC_INCLUDE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
+        "${SANYI_THIRDPARTY_DIR}/libdxfrw/include"
+        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src"
+        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/intern"
+        "${PROTO_GEN_DIR}"
+        "${Stb_INCLUDE_DIR}"
+        "${NANOSVG_INCLUDE_DIR}"
+        "${SANYI_ENGINE_COMMON_DIR}/Include"
+        "${SANYI_ENGINE_COMMON_DIR}/Include/Engine"
+    INTERFACE_LINK_LIBRARIES
+        EngineCommon::EngineCommon
+)
