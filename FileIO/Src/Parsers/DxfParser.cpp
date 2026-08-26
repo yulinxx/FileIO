@@ -20,6 +20,7 @@
 #include "libdxfrw.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -1692,7 +1693,8 @@ namespace Fio
 
     FioParseResult DxfParser::parseToIR(const char* filePath)
     {
-        SY_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath);
+        SY_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath ? filePath : "(null path)");
+        const auto startTime = std::chrono::steady_clock::now();
 
         // 图元 / 图层 / 群组 / 扩展数据的缓冲区统一由 IrPublisher 持有（每线程一份），
         // 解析器不再各自声明 thread_local 向量，跨 DLL 内存契约只在一处定义。
@@ -1739,11 +1741,16 @@ namespace Fio
 
             const FioParseResult result =
                 pub.publish("DXF", converter.sourceUnit().empty() ? nullptr : converter.sourceUnit().c_str());
-            SY_INFOF("[DxfParser] parseToIR END: %u entities, %u layers, %u groups, unit='%s'",
+            const auto elapsedMs =
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime)
+                    .count();
+            SY_INFOF("[DxfParser] parseToIR END: %u entities, %u layers, %u groups, %u warnings, unit='%s', %lld ms",
                 result.entityCount,
                 result.layerCount,
                 result.groupCount,
-                result.sourceUnit);
+                result.warningCount,
+                result.sourceUnit,
+                static_cast<long long>(elapsedMs));
             return result;
         }
         catch (const std::exception& ex)

@@ -33,20 +33,25 @@ namespace Fio
         FioParseResult parseToIR(const char* filePath) override final
         {
             auto t0 = std::chrono::steady_clock::now();
-            char fmtNameBuf[128];
+
+            // 日志一律带上具体格式名：PDF 与 AI 共用这套管道，只写 [PdfBasedParser]
+            // 会导致两种导入在日志里无法区分
+            char fmtNameBuf[128] = {};
             formatName(fmtNameBuf, sizeof(fmtNameBuf));
-            SY_INFOF("[PdfBasedParser] parseToIR START %s: %s", fmtNameBuf, filePath ? filePath : "");
+            const char* path = filePath ? filePath : "(null path)";
+
+            SY_INFOF("[PdfBasedParser:%s] parseToIR START: %s", fmtNameBuf, path);
 
             if (!filePath || !std::filesystem::exists(filePath))
             {
-                SY_ERRORF("[PdfBasedParser] File not found: %s", filePath ? filePath : "");
+                SY_ERRORF("[PdfBasedParser:%s] File not found: %s", fmtNameBuf, path);
                 return FioParseResult{};
             }
 
             // 子类自定义格式校验（PDF 只检查 PDF，AI 还检查 PostScript）
             if (!isValidSourceFormat(filePath))
             {
-                SY_ERRORF("[PdfBasedParser] Format validation failed: %s", filePath);
+                SY_ERRORF("[PdfBasedParser:%s] Format validation failed: %s", fmtNameBuf, path);
                 return FioParseResult{};
             }
 
@@ -54,17 +59,17 @@ namespace Fio
             if (!PdfToSvgConverter::isPdftocairoAvailable())
             {
                 std::string hint = PdfToSvgConverter::getInstallHint();
-                SY_ERRORF("[PdfBasedParser] pdftocairo not found: %s", hint.c_str());
+                SY_ERRORF("[PdfBasedParser:%s] pdftocairo not found: %s", fmtNameBuf, hint.c_str());
                 return FioParseResult{};
             }
-            SY_INFO("[PdfBasedParser] pdftocairo available");
+            SY_INFOF("[PdfBasedParser:%s] pdftocairo available", fmtNameBuf);
 
             // AI 文件如果是 PS 格式还需要 GhostScript（由子类返回提示）
             {
                 std::string extraError = extraToolCheckError(filePath);
                 if (!extraError.empty())
                 {
-                    SY_ERRORF("[PdfBasedParser] Extra tool check failed: %s", extraError.c_str());
+                    SY_ERRORF("[PdfBasedParser:%s] Extra tool check failed: %s", fmtNameBuf, extraError.c_str());
                     return FioParseResult{};
                 }
             }
@@ -73,10 +78,10 @@ namespace Fio
             std::string tempSvg = PdfToSvgConverter::convertToTempSvg(filePath, 1);
             if (tempSvg.empty())
             {
-                SY_ERRORF("[PdfBasedParser] PDF→SVG conversion failed: %s", filePath);
+                SY_ERRORF("[PdfBasedParser:%s] PDF->SVG conversion failed: %s", fmtNameBuf, path);
                 return FioParseResult{};
             }
-            SY_INFOF("[PdfBasedParser] PDF→SVG conversion completed: %s", tempSvg.c_str());
+            SY_INFOF("[PdfBasedParser:%s] PDF->SVG conversion completed: %s", fmtNameBuf, tempSvg.c_str());
 
             // 委托给 SvgParser 解析
             SvgParser svgParser;
@@ -84,10 +89,25 @@ namespace Fio
 
             auto elapsed =
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
-            SY_INFOF("[PdfBasedParser] parseToIR END: %lld ms, %u entities: %s",
-                static_cast<long long>(elapsed),
+
+            if (result.entityCount == 0)
+            {
+                // 中间 SVG 解析不出图元：多为矢量内容被光栅化（扫描件 / 位图 PDF），这类文件本工具链无法导入
+                SY_WARNF("[PdfBasedParser:%s] parseToIR END: no entity from intermediate SVG (%s), %lld ms: %s",
+                    fmtNameBuf,
+                    tempSvg.c_str(),
+                    static_cast<long long>(elapsed),
+                    path);
+                return result;
+            }
+
+            SY_INFOF("[PdfBasedParser:%s] parseToIR END: %u entities, %u layers, %u warnings, %lld ms: %s",
+                fmtNameBuf,
                 result.entityCount,
-                filePath ? filePath : "");
+                result.layerCount,
+                result.warningCount,
+                static_cast<long long>(elapsed),
+                path);
 
             return result;
         }

@@ -315,6 +315,14 @@ protobuf-lite + `Proto/SanYiDocument.proto`，2D/3D 共用 `NativeParser` / `Nat
 （构造时传 `FileFormat::Native` 或 `Native3D`）。
 `NativeParser3D` / `NativeWriter3D` 已被取代，未在任何工厂注册。
 
+**原生格式不走中立 IR**：protobuf 文档直接反序列化成 Engine 图元，中间没有 IR 表达，
+`NativeParser` 因此没有实现 `parseToIR`，`.sy` / `.syx` 导入走 `importFile` 旧路径
+（`ImportReaderBase::readViaLegacy`，会打一条 WARN 说明"无 IR、不还原图层/群组"）。
+`NativeImportReader` 已不再先尝试 IR——那只会每次白跑一次并留下误导性的失败日志。
+后续计划见 §11 P1「Native 迁移到 `Engine/Persistence`」。
+落到 `IFileParser::parseToIR` 默认实现的格式会打一条 ERROR（`[IFileParser] parseToIR not
+implemented for format=...`），不再静默返回空结果。
+
 ---
 
 ## 6. 图层 / 颜色 / 群组 / 位图 的端到端通道
@@ -331,6 +339,30 @@ protobuf-lite + `Proto/SanYiDocument.proto`，2D/3D 共用 `NativeParser` / `Nat
 少一处越界校验点。IR 侧已保证 id 稠密、缺父降级为顶层并告警、成环打断并告警；
 `ImportService` 侧再用 `SyGroup::wouldCreateCycle()` 兜底一次
 （群组 id 不复用 IR 的 `sourceId`，因为它与运行时 `EntityId` 空间会撞车）。
+
+### 6.1 告警文本不跨 DLL
+
+`FioParseResult` 只带 `warningCount`（数量），**不带告警文本数组**——文本是变长的，
+放进 POD 契约就要引入指针数组和额外的生命周期规则。告警文本留在 FileIO 侧日志里，
+数量由 `ImportReaderBase` 转成一条 `ImportResult` 警告
+（`"<格式> parser reported N warning(s), see FileIO log for details"`），
+供 UI 提示用户去看日志。
+
+### 6.2 一次导入的日志足迹
+
+日志前缀按层划分，排查时从外到内收敛（完整排查手册见
+`Docs/04-测试与日志/log-policy.md` §6.3）：
+
+```
+[ImportService]      五阶段主流程 + 图元分拣/落地/图层群组还原统计
+[ImportDispatcher]   命中哪个读取器、读取器总耗时
+[ImportReader:DXF]   IR 解析耗时与统计、转换层丢弃差额、legacy 回退告警
+[FileIO]             DLL 入口：parser 缺失 / 异常 / 零实体
+[DxfParser] 等       单格式细节；所有 parser 的收尾文案统一为 parseToIR END
+```
+
+约定：每个 parser 必须有 `parseToIR START` 与 `parseToIR END` 成对日志，
+END 至少给出实体数与耗时；提前 return 的分支一律要写明原因，不允许静默返回空结果。
 
 ---
 
@@ -466,6 +498,8 @@ OBJ 接入 FileIO、STL 去重复实现、群组通道端到端（解析 → IR 
 extensionBlob 越界校验、独立构建 + 163 条 ctest 用例。
 转换层已下移到 `Engine/3D/Src/Import/FioEntityConverter.cpp`（`Eg::FioEntityConverter`），
 `Engine/3D` 里重复的 `StlLoader`/`ObjLoader` 已删除，UI3D 的 OBJ/STL 导入改走本 DLL。
+导入链路日志已统一（每个 parser 的 `parseToIR START/END` 成对、提前 return 一律写明原因、
+DLL 入口与工厂的失败分支不再静默），前缀分层见 §6.2。
 
 **P1（下一批，主链路上的正确性缺口）**
 

@@ -12,6 +12,7 @@
 #include "FileIO/Parsers/ObjParser.h"
 #include "FileIO/FormatRegistry.h"
 #include "Engine/SyEntity/SyEntity.h"
+#include "Log/SyLogger.h"
 
 #include <map>
 #include <string>
@@ -52,11 +53,23 @@ namespace Fio
         {
             return it->second();
         }
+
+        // 未注册的格式（Unknown / BMP / PNG 等位图格式没有解析器）：
+        // 调用方只会拿到 nullptr，不留日志就无从判断是"格式没注册"还是"创建失败"
+        SY_WARNF("[FileParserFactory] No parser registered for format=%d (%zu format(s) registered)",
+            static_cast<int>(format),
+            m_impl->m_creators.size());
         return nullptr;
     }
 
     void FileParserFactory::destroyParser(IFileParser* parser) const
     {
+        // 允许传 nullptr（delete nullptr 是合法空操作），但要能看出调用方是否配对释放
+        if (!parser)
+        {
+            SY_DEBUG("[FileParserFactory] destroyParser called with nullptr");
+            return;
+        }
         delete parser;
     }
 

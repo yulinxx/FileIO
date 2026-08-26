@@ -10,6 +10,7 @@
 #include "Engine/SyEntity/SyEntity.h"
 
 #include <cstring>
+#include <exception>
 #include <string>
 #include <vector>
 #include <memory>
@@ -246,6 +247,7 @@ namespace Fio
             {
                 m_importCallback(filePath, false, m_importCtx);
             }
+            SY_ERRORF("[FileIO] importToIR: no parser registered for format=%d", static_cast<int>(format));
             writeError(errorBuffer, errorBufferSize, "No parser registered for this format");
             return false;
         }
@@ -257,6 +259,7 @@ namespace Fio
             {
                 m_importCallback(filePath, false, m_importCtx);
             }
+            SY_ERRORF("[FileIO] importToIR: parser creation failed for format=%d", static_cast<int>(format));
             writeError(errorBuffer, errorBufferSize, "Failed to create parser");
             return false;
         }
@@ -272,8 +275,22 @@ namespace Fio
         {
             result = parser->parseToIR(filePath);
         }
+        catch (const std::exception& e)
+        {
+            // 异常类型与文案必须落日志：errorBuffer 只回一句概括，排查时不够用
+            SY_CRITICALF("[FileIO] importToIR: exception from parser (format=%d): %s", static_cast<int>(format),
+                e.what());
+            factory.destroyParser(parser);
+            if (m_importCallback)
+            {
+                m_importCallback(filePath, false, m_importCtx);
+            }
+            writeError(errorBuffer, errorBufferSize, "Exception during IR parse");
+            return false;
+        }
         catch (...)
         {
+            SY_CRITICALF("[FileIO] importToIR: unknown exception from parser (format=%d)", static_cast<int>(format));
             factory.destroyParser(parser);
             if (m_importCallback)
             {
@@ -291,6 +308,11 @@ namespace Fio
             {
                 m_importCallback(filePath, false, m_importCtx);
             }
+            SY_WARNF("[FileIO] importToIR: parser produced no entity (format=%d, layers=%u, groups=%u, warnings=%u)",
+                static_cast<int>(format),
+                result.layerCount,
+                result.groupCount,
+                result.warningCount);
             writeError(errorBuffer, errorBufferSize, "IR parse produced no entities");
             return false;
         }
@@ -305,7 +327,13 @@ namespace Fio
             *outResult = result;
         }
 
-        SY_INFOF("[FileIO] Imported IR: %u entities, %u layers", result.entityCount, result.layerCount);
+        SY_INFOF("[FileIO] importToIR done: %u entities, %u layers, %u groups, %u warnings, unit='%s', format='%s'",
+            result.entityCount,
+            result.layerCount,
+            result.groupCount,
+            result.warningCount,
+            result.sourceUnit,
+            result.sourceFormat);
         return true;
     }
 

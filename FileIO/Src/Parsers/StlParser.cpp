@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <chrono>
 #include <cstring>
 #include <vector>
 #include <algorithm>
@@ -36,10 +37,20 @@ namespace Fio
         result.sourceFormat[0] = '\0';
         std::strncpy(result.sourceFormat, "STL", sizeof(result.sourceFormat) - 1);
 
+        if (!filePath || !*filePath)
+        {
+            SY_ERROR("[StlParser] parseToIR: null or empty file path");
+            return result;
+        }
+
+        SY_INFOF("[StlParser] parseToIR START: filePath=%s", filePath);
+        const auto startTime = std::chrono::steady_clock::now();
+
         std::filesystem::path fsPath = std::filesystem::u8path(filePath);
         std::ifstream file(fsPath, std::ios::binary | std::ios::ate);
         if (!file.is_open())
         {
+            SY_ERRORF("[StlParser] parseToIR: cannot open file: %s", filePath);
             return result;
         }
 
@@ -48,12 +59,18 @@ namespace Fio
 
         if (fileSize < 15)
         {
+            SY_ERRORF("[StlParser] parseToIR: file too small to be STL (%lld bytes): %s",
+                static_cast<long long>(fileSize),
+                filePath);
             return result;
         }
 
         std::vector<uint8_t> data(static_cast<size_t>(fileSize));
         if (!file.read(reinterpret_cast<char*>(data.data()), fileSize))
         {
+            SY_ERRORF("[StlParser] parseToIR: read failed at %lld bytes: %s",
+                static_cast<long long>(fileSize),
+                filePath);
             return result;
         }
 
@@ -289,6 +306,11 @@ namespace Fio
 
         if (triangleCount == 0)
         {
+            // 二进制探测与 ASCII 探测都没拿到 facet：文件既不是合法二进制 STL，也没有可解析的 ASCII facet
+            SY_ERRORF("[StlParser] parseToIR: no triangle parsed (neither binary nor ASCII layout matched, %lld "
+                      "bytes): %s",
+                static_cast<long long>(fileSize),
+                filePath);
             return result;
         }
 
@@ -331,6 +353,15 @@ namespace Fio
         info.extensionDataSize = static_cast<uint32_t>(vertBytes + normBytes);
 
         pub.entities().push_back(info);
+
+        const auto elapsedMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
+        SY_INFOF("[StlParser] parseToIR END: 1 mesh entity, %u triangles, %u vertices, %zu blob bytes, %lld ms: %s",
+            triangleCount,
+            info.meshVertCount,
+            static_cast<size_t>(info.extensionDataSize),
+            static_cast<long long>(elapsedMs),
+            filePath);
 
         // STL 规范不带单位信息，sourceUnit 留空表示「与当前文档同单位」
         return pub.publish("STL");

@@ -425,7 +425,8 @@ namespace Fio
         }
 
         data.success = true;
-        SY_INFOF("[ObjParser] Parsed %zu chunks, %zu triangles, %zu groups: %s",
+        // 与其它 parser 保持同一条 END 文案格式，便于按 "parseToIR END" 一把捞出所有格式的收尾统计
+        SY_INFOF("[ObjParser] parseToIR END: %zu mesh chunk(s), %zu triangles, %zu group(s): %s",
             data.geometries.size(),
             triangleCount,
             data.groups.size(),
