@@ -299,6 +299,63 @@ TEST(IrProjectorTest, LongNamesAreTruncatedAndNullTerminated)
     EXPECT_EQ(std::strlen(r.layers[0].name), 255u);
     ASSERT_EQ(r.entityCount, 1u);
     EXPECT_EQ(std::strlen(r.entities[0].name), 255u);
+
+    // 截断不是无害的（图层名截短后按名字比对会失配），必须能从 warningCount 看出来
+    EXPECT_GE(r.warningCount, 1u);
+}
+
+// 断引用是畸形文件的常见症状：图元照样导入，但会全挤在默认图层上。
+// 这种现场如果日志里一点线索都没有，只能靠肉眼看，所以必须计入 warningCount。
+TEST(IrProjectorTest, DanglingLayerAndGroupReferencesAreCountedAsWarnings)
+{
+    Fio::ParseData data;
+    data.success = true;
+
+    auto g = makeLine(1, 0, 0, 1, 1);
+    g.layerSourceId = 999;  // 文件里没有这个图层
+    g.groupSourceId = 888;  // 也没有这个群组
+    data.geometries = { g };
+
+    const Fio::FioParseResult r = Fio::IrProjector::project(data, "DXF");
+    ASSERT_EQ(r.entityCount, 1u);
+    EXPECT_EQ(r.entities[0].layerSourceId, 0u);  // 落到「未分配」哨兵
+    EXPECT_EQ(r.entities[0].groupSourceId, 0u);  // 落到「无群组」哨兵
+    EXPECT_EQ(r.warningCount, 2u);               // 断图层 + 断群组，各汇总一条
+}
+
+// 同类降级只汇总一条 warning：畸形文件里动辄成千上万条，
+// 逐条塞进 warnings 会把 warningCount 和日志一起冲爆。
+TEST(IrProjectorTest, RepeatedDegradationsCollapseIntoOneWarningPerCategory)
+{
+    Fio::ParseData data;
+    data.success = true;
+
+    for (uint64_t i = 1; i <= 50; ++i)
+    {
+        auto g = makeLine(i, 0, 0, 1, 1);
+        g.layerSourceId = 999;
+        data.geometries.push_back(g);
+    }
+
+    const Fio::FioParseResult r = Fio::IrProjector::project(data, "DXF");
+    EXPECT_EQ(r.entityCount, 50u);
+    EXPECT_EQ(r.warningCount, 1u);
+}
+
+// 类型无法映射的图元会被整条丢掉，这是「文件里 1000 个、界面只出现 800 个」的
+// 主要来源之一：上层看到的 entityCount 已经扣过这部分，所以只能在这里记账。
+TEST(IrProjectorTest, UnmappableTypesAreDroppedButReported)
+{
+    Fio::ParseData data;
+    data.success = true;
+
+    auto bad = makeLine(1, 0, 0, 1, 1);
+    bad.type = Fio::ParsedGeometryType::Unknown;
+    data.geometries = { bad, makeLine(2, 0, 0, 1, 1) };
+
+    const Fio::FioParseResult r = Fio::IrProjector::project(data, "DXF");
+    EXPECT_EQ(r.entityCount, 1u);
+    EXPECT_EQ(r.warningCount, 1u);
 }
 
 TEST(IrProjectorTest, ResetInvalidatesPreviousResultButNotOtherThreads)

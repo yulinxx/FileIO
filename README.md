@@ -364,6 +364,43 @@ implemented for format=...`），不再静默返回空结果。
 约定：每个 parser 必须有 `parseToIR START` 与 `parseToIR END` 成对日志，
 END 至少给出实体数与耗时；提前 return 的分支一律要写明原因，不允许静默返回空结果。
 
+### 6.3 `IrProjector` 的降级记账（「文件里 1000 个、界面只出现 800 个」怎么查）
+
+上层 `[ImportReader:*]` 打的 `Converter dropped N of M` 里的 **M 是 `entityCount`**，
+也就是**已经**扣掉投影层丢掉的量了。所以凡是 `IrProjector` 自己丢弃或降级的图元，
+在上层日志里根本不会露头 —— 必须在投影层记账，否则这条链上就断了。
+
+投影层收尾固定输出一条守恒口径的 INFO：
+
+```
+[IrProjector] Projected DXF: 1000 parsed -> 980 entities, 12 layers, 3 groups, 40960 blob bytes, 4 warnings
+```
+
+`parsed -> entities` 不相等即说明有图元没进 IR。此时紧跟一条 WARN 给出分类计数，
+并对最要紧的三类各补一条「首个样本」，拿着 `sourceId` 可以回原文件定位：
+
+```
+[IrProjector] Degraded while projecting DXF: unknownType=20 smartLineSkipped=0 blobOverflow=0
+              missingLayerRef=3 missingGroupRef=0 nameTruncated=1 groupParentMissing=0 groupCycleBroken=0
+[IrProjector] First unknown geometry type: raw=17 (SmartLine), sourceId=41
+```
+
+分类含义与后果：
+
+- `unknownType` —— 类型无法映射，**整条图元被丢弃**（`parsed` 与 `entityCount` 之差的主因）
+- `smartLineSkipped` / `blobOverflow` —— 图元入表但几何为空，即「空壳图元」；
+  保留 id 与图层归属，消费侧读到的是空几何
+- `missingLayerRef` / `missingGroupRef` —— 断引用，落到「未分配 / 无群组」哨兵；
+  典型现场是「导入后图元全挤在默认图层上」
+- `nameTruncated` —— 名字超长被截断；图层名截短后按名字比对会失配，于是同一图层被重复登记
+- `groupParentMissing` / `groupCycleBroken` —— 群组树被修复（降为顶层 / 断环）
+
+**为什么是聚合计数而不是逐条日志**：畸形文件里这类问题每个图元都会触发一次，
+几万条同样的 WARN 会把日志冲爆，反而看不出还有别的问题。解析是有明确边界的批处理
+（不是长期运行的流），所以「分类计数 + 首个样本 sourceId」是更合适的形态。
+同理，每个类别只往 `warnings` 里塞一条，`warningCount` 因此是**类别数**而非图元数。
+
+
 ---
 
 ## 7. 第三方依赖与跨平台
@@ -423,8 +460,8 @@ GTest 缺失时 `BUILD_FILEIO_TESTS` 会被自动置 OFF（只编库仍然成功
 
 `Test/` 下的用例（`gtest_discover_tests` 注册到 ctest）：
 
-- `IrProjectorTests.cpp`（12）—— IR 投影：id 稠密化、缺父/成环、闭合折线、
-  NURBS/Mesh/Image 布局、名称截断、`reset()` 失效
+- `IrProjectorTests.cpp`（16）—— IR 投影：id 稠密化、缺父/成环、闭合折线、
+  NURBS/Mesh/Image 布局、名称截断、断引用与未知类型的降级记账、`reset()` 失效
 - `DxfBlockTests.cpp`（9）—— 块定义不泄漏、变换/阵列/嵌套、镜像与非等比缩放
 - `DxfEntityTests.cpp`（12）—— bulge 正负号、闭合标志、OCS→WCS、`$INSUNITS`、
   SOLID 角点顺序、拟合点 SPLINE 降级、HATCH 告警

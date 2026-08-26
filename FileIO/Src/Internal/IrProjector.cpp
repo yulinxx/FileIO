@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <unordered_map>
 
 
@@ -13,12 +14,17 @@ namespace Fio
     namespace
     {
         /// 把 std::string 安全写入固定长度 char 缓冲区（保证以 '\0' 结尾）
+        ///
+        /// @return true 表示发生了截断。截断不是无害的：图层名被截短后
+        ///         IrPublisher::findLayer 按名字比对会失配，于是同一个图层被重复登记；
+        ///         图元名被截短则影响上层按名字定位。所以调用方要把截断计入统计。
         template <std::size_t N>
-        void copyFixed(char (&dst)[N], const std::string& src)
+        bool copyFixed(char (&dst)[N], const std::string& src)
         {
             const std::size_t n = std::min(src.size(), N - 1);
             std::memcpy(dst, src.data(), n);
             dst[n] = '\0';
+            return n < src.size();
         }
 
         /// ParsedGeometryType → EntityType（两套枚举一一对应，但刻意显式列出：
@@ -190,9 +196,95 @@ namespace Fio
     {
         namespace
         {
+            /// ParsedGeometryType 的稳定英文短名，仅用于日志。
+            /// 不裸打整数：现场看到 "type=13" 没法判断是哪种几何，而枚举值会随重构改动。
+            const char* parsedTypeName(ParsedGeometryType t)
+            {
+                switch (t)
+                {
+                case ParsedGeometryType::Line:
+                    return "Line";
+                case ParsedGeometryType::Arc:
+                    return "Arc";
+                case ParsedGeometryType::Circle:
+                    return "Circle";
+                case ParsedGeometryType::Ellipse:
+                    return "Ellipse";
+                case ParsedGeometryType::Polygon:
+                    return "Polygon";
+                case ParsedGeometryType::Bezier:
+                    return "Bezier";
+                case ParsedGeometryType::Bezier2:
+                    return "Bezier2";
+                case ParsedGeometryType::Nurbs:
+                    return "Nurbs";
+                case ParsedGeometryType::Spline:
+                    return "Spline";
+                case ParsedGeometryType::Polyline:
+                    return "Polyline";
+                case ParsedGeometryType::Point:
+                    return "Point";
+                case ParsedGeometryType::Text:
+                    return "Text";
+                case ParsedGeometryType::Image:
+                    return "Image";
+                case ParsedGeometryType::BarCode:
+                    return "BarCode";
+                case ParsedGeometryType::QRCode:
+                    return "QRCode";
+                case ParsedGeometryType::SmartLine:
+                    return "SmartLine";
+                case ParsedGeometryType::Mesh3D:
+                    return "Mesh3D";
+                case ParsedGeometryType::Unknown:
+                    return "Unknown";
+                }
+                return "?";
+            }
+
+            /// 一次投影过程中的「静默降级」计数。
+            ///
+            /// 为什么聚合到结尾一次输出，而不是在循环里逐条打日志：
+            /// 一个文件可能有几万个图元，而「引用了不存在的图层」这类畸形文件的问题
+            /// 是**每个图元都会触发一次**的，逐条打会直接把日志文件淹掉，反而更难查。
+            /// 解析是有明确边界的批处理（不是长期运行的流），所以聚合计数 + 首个样本的
+            /// sourceId 是更合适的形态：既给出完整的量，又能拿着 sourceId 回原文件定位。
+            ///
+            /// 这些计数**同时**会写进 IrPublisher::warnings()，从而反映到
+            /// FioParseResult::warningCount 上 —— 否则上层（ImportReaderBase 打的
+            /// "Converter dropped N of M"）里的 M 根本不包含这里丢掉的图元，
+            /// 「文件里 1000 个图元、界面只出现 800 个」就会变成查不下去的现场。
+            struct ProjectionStats
+            {
+                uint32_t unknownType = 0;      ///< 类型无法映射，整条图元被跳过
+                uint32_t smartLineSkipped = 0; ///< SmartLine 目前无 IR 通道
+                uint32_t blobOverflow = 0;     ///< 扩展数据溢出，图元退化成无几何的空壳
+                uint32_t missingLayerRef = 0;  ///< 引用了不存在的图层，落到「未分配」
+                uint32_t missingGroupRef = 0;  ///< 引用了不存在的群组，落到「无群组」
+                uint32_t nameTruncated = 0;    ///< 名字超长被截断
+                uint32_t groupParentMissing = 0;
+                uint32_t groupCycleBroken = 0;
+
+                int firstUnknownTypeValue = -1;
+                uint64_t firstUnknownSourceId = 0;
+                uint64_t firstBlobOverflowSourceId = 0;
+                uint64_t firstMissingLayerSourceId = 0;
+
+                bool anyDegradation() const
+                {
+                    return unknownType != 0 || smartLineSkipped != 0 || blobOverflow != 0 || missingLayerRef != 0
+                        || missingGroupRef != 0 || nameTruncated != 0 || groupParentMissing != 0
+                        || groupCycleBroken != 0;
+                }
+            };
+
             /// 投影单个图元的几何数据。扩展数据块布局必须与消费侧
             /// （Main/Src/Import/FioEntityConverter.cpp）的读取顺序严格一致。
-            void projectGeometry(const ParsedGeometry& g, EntityInfo& info, IrPublisher& pub)
+            ///
+            /// 几何没能完整写入时（扩展数据溢出，或该类型暂无 IR 通道）不做特殊返回，
+            /// 而是记进 stats：图元本身仍会入表（保留 id/图层归属），消费侧读到的是空几何，
+            /// 数量由调用方在结尾汇总成 warning 与 WARN 日志。
+            void projectGeometry(const ParsedGeometry& g, EntityInfo& info, IrPublisher& pub, ProjectionStats& stats)
             {
                 switch (g.type)
                 {
@@ -260,7 +352,12 @@ namespace Fio
                     // 三者共用 text 段承载内容；条码/二维码的尺寸另走独立字段
                     info.text.x = g.text.position.x;
                     info.text.y = g.text.position.y;
-                    copyFixed(info.text.text, g.text.text);
+                    if (copyFixed(info.text.text, g.text.text))
+                    {
+                        // 文本内容被截断意味着导入后的字面量与原文件不一致 —— 对条码/二维码
+                        // 更严重：内容变了，扫出来就是另一个码。必须让它可见。
+                        ++stats.nameTruncated;
+                    }
                     info.text.h = g.text.height;
                     info.text.a = g.text.angle;
                     break;
@@ -276,7 +373,12 @@ namespace Fio
                     if (offset == IrPublisher::kInvalidOffset)
                     {
                         info.vertexCount = 0;
-                        break;
+                        ++stats.blobOverflow;
+                        if (stats.firstBlobOverflowSourceId == 0)
+                        {
+                            stats.firstBlobOverflowSourceId = g.sourceId;
+                        }
+                        return;
                     }
                     info.vertexCount = static_cast<uint32_t>(g.polyline.points.size());
                     info.extensionDataOffset = offset;
@@ -298,7 +400,12 @@ namespace Fio
                     const uint32_t offset = pub.appendBlob(packed.data(), bytes);
                     if (offset == IrPublisher::kInvalidOffset)
                     {
-                        break;
+                        ++stats.blobOverflow;
+                        if (stats.firstBlobOverflowSourceId == 0)
+                        {
+                            stats.firstBlobOverflowSourceId = g.sourceId;
+                        }
+                        return;
                     }
                     info.nurbsDegree = static_cast<int32_t>(g.nurbs.degree);
                     info.nurbsCtrlPtCount = static_cast<uint32_t>(g.nurbs.controlPoints.size());
@@ -320,7 +427,12 @@ namespace Fio
                     const uint32_t offset = pub.appendBlob(g.image.data.data(), g.image.data.size());
                     if (offset == IrPublisher::kInvalidOffset)
                     {
-                        break;
+                        ++stats.blobOverflow;
+                        if (stats.firstBlobOverflowSourceId == 0)
+                        {
+                            stats.firstBlobOverflowSourceId = g.sourceId;
+                        }
+                        return;
                     }
                     info.extensionDataOffset = offset;
                     info.extensionDataSize = static_cast<uint32_t>(g.image.data.size());
@@ -361,7 +473,12 @@ namespace Fio
                     const uint32_t offset = pub.appendBlob(packed.data(), bytes);
                     if (offset == IrPublisher::kInvalidOffset)
                     {
-                        break;
+                        ++stats.blobOverflow;
+                        if (stats.firstBlobOverflowSourceId == 0)
+                        {
+                            stats.firstBlobOverflowSourceId = g.sourceId;
+                        }
+                        return;
                     }
                     info.meshVertCount = static_cast<uint32_t>(vertCount);
                     info.meshTriCount = static_cast<uint32_t>(g.mesh.indices.size() / 3);
@@ -374,9 +491,9 @@ namespace Fio
                     // 智能线由子图元组成，跨 DLL IR 目前没有嵌套通道。
                     // 后续按「智能线 = 一个群组」落地（与 DXF 块引用同一套机制），
                     // 在此之前由调用方在 ParseData 阶段拆平，本层不静默丢数据、只记警告。
-                    SY_WARNF("[IrProjector] SmartLine is not representable in IR yet, sourceId=%llu",
-                        static_cast<unsigned long long>(g.sourceId));
-                    break;
+                    // 计数而非逐条打日志：含大量智能线的文件会刷出成千条同样的 WARN。
+                    ++stats.smartLineSkipped;
+                    return;
 
                 case ParsedGeometryType::Unknown:
                     break;
@@ -396,6 +513,8 @@ namespace Fio
 
             IrPublisher& pub = IrPublisher::threadLocal();
             pub.reset();
+
+            ProjectionStats stats;
 
             // ---- 图层 ----
             // 解析器分配的 ParsedLayer::sourceId 未必连续，投影时重新编号成 1-based 稠密序列，
@@ -429,9 +548,7 @@ namespace Fio
                 {
                     // 畸形文件：父群组不存在。降级为顶层，不丢图元。
                     pub.warnings().emplace_back("Group parent not found, treated as top-level");
-                    SY_WARNF("[IrProjector] Group %llu references missing parent %llu, treated as top-level",
-                        static_cast<unsigned long long>(data.groups[i].sourceId),
-                        static_cast<unsigned long long>(parent));
+                    ++stats.groupParentMissing;
                     continue;
                 }
                 pub.groups()[i].parentSourceId = it->second;
@@ -442,15 +559,25 @@ namespace Fio
             {
                 std::size_t hops = 0;
                 uint64_t cur = pub.groups()[i].parentSourceId;
+                bool corrupted = false;
                 while (cur != 0u && hops <= pub.groups().size())
                 {
+                    // parentSourceId 本应是 addGroup 分配的 1-based 稠密 id，理论上必然落在
+                    // [1, size] 内。但这是**外部文件驱动**的数据通路，一旦哪个解析器绕过
+                    // groupIdMap 直接塞了别的值，下面的 cur - 1 就是越界读 —— 属于会读到
+                    // 随机内存的那类崩溃，必须在这里挡住而不是相信上游。
+                    if (cur > pub.groups().size())
+                    {
+                        corrupted = true;
+                        break;
+                    }
                     cur = pub.groups()[cur - 1u].parentSourceId;
                     ++hops;
                 }
-                if (hops > pub.groups().size())
+                if (corrupted || hops > pub.groups().size())
                 {
                     pub.warnings().emplace_back("Group cycle detected, chain broken at this group");
-                    SY_WARNF("[IrProjector] Group cycle detected at group %zu, promoted to top-level", i + 1u);
+                    ++stats.groupCycleBroken;
                     pub.groups()[i].parentSourceId = 0u;
                 }
             }
@@ -461,25 +588,48 @@ namespace Fio
                 const EntityType type = mapType(g.type);
                 if (type == EntityType::Unknown)
                 {
-                    pub.warnings().emplace_back("Unknown geometry type skipped");
+                    ++stats.unknownType;
+                    if (stats.firstUnknownSourceId == 0)
+                    {
+                        stats.firstUnknownSourceId = g.sourceId;
+                        stats.firstUnknownTypeValue = static_cast<int>(g.type);
+                    }
                     continue;
                 }
 
                 EntityInfo info{};
                 info.sourceId = g.sourceId;
                 info.type = type;
-                copyFixed(info.name, g.name);
+                if (copyFixed(info.name, g.name))
+                {
+                    ++stats.nameTruncated;
+                }
                 info.lineWidth = g.lineWidth;
                 info.visible = g.visible;
                 info.locked = g.locked;
 
+                // 引用不存在的图层 / 群组时保持默认哨兵（0 = 未分配 / 无群组）。
+                // 这是畸形文件的常见症状，必须计数：否则「导入后图元全挤在默认图层上」
+                // 这种现场只能靠肉眼看，日志里一点线索都没有。
                 if (const auto it = layerIdMap.find(g.layerSourceId); it != layerIdMap.end())
                 {
                     info.layerSourceId = it->second;
                 }
+                else if (g.layerSourceId != 0u)
+                {
+                    ++stats.missingLayerRef;
+                    if (stats.firstMissingLayerSourceId == 0)
+                    {
+                        stats.firstMissingLayerSourceId = g.sourceId;
+                    }
+                }
                 if (const auto it = groupIdMap.find(g.groupSourceId); it != groupIdMap.end())
                 {
                     info.groupSourceId = it->second;
+                }
+                else if (g.groupSourceId != 0u)
+                {
+                    ++stats.missingGroupRef;
                 }
 
                 // 闭合折线统一映射为 Polygon：消费侧以 EntityType 判定 bClosed，
@@ -489,8 +639,46 @@ namespace Fio
                     info.type = EntityType::Polygon;
                 }
 
-                projectGeometry(g, info, pub);
+                // 几何没写全（扩展数据溢出 / 该类型暂无 IR 通道）时图元仍入表，以保住
+                // id 与图层归属；对应的 warning 在循环外按类别汇总一次（见下方），
+                // 否则上层只看 entityCount，会把「空壳图元」误判成导入成功。
+                projectGeometry(g, info, pub, stats);
                 pub.entities().push_back(info);
+            }
+
+            // 静默降级按类别各汇总成一条 warning，而不是每个图元一条：
+            // 畸形文件里这类问题动辄成千上万条，逐条塞进 warnings 只会把上层的
+            // warningCount 和日志一起冲爆，反而看不出还有别的问题。
+            if (stats.unknownType != 0)
+            {
+                pub.warnings().emplace_back(
+                    "Geometries skipped due to unmappable type: " + std::to_string(stats.unknownType));
+            }
+            if (stats.smartLineSkipped != 0)
+            {
+                pub.warnings().emplace_back("SmartLine geometries imported as empty shells (no IR channel yet): "
+                    + std::to_string(stats.smartLineSkipped));
+            }
+            if (stats.blobOverflow != 0)
+            {
+                pub.warnings().emplace_back("Entities imported as empty shells due to extension blob overflow: "
+                    + std::to_string(stats.blobOverflow));
+            }
+            if (stats.missingLayerRef != 0)
+            {
+                pub.warnings().emplace_back(
+                    "Dangling layer references, entities fell back to the unassigned layer: "
+                    + std::to_string(stats.missingLayerRef));
+            }
+            if (stats.missingGroupRef != 0)
+            {
+                pub.warnings().emplace_back(
+                    "Dangling group references, entities left ungrouped: " + std::to_string(stats.missingGroupRef));
+            }
+            if (stats.nameTruncated != 0)
+            {
+                pub.warnings().emplace_back("Names truncated to fit fixed-size buffers: "
+                    + std::to_string(stats.nameTruncated));
             }
 
             for (const auto& w : data.warnings)
@@ -498,13 +686,60 @@ namespace Fio
                 pub.warnings().push_back(w);
             }
 
+
             FioParseResult result = pub.publish(sourceFormat, sourceUnit);
-            SY_INFOF("[IrProjector] Projected %s: %u entities, %u layers, %u groups, %zu blob bytes",
-                sourceFormat != nullptr ? sourceFormat : "?",
+            const char* fmt = sourceFormat != nullptr ? sourceFormat : "?";
+
+            // 守恒口径：解析器产出多少条几何 -> IR 里最终有多少条图元。
+            // 上层 ImportReaderBase 打的 "Converter dropped N of M" 里的 M 是 entityCount，
+            // 也就是**已经**扣掉这里丢掉的量了，所以这一行是整条链上唯一能看到
+            // 「解析出来了但没进 IR」的位置。
+            SY_INFOF("[IrProjector] Projected %s: %zu parsed -> %u entities, %u layers, %u groups, "
+                     "%zu blob bytes, %u warnings",
+                fmt,
+                data.geometries.size(),
                 result.entityCount,
                 result.layerCount,
                 result.groupCount,
-                result.extensionBlob.size);
+                result.extensionBlob.size,
+                result.warningCount);
+
+            if (stats.anyDegradation())
+            {
+                SY_WARNF("[IrProjector] Degraded while projecting %s: unknownType=%u smartLineSkipped=%u "
+                         "blobOverflow=%u missingLayerRef=%u missingGroupRef=%u nameTruncated=%u "
+                         "groupParentMissing=%u groupCycleBroken=%u",
+                    fmt,
+                    stats.unknownType,
+                    stats.smartLineSkipped,
+                    stats.blobOverflow,
+                    stats.missingLayerRef,
+                    stats.missingGroupRef,
+                    stats.nameTruncated,
+                    stats.groupParentMissing,
+                    stats.groupCycleBroken);
+
+                // 首个样本的 sourceId：拿着它可以回原文件（DXF 句柄 / 记录序号）定位到
+                // 具体是哪一条数据触发的降级，比只知道「有 37 条出问题」有用得多。
+                if (stats.unknownType != 0)
+                {
+                    SY_WARNF("[IrProjector] First unknown geometry type: raw=%d (%s), sourceId=%llu",
+                        stats.firstUnknownTypeValue,
+                        parsedTypeName(static_cast<ParsedGeometryType>(stats.firstUnknownTypeValue)),
+                        static_cast<unsigned long long>(stats.firstUnknownSourceId));
+                }
+                if (stats.blobOverflow != 0)
+                {
+                    SY_WARNF("[IrProjector] First blob overflow at sourceId=%llu (entity became an empty shell)",
+                        static_cast<unsigned long long>(stats.firstBlobOverflowSourceId));
+                }
+                if (stats.missingLayerRef != 0)
+                {
+                    SY_WARNF("[IrProjector] First dangling layer reference at sourceId=%llu "
+                             "(entity fell back to the unassigned layer)",
+                        static_cast<unsigned long long>(stats.firstMissingLayerSourceId));
+                }
+            }
             return result;
         }
     }  // namespace IrProjector
