@@ -25,6 +25,8 @@
 #include <memory>
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
+
 
 // ==================== 文件格式检测 ====================
 
@@ -489,7 +491,11 @@ namespace
 
 TEST(FileIORegressionTest, IgesParser_LineArcPoint)
 {
-    const std::string path = writeMinimalIgesFile("/tmp/sanyi_iges_test.igs");
+    // 临时文件必须用 std::filesystem::temp_directory_path() 取系统临时目录。
+    // 原先硬编码 "/tmp/..." 在 Windows 上不存在，fopen 直接失败、路径返回空，
+    // 用例在 Windows 上从来没真正跑过解析逻辑（本文件其余用例已用此写法）。
+    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_iges_test.igs";
+    const std::string path = writeMinimalIgesFile(tempFile.string());
     ASSERT_FALSE(path.empty());
 
     // 直接调用 UgParser，便于调试解析结果

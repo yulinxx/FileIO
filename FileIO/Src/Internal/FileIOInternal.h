@@ -29,10 +29,16 @@ namespace Fio
     /// DXF 图层定义信息（旧版内部 API）
     struct DxfLayerInfo
     {
-        std::string name;      // 图层名称
-        int color{ 7 };        // ACI 颜色索引 (1-255)
+        std::string name;  // 图层名称
+        // 图层颜色，0xAARRGGBB。
+        // 口径统一说明：DXF 文件里图层色是 ACI 索引（组码 62）或真彩色（组码 420），
+        // 二者的换算属于 DXF 格式知识，一律由 DxfParser 在产出本结构时完成，
+        // 消费方（FileImporter → ParsedLayer::color）直接当 ARGB 用，不再二次解释。
+        // 早期本字段存 ACI 原值而消费方按 ARGB 使用，导致图层色几乎全是暗红系。
+        uint32_t color{ 0xFF000000 };
         bool visible{ true };  // 是否可见
     };
+
 
     /// 旧版解析结果结构体（仅 DLL 内部使用）
     struct ParseResult

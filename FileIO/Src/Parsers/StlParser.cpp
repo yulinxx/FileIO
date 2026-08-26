@@ -1,4 +1,7 @@
 #include "FileIO/Parsers/StlParser.h"
+
+#include "IrProjector.h"
+
 #include "Log/SyLogger.h"
 
 #include <fstream>
@@ -67,19 +70,29 @@ namespace Fio
         {
             uint32_t count = 0;
             std::memcpy(&count, data.data() + 80, 4);
-            if (count > MAX_STL_TRIANGLES)
+
+            // 先用「84 + count*50 == 文件长度」判定是否真的是二进制 STL，再谈数量上限。
+            // 顺序不能反：ASCII STL 的第 80~84 字节是普通文本，按小端读出来往往是个天文数字，
+            // 早先在这里直接按上限拒绝，导致**合法的 ASCII STL（长度 > 84 字节）被整份拒收**，
+            // 而不是落到下面的 ASCII 分支。
+            const bool sizeMatchesBinary =
+                (count <= MAX_STL_TRIANGLES) && (84 + static_cast<size_t>(count) * 50 == data.size());
+
+            if (!sizeMatchesBinary && count > MAX_STL_TRIANGLES && data.size() >= 84 + 50)
             {
-                SY_WARNF("[StlParser] Binary STL triangle count %u exceeds limit %u, rejecting file",
+                // 声明数量超限且长度也对不上：可能是被截断的超大二进制文件，留个告警便于排查。
+                // 不在此 return——仍给 ASCII 分支一个机会，由它决定是否有 facet 可解析。
+                SY_WARNF("[StlParser] Binary STL header claims %u triangles (limit %u), falling back to ASCII probe",
                     count,
                     MAX_STL_TRIANGLES);
-                return result;
             }
-            size_t expectedSize = 84 + static_cast<size_t>(count) * 50;
-            if (expectedSize == data.size())
+
+            if (sizeMatchesBinary)
             {
                 triangleCount = count;
                 vertices.reserve(triangleCount * 9);
                 normals.reserve(triangleCount * 9);
+
 
                 const uint8_t* ptr = data.data() + 84;
                 for (uint32_t i = 0; i < triangleCount; ++i)
@@ -279,36 +292,47 @@ namespace Fio
             return result;
         }
 
-        // 填充 IR
-        thread_local EntityInfo s_info;
-        s_info = {};
-        s_info.type = EntityType::Mesh3D;
-        s_info.meshVertCount = triangleCount * 3;
-        s_info.meshTriCount = triangleCount;
+        // ---- 填充 IR ----
+        // 缓冲区统一由 IrPublisher 持有：此前这里自己声明 thread_local EntityInfo /
+        // vector<uint8_t>，与 DXF、SVG、PLT 各写一套，同一个跨 DLL 内存契约被复制了多份。
+        IrPublisher& pub = IrPublisher::threadLocal();
+        pub.reset();
+
+        EntityInfo info{};
+        info.sourceId = 1;  // 1-based，0 在 IR 里是「无」的哨兵
+        info.type = EntityType::Mesh3D;
+        info.meshVertCount = triangleCount * 3;
+        info.meshTriCount = triangleCount;
 
         // 文件名作为图元名称
-        std::filesystem::path p(filePath);
-        std::string stem = p.stem().string();
-        std::strncpy(s_info.name, stem.c_str(), sizeof(s_info.name) - 1);
+        std::filesystem::path p(std::filesystem::u8path(filePath));
+        const std::string stem = p.stem().string();
+        std::strncpy(info.name, stem.c_str(), sizeof(info.name) - 1);
+        info.name[sizeof(info.name) - 1] = '\0';
 
-        // 扩展数据布局: [顶点: meshVertCount*3*sizeof(float)] [法线: meshVertCount*3*sizeof(float)]
-        size_t vertBytes = vertices.size() * sizeof(float);
-        size_t normBytes = normals.size() * sizeof(float);
-        size_t totalBytes = vertBytes + normBytes;
+        // 扩展数据布局: [顶点: meshVertCount*3 float] [法线: meshVertCount*3 float]
+        // 与 IrProjector 投影 Mesh3D 时的布局严格一致（OBJ 走投影层、STL 走这里，
+        // 两条路产出的字节布局必须相同，消费侧才能只有一份读取代码）。
+        const size_t vertBytes = vertices.size() * sizeof(float);
+        const size_t normBytes = normals.size() * sizeof(float);
 
-        thread_local std::vector<uint8_t> s_blob;
-        s_blob.resize(totalBytes);
-        std::memcpy(s_blob.data(), vertices.data(), vertBytes);
-        std::memcpy(s_blob.data() + vertBytes, normals.data(), normBytes);
+        const uint32_t offset = pub.appendBlob(vertices.data(), vertBytes);
+        if (offset == IrPublisher::kInvalidOffset)
+        {
+            SY_ERRORF("[StlParser] Mesh data too large for IR extension blob: %s", filePath);
+            return FioParseResult{};
+        }
+        if (pub.appendBlob(normals.data(), normBytes) == IrPublisher::kInvalidOffset)
+        {
+            SY_ERRORF("[StlParser] Normal data too large for IR extension blob: %s", filePath);
+            return FioParseResult{};
+        }
+        info.extensionDataOffset = offset;
+        info.extensionDataSize = static_cast<uint32_t>(vertBytes + normBytes);
 
-        s_info.extensionDataOffset = 0;
-        s_info.extensionDataSize = static_cast<uint32_t>(totalBytes);
+        pub.entities().push_back(info);
 
-        result.entities = &s_info;
-        result.entityCount = 1;
-        result.extensionBlob.data = s_blob.data();
-        result.extensionBlob.size = totalBytes;
-
-        return result;
+        // STL 规范不带单位信息，sourceUnit 留空表示「与当前文档同单位」
+        return pub.publish("STL");
     }
 }  // namespace Fio

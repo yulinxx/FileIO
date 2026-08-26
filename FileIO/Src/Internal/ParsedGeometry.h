@@ -63,9 +63,13 @@ namespace Fio
         uint64_t sourceId = 0;
         uint64_t parentGroupSourceId = 0;
         std::string name;
+        // 成员列表仅为解析期便利（例如 DXF 展开 INSERT 时边收集边回填），
+        // 投影到跨 DLL IR 时不会传出去：对外只保留 ParsedGeometry::groupSourceId
+        // 与本结构的 parentGroupSourceId 这一个方向，避免双向数据不一致无从裁决。
         std::vector<uint64_t> entitySourceIds;
         std::vector<uint64_t> subGroupSourceIds;
     };
+
 
     // ===================== 图元数据 =====================
 
@@ -75,6 +79,9 @@ namespace Fio
         ParsedGeometryType type = ParsedGeometryType::Unknown;
         std::string name;
         uint32_t layerSourceId = 0;
+        // 所属群组（对应 ParsedGroup::sourceId）；0 = 不属于任何群组。
+        // 这是群组成员关系的**权威来源**，ParsedGroup::entitySourceIds 只是解析期镜像。
+        uint64_t groupSourceId = 0;
         double lineWidth = 1.0;
         bool visible = true;
         bool locked = false;

@@ -13,7 +13,11 @@ namespace Fio
     /// NX 原生 .prt 为私有二进制格式，需 NX Open API（商业许可）才能解析，
     /// 本解析器仅覆盖 IGES 交换格式中的常见 2D 图元
     /// （110 直线、100 圆弧、116 点、106 折线等），经中立 IR 输出。
-    class UgParser : public IFileParser, public ILegacyParser
+    ///
+    /// 这里必须带 FILEIO_API：FileIO 的单元测试（FileIORegressionTests）直接构造本类
+    /// 调用 parseToIR/parse，测试可执行文件链接的是 FileIO.dll，符号不导出会 LNK2001。
+    /// 与 StlParser / NativeParser / NativeParser3D 的处理保持一致。
+    class FILEIO_API UgParser : public IFileParser, public ILegacyParser
     {
     public:
         UgParser() = default;

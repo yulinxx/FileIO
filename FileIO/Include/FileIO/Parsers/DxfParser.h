@@ -5,7 +5,9 @@
 
 namespace Fio
 {
-    class DxfParser : public IFileParser, public ILegacyParser
+    // 加导出宏的原因：测试与外部工具会直接构造 DxfParser 调用 parseToIR，
+    // 不加则链接期报 LNK2001/LNK2019。与 StlParser / UgParser / NativeParser 口径一致。
+    class FILEIO_API DxfParser : public IFileParser, public ILegacyParser
     {
     public:
         DxfParser() = default;

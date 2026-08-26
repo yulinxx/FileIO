@@ -9,6 +9,7 @@
 #include "FileIO/Parsers/AiParser.h"
 #include "FileIO/Parsers/NativeParser.h"
 #include "FileIO/Parsers/StlParser.h"
+#include "FileIO/Parsers/ObjParser.h"
 #include "FileIO/FormatRegistry.h"
 #include "Engine/SyEntity/SyEntity.h"
 
@@ -114,6 +115,12 @@ namespace Fio
 
         registerParser(FileFormat::STL, []() -> IFileParser* {
             return new StlParser();
+        });
+
+        // OBJ 此前没有解析器，FormatRegistry 里注册的 .obj 落到工厂就取不到实现，
+        // 上层只能绕过 FileIO 直接调 Engine3D。补齐后 3D 两种格式走同一条 IR 链路。
+        registerParser(FileFormat::OBJ, []() -> IFileParser* {
+            return new ObjParser();
         });
     }
 }  // namespace Fio

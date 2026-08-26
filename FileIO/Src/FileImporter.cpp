@@ -1,4 +1,4 @@
-﻿#include "FileIO/FileImporter.h"
+#include "FileIO/FileImporter.h"
 
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/IFileParser.h"
@@ -276,7 +276,8 @@ namespace Fio
             ParsedLayer layer;
             layer.sourceId = static_cast<uint32_t>(pImpl->data.layers.size() + 1);
             layer.name = dxfLayer.name;
-            layer.color = static_cast<uint32_t>(dxfLayer.color);
+            // DxfLayerInfo::color 已是 ARGB（换算在 DxfParser 内完成），直接透传
+            layer.color = dxfLayer.color;
             layer.visible = dxfLayer.visible;
             pImpl->data.layers.push_back(std::move(layer));
         }
