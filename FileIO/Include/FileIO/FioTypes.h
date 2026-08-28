@@ -92,6 +92,25 @@ namespace Fio
         double y = 0.0;
     };
 
+    /// 复合曲线（EntityType::SmartLine）扩展数据块里的段类型标签
+    ///
+    /// 一条 SVG path / DXF 复合轮廓在 IR 里是**一个** EntityInfo，各段几何放在扩展块。
+    /// 标签以 double 形式存在每段首位（扩展块统一是 double 序列，不混排整型，
+    /// 避免在跨 DLL 边界上引入对齐与字节序假设）。
+    enum class SmartSegKind : uint8_t
+    {
+        Line = 0,     ///< 直线段：用 p0 → p1，其余点忽略
+        Bezier2 = 1,  ///< 二次贝塞尔：p0, c, p1
+        Bezier = 2    ///< 三次贝塞尔：p0, c0, c1, p1
+    };
+
+    /// 复合曲线扩展块中每段固定占用的 double 数：[标签][p0][p1][p2][p3] = 1 + 8
+    ///
+    /// 刻意用**定长**而非紧凑变长布局：段数可由 extensionDataSize 直接反算，
+    /// 读取方无需边解析边推进就能校验完整性（畸形文件给出的 vertexCount 不可信）。
+    constexpr uint32_t kSmartSegStride = 9;
+
+
 
     /// 图元信息（POD，固定长度缓冲区 + 纯数值几何参数）
     /// 注意：复杂几何数据（如多边形顶点、贝塞尔控制点序列）通过扩展数据块承载
@@ -163,6 +182,9 @@ namespace Fio
 
         // 多边形/折线: 顶点数据在扩展数据块中（double 序列: x0,y0,x1,y1,...）
         // 闭合标记: bClosed 在基类字段中
+        //
+        // 复合曲线（SmartLine）复用本字段表示**段数**，几何在扩展块里按
+        // kSmartSegStride 定长排布，见上方 SmartSegKind 注释。
         uint32_t vertexCount = 0;
 
         // NURBS: 阶数 + 控制点/节点/权重数量（完整数据在扩展数据块中）

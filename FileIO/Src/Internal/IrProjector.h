@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Fio
@@ -74,14 +75,28 @@ namespace Fio
         static constexpr uint32_t kInvalidOffset = 0xFFFFFFFFu;
 
         /// 追加一个图层，返回分配到的 sourceId（1-based，0 保留为「未分配图层」哨兵）
+        ///
+        /// 同名图层只登记一次（DXF 的 LAYER 表可能出现重复记录），重复调用直接返回已有 id。
+        /// 图层数达到 kMaxLayers 时不再登记并返回 0（未分配），只在首次触顶时记一条 warning。
         uint32_t addLayer(const std::string& name, uint32_t argbColor, bool visible, bool locked = false);
 
         /// 追加一个群组，返回分配到的 sourceId（1-based，0 保留为「无群组」哨兵）
         /// parentSourceId 传 0 表示顶层群组。
+        ///
+        /// 群组数达到 kMaxGroups 时不再新建，直接返回 parentSourceId：
+        /// 层级退化成挂在父群组下，但图元不会丢。只在首次触顶时记一条 warning。
         uint64_t addGroup(const std::string& name, uint64_t parentSourceId);
 
-        /// 按图层名查已登记的图层 sourceId；未找到返回 0
+        /// 按图层名查已登记的图层 sourceId；未找到返回 0。O(1) 哈希查找。
         uint32_t findLayer(const std::string& name) const;
+
+        /// 图层数上限。与 Engine 侧 LayerManager::kMaxLayerCount 对齐：
+        /// 超出部分在下游也只会塌回默认图层，不如在解析侧就挡住并告警。
+        static constexpr std::size_t kMaxLayers = 1024;
+
+        /// 群组数上限。DXF 的 INSERT 阵列「一次引用 = 一个群组」，
+        /// cols/rows 各自可达 4096，空块阵列不推进实体计数，故必须单独设闸。
+        static constexpr std::size_t kMaxGroups = 65536;
 
         /// 组装 FioParseResult 并返回。不清空缓冲区（指针要继续有效）。
         ///
@@ -95,6 +110,13 @@ namespace Fio
         std::vector<IrGroupInfo> m_groups;
         std::vector<uint8_t> m_blob;
         std::vector<std::string> m_warnings;
+
+        /// 图层名（已按 IrLayerInfo::name 长度截断）→ sourceId。
+        /// 键必须用截断后的名字：否则长名图层登记与查找会失配。
+        std::unordered_map<std::string, uint32_t> m_layerIndex;
+
+        bool m_layerLimitWarned = false;
+        bool m_groupLimitWarned = false;
     };
 
     /// ParseData（FileIO 内部富 IR） → FioParseResult（跨 DLL POD IR）

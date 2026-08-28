@@ -269,8 +269,45 @@ NanoSVG（vcpkg，`find_package(NanoSVG CONFIG REQUIRED)`）负责解析与路�
 并按 16 KiB 块解压；没有 zlib 时 `.svg` 不受影响，`.svgz` 直接失败。
 
 NanoSVG 会把所有路径统一成三次贝塞尔序列，因此当前导入结果里没有原生圆/圆弧
-——圆弧回拟合与折线聚合列为 P1。`<g>` 应产出 `IrGroupInfo`（IR 通道已就绪），
+——圆弧回拟合列为 P1。`<g>` 应产出 `IrGroupInfo`（IR 通道已就绪），
 但 SVG 侧的群组落地尚未接线，同列 P1。
+
+**一条子路径 = 一个实体。** NanoSVG 把每个子路径（`M ... M ...` 之间）拆成一个
+`NSVGpath`，一条子路径的所有段聚合成**一个** `EntityType::SmartLine`（复合曲线），
+几何写进 `extensionBlob`：
+
+- 布局按 `Fio::kSmartSegStride`(=9) **定长**排布，每段 `[标签][p0][p1][p2][p3]`，
+  标签取 `Fio::SmartSegKind`（0=直线 / 1=二次贝塞尔 / 2=三次贝塞尔），以 double 存放；
+  段数由 `extensionDataSize` 反算，不信任 `vertexCount`（畸形文件可以给任意值）。
+- 只有**一段**时不套复合曲线容器，直接产出 `Line` 或 `Bezier`，少一层间接。
+- NanoSVG 把直线也升阶成三次贝塞尔（`nsvg__lineTo` 把控制点放在 1/3、2/3 处），
+  解析侧会识别回直线段（共线且控制点落在 `[p0,p1]` 内），渲染时不必再细分——
+  多边形/矩形轮廓型 SVG 几乎全部命中。
+- 闭合性由几何本身携带：NanoSVG 在 `addPath` 里已补上回到起点的闭合段，
+  因此 IR 不需要额外传闭合标记。
+
+为什么这么改：旧实现是「每段贝塞尔一个实体」，一条 10 段的 path 产出 10 个图元
+——语义上选不中整条路径，落地阶段还要为每段各走一遍 clone / R-tree insert /
+observer 通知。合成样本（1000 path × 10 段）实测：实体数 10000 → 1000，
+解析 19.7 ms → 9.3 ms，转换 2.8 ms → 1.7 ms。
+
+**图层按颜色划分，不按 `id`。** SVG 没有图层概念，早期实现拿 `shape->id` 当图层名，
+这在 Illustrator 导出的文件上凑巧可用（NanoSVG 会把 `<g id>` 继承给无 id 的子 shape），
+但 Figma / SVGO 导出的文件每个元素都带唯一 id，于是退化成「1 个图形 = 1 个图层」：
+1000 个 shape 就产出 1000 个图层，直接撞穿 `LayerManager::kMaxLayerCount = 1024`。
+现在的规则是：
+
+- 图层键 = 实体颜色（有描边取 `stroke`，纯填充取 `fill` 且需开启 `setImportFillAsOutline`），
+  图层名为 `#RRGGBB`，查找走 `unordered_map`（原线性扫描在多色文件上是 O(shape²)）；
+- 颜色种类上限 `kMaxSvgLayers = 256`，超出部分并入第一个图层并只告警一次
+  （不返回 0：0 是「未分配」哨兵，会让图元的图层归属显得凭空消失）；
+- 原始 `shape->id` 降级写入 `EntityInfo::name`，出问题时仍能把画布实体对回 SVG 元素。
+
+颜色是激光加工里唯一有工艺含义的分层维度（不同颜色 = 不同功率/速度），所以这是默认策略。
+若将来确实需要按 `<g>` id 分层，做法是给 `SvgParser` 加一个 `setLayerStrategy` 开关，
+而不是改回去。
+
+
 
 ### 5.4 OBJ
 
@@ -339,6 +376,19 @@ implemented for format=...`），不再静默返回空结果。
 少一处越界校验点。IR 侧已保证 id 稠密、缺父降级为顶层并告警、成环打断并告警；
 `ImportService` 侧再用 `SyGroup::wouldCreateCycle()` 兜底一次
 （群组 id 不复用 IR 的 `sourceId`，因为它与运行时 `EntityId` 空间会撞车）。
+
+**`IrPublisher` 侧的图层/群组闸门**（`addLayer` / `addGroup`，所有走 IR 的解析器共享）：
+
+- `addLayer` 按名字查重（键取截断后的 `IrLayerInfo::name`，与 `findLayer` 同一把键，
+  否则超长名字「登记得进、查不出来」，每个实体都会重复登记一次）；
+  查找走 `unordered_map`，不再线性扫描（DXF 是「每实体 + 每 INSERT 各查一次」）。
+- `kMaxLayers = 1024`，与 Engine 侧 `LayerManager::kMaxLayerCount` 对齐。触顶返回 0
+  （未分配 → 落到下游默认图层），只在首次触顶记一条 warning。**图元不因图层超限而丢**。
+- `kMaxGroups = 65536`。DXF 的 `INSERT` 阵列是「一次引用 = 一个群组」，
+  `cols`/`rows` 各自可达 4096，而空块阵列不推进 `kMaxExpandedEntities`，
+  所以群组必须单独设闸。触顶返回 `parentSourceId`：层级压平，但归属仍有效。
+- 两个 warned 标志随 `reset()` 复位，否则连续导入时第二个文件撞上限会静默。
+
 
 ### 6.1 告警文本不跨 DLL
 
@@ -541,8 +591,8 @@ DLL 入口与工厂的失败分支不再静默），前缀分层见 §6.2。
 **P1（下一批，主链路上的正确性缺口）**
 
 - PLT 的 `SC` / `IP` 真实实现（当前是占位，带 `SC` 的图纸尺寸会偏）。
-- SVG：圆弧/椭圆回拟合、连续直线段聚合为折线、`<g>` → `IrGroupInfo` 落地、
-  `transform=` 走 `IrXform`。
+- SVG：圆弧/椭圆回拟合、`<g>` → `IrGroupInfo` 落地、`transform=` 走 `IrXform`。
+  （「一条子路径聚合成一个实体」与「直线段识别」已完成，见 §5.3。）
 - DXF：`HATCH` 边界轮廓（至少取外边界）、`IMAGE` 落地为 `EntityType::Image`。
 - Native（`.sy`）迁移到 `Engine/Persistence`。
 - 把 `_fileio_add_sibling()` 与 DLL 拷贝块上提到 `CMake/StandaloneInit.cmake`，

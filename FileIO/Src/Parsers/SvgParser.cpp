@@ -11,10 +11,13 @@
 #include "nanosvg/nanosvg.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <cctype>
 #include <map>
 #include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
 #include <algorithm>
 #include <numeric>
@@ -451,12 +454,14 @@ namespace Fio
         NsvgInterpreter(std::vector<EntityInfo>& outEntities,
             std::vector<IrLayerInfo>& outLayers,
             std::vector<std::string>& warnings,
-            bool importFillAsOutline)
+            bool importFillAsOutline,
+            std::vector<uint8_t>& outBlob)
             : m_outEntities(outEntities)
             , m_outLayers(outLayers)
             , m_warnings(warnings)
             , m_importFillAsOutline(importFillAsOutline)
             , m_success(false)
+            , m_outBlob(outBlob)
         {
         }
 
@@ -548,18 +553,20 @@ namespace Fio
                     shapeColor = extractSvgColor(shape->stroke);
                 }
 
-                // Extract layer name from shape id (nanosvg propagates the <g> group id down to child shapes)
-                std::string layerName;
-                if (shape->id[0] != '\0')
-                {
-                    layerName = shape->id;
-                }
+                // 图层按**颜色**归并，不按 shape id。
+                // 原因：nanosvg 只把 <g id> 继承给无 id 的子 shape，Figma / SVGO 导出的文件
+                // 每个元素都带唯一 id，按 id 分层会变成「1 个图形 = 1 个图层」，
+                // 1000 个 shape 直接撞穿 LayerManager::kMaxLayerCount(1024)。
+                // 激光加工的实际用法本来就是按颜色区分工艺，颜色才是有意义的分层维度。
+                // 原始 id 降级写入 EntityInfo::name，源对象仍可追溯。
+                uint32_t layerSourceId = getOrCreateLayer(shapeColor);
 
-                uint32_t layerSourceId = getOrCreateLayer(layerName, shapeColor);
-
+                // 一条 <path> 里可能有多个子路径（M ... M ...），nanosvg 把每个子路径拆成
+                // 一个 NSVGpath。语义上「整条子路径 = 一个复合曲线实体」：选中就是整条，
+                // 不再是选中其中一段贝塞尔。
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
-                    convertPathToBezierEntities(svgPath, shapeColor, layerSourceId);
+                    convertPathToCompositeEntity(svgPath, shapeColor, layerSourceId, shape->id);
                 }
             }
 
@@ -573,47 +580,91 @@ namespace Fio
         bool m_importFillAsOutline;
         bool m_success;
 
-        // 按图层名查找或创建图层，返回图层 sourceId。
-        // SVG 无显式图层定义，以 shape/group 的 id 作为图层名。
-        uint32_t getOrCreateLayer(const std::string& name, const Ut::Vec3f& color)
-        {
-            const std::string layerName = name.empty() ? std::string("SVG") : name;
+        /// 复合曲线的段几何统一写在这里（EntityInfo 只记偏移与长度）
+        std::vector<uint8_t>& m_outBlob;
 
-            for (const auto& layer : m_outLayers)
+        /// 单条 path 的段缓冲，逐路径复用容量，避免每条路径各分配一次
+        std::vector<double> m_segBuf;
+
+
+        /// ARGB 颜色 → 图层 sourceId。O(1) 查找，取代原来对 m_outLayers 的线性扫描
+        /// （线性版在「每个 shape 一个图层」时是 O(shape²)）。
+        std::unordered_map<uint32_t, uint32_t> m_layerByColor;
+        bool m_layerLimitWarned = false;
+
+        /// 图层数上限。与 Engine 侧 LayerManager::kMaxLayerCount(1024) 留足余量：
+        /// 按颜色分层时 256 种已经远超任何真实激光工艺需求，
+        /// 超出部分统一并入第一个图层，避免畸形文件（如逐像素渐变描边）撑爆图层表。
+        static constexpr std::size_t kMaxSvgLayers = 256;
+
+        // 按颜色查找或创建图层，返回图层 sourceId。
+        // SVG 无显式图层定义；颜色是唯一有实际工艺含义的分层维度（激光按颜色区分功率/速度）。
+        uint32_t getOrCreateLayer(const Ut::Vec3f& color)
+        {
+            const uint32_t argb = packSvgColor(color);
+
+            const auto it = m_layerByColor.find(argb);
+            if (it != m_layerByColor.end())
             {
-                if (layerName == layer.name)
+                return it->second;
+            }
+
+            if (m_outLayers.size() >= kMaxSvgLayers)
+            {
+                // 并入第一个图层而不是返回 0：0 是「未分配」哨兵，会让图元落到下游默认图层，
+                // 颜色信息虽然还在 EntityInfo::color 上，但图层归属会显得凭空消失
+                if (!m_layerLimitWarned)
                 {
-                    return layer.sourceId;
+                    m_layerLimitWarned = true;
+                    m_warnings.push_back("SVG color count exceeds " + std::to_string(kMaxSvgLayers) +
+                        ", extra colors are merged into the first layer");
+                    SY_WARNF("[SvgParser] Color layer limit %zu reached, extra colors merged into layer 1",
+                        kMaxSvgLayers);
                 }
+                return 1u;
             }
 
             IrLayerInfo layer;
             // 1-based sourceId：0 保留为「未分配图层」哨兵
             layer.sourceId = static_cast<uint32_t>(m_outLayers.size()) + 1;
-            std::strncpy(layer.name, layerName.c_str(), sizeof(layer.name) - 1);
+            // 图层名用 #RRGGBB：导入后在图层面板里能直接看出这层是什么颜色
+            char nameBuf[8] = {};
+            std::snprintf(nameBuf, sizeof(nameBuf), "#%06X", static_cast<unsigned>(argb & 0x00FFFFFFu));
+            std::strncpy(layer.name, nameBuf, sizeof(layer.name) - 1);
             layer.name[sizeof(layer.name) - 1] = '\0';
-            layer.color = 0xFF000000 | (static_cast<uint8_t>(color.x() * 255.0f) << 16) |
-                (static_cast<uint8_t>(color.y() * 255.0f) << 8) | static_cast<uint8_t>(color.z() * 255.0f);
+            layer.color = argb;
             layer.visible = true;
             m_outLayers.push_back(layer);
+            m_layerByColor.emplace(argb, layer.sourceId);
             return layer.sourceId;
         }
 
-        void convertPathToBezierEntities(NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId)
+        /// 把一条子路径（nanosvg 的一个 NSVGpath）聚合成**一个**实体。
+        ///
+        /// 旧实现是「每段三次贝塞尔一个实体」：一条 10 段的 path 产出 10 个图元，
+        /// 语义上选不中整条路径，落地阶段还要为每段各走一遍 clone / R-tree insert /
+        /// observer 通知，是导入慢的主要放大器。现在的规则：
+        ///   - ≥2 段 → EntityType::SmartLine（复合曲线），几何写进扩展数据块；
+        ///   - 单段 → 直接产出 Line 或 Bezier，不套复合曲线容器（少一层间接）。
+        void convertPathToCompositeEntity(
+            NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId, const char* sourceName)
         {
             if (!svgPath || svgPath->npts < 4)
             {
                 return;
             }
 
-            float* pts = svgPath->pts;
-            int npts = svgPath->npts;
+            const float* pts = svgPath->pts;
+            const int npts = svgPath->npts;
+
+            // 段缓冲复用（每条 path 清空但不释放容量），避免逐路径反复分配
+            m_segBuf.clear();
+            m_segBuf.reserve(static_cast<std::size_t>(npts / 3) * kSmartSegStride);
 
             // nanosvg pts 布局: [x0,y0, cpx1,cpy1, cpx2,cpy2, x1,y1, ...]
             // 每段三次贝塞尔 = 一个起点 + 两个控制点 + 一个终点（相对起点增加 3 个点）。
-            // 保留贝塞尔曲线本身（而非离散成折线），每段生成一条 Bezier 实体。
-            // 注意：闭合路径时 nanosvg 已在 addPath 中补上一条回到起点的闭合线段（直线贝塞尔），
-            // 因此这里无需再额外处理闭合，直接逐段生成即可。
+            // 注意：闭合路径时 nanosvg 已在 addPath 中补上一条回到起点的闭合段，
+            // 所以闭合性由几何本身携带，不需要额外的闭合标记跨 DLL 传递。
             for (int i = 0; i + 3 < npts; i += 3)
             {
                 // Y 轴翻转：SVG Y 向下 -> 系统 Y 向上
@@ -644,30 +695,150 @@ namespace Fio
                     continue;
                 }
 
-                // 填充 EntityInfo：Bezier 类型（起点在 line.x1/y1，控制点/终点在 bezier 字段）
-                EntityInfo info{};
-                info.type = EntityType::Bezier;
-                info.sourceId = static_cast<uint64_t>(m_outEntities.size());
-                info.layerSourceId = layerSourceId;
-                info.visible = true;
-                info.color = packSvgColor(shapeColor);
-                info.line.x1 = p0.x();
-                info.line.y1 = p0.y();
-                info.bezier.c0x = c1.x();
-                info.bezier.c0y = c1.y();
-                info.bezier.c1x = c2.x();
-                info.bezier.c1y = c2.y();
-                info.bezier.ex = p1.x();
-                info.bezier.ey = p1.y();
-                m_outEntities.push_back(info);
+                appendSegment(p0, c1, c2, p1);
             }
+
+            if (m_segBuf.empty())
+            {
+                return;
+            }
+
+            EntityInfo info{};
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.layerSourceId = layerSourceId;
+            info.visible = true;
+            info.color = packSvgColor(shapeColor);
+            // 源 SVG 的 id（nanosvg 会把 <g id> 继承给无 id 的子 shape）。
+            // 不当图层名用，但保留下来：出问题时能把画布上的实体对回 SVG 里的元素。
+            if (sourceName != nullptr && sourceName[0] != '\0')
+            {
+                std::strncpy(info.name, sourceName, sizeof(info.name) - 1);
+                info.name[sizeof(info.name) - 1] = '\0';
+            }
+
+            const uint32_t segCount = static_cast<uint32_t>(m_segBuf.size() / kSmartSegStride);
+            if (segCount == 1)
+            {
+                fillSingleSegment(info, m_segBuf.data());
+                m_outEntities.push_back(info);
+                return;
+            }
+
+            const std::size_t bytes = m_segBuf.size() * sizeof(double);
+            // extensionDataOffset/Size 都是 uint32_t，越界就无法表达。
+            // 这里丢弃该路径而不是写入截断偏移——截断偏移会指向别的实体的数据（静默错乱）。
+            if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
+            {
+                m_warnings.push_back("SVG path dropped: extension blob would exceed 4 GiB");
+                SY_ERRORF("[SvgParser] Extension blob overflow at %zu bytes, path dropped", m_outBlob.size());
+                return;
+            }
+
+            info.type = EntityType::SmartLine;
+            info.vertexCount = segCount;
+            // 起点 = 第一段的 p0（段记录里下标 1、2 就是 p0.x / p0.y）
+            info.line.x1 = m_segBuf[1];
+            info.line.y1 = m_segBuf[2];
+            info.extensionDataOffset = static_cast<uint32_t>(m_outBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(bytes);
+
+            const auto* raw = reinterpret_cast<const uint8_t*>(m_segBuf.data());
+            m_outBlob.insert(m_outBlob.end(), raw, raw + bytes);
+            m_outEntities.push_back(info);
+        }
+
+        /// 追加一段到段缓冲，按 kSmartSegStride 定长排布：[标签][p0][p1][p2][p3]
+        void appendSegment(const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1)
+        {
+            // nanosvg 把直线也升阶成三次贝塞尔（nsvg__lineTo 把两个控制点放在 1/3、2/3 处），
+            // 识别回直线是有实际收益的：渲染侧不必再细分这一段。
+            // 折线型 SVG（多边形、矩形轮廓）几乎全部命中，顶点量能少一个量级。
+            if (isStraightCubic(p0, c1, c2, p1))
+            {
+                m_segBuf.push_back(static_cast<double>(SmartSegKind::Line));
+                m_segBuf.push_back(p0.x());
+                m_segBuf.push_back(p0.y());
+                m_segBuf.push_back(p1.x());
+                m_segBuf.push_back(p1.y());
+                m_segBuf.push_back(0.0);
+                m_segBuf.push_back(0.0);
+                m_segBuf.push_back(0.0);
+                m_segBuf.push_back(0.0);
+                return;
+            }
+
+            m_segBuf.push_back(static_cast<double>(SmartSegKind::Bezier));
+            m_segBuf.push_back(p0.x());
+            m_segBuf.push_back(p0.y());
+            m_segBuf.push_back(c1.x());
+            m_segBuf.push_back(c1.y());
+            m_segBuf.push_back(c2.x());
+            m_segBuf.push_back(c2.y());
+            m_segBuf.push_back(p1.x());
+            m_segBuf.push_back(p1.y());
+        }
+
+        /// 单段路径：不套复合曲线容器，直接填成 Line / Bezier
+        static void fillSingleSegment(EntityInfo& info, const double* seg)
+        {
+            const auto kind = static_cast<SmartSegKind>(static_cast<int>(seg[0]));
+            if (kind == SmartSegKind::Line)
+            {
+                info.type = EntityType::Line;
+                info.line.x1 = seg[1];
+                info.line.y1 = seg[2];
+                info.line.x2 = seg[3];
+                info.line.y2 = seg[4];
+                return;
+            }
+
+            info.type = EntityType::Bezier;
+            // 转换层约定：Bezier 的起点借用 line.x1/y1
+            info.line.x1 = seg[1];
+            info.line.y1 = seg[2];
+            info.bezier.c0x = seg[3];
+            info.bezier.c0y = seg[4];
+            info.bezier.c1x = seg[5];
+            info.bezier.c1y = seg[6];
+            info.bezier.ex = seg[7];
+            info.bezier.ey = seg[8];
+        }
+
+        /// 判断一段三次贝塞尔是否等价于直线：两个控制点都落在 p0→p1 线段上
+        static bool isStraightCubic(
+            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1)
+        {
+            const double dx = p1.x() - p0.x();
+            const double dy = p1.y() - p0.y();
+            const double len2 = dx * dx + dy * dy;
+            if (len2 < 1e-24)
+            {
+                // 首尾重合：这是个环形段，压成零长直线会丢掉整段几何，交给贝塞尔分支
+                return false;
+            }
+            const double len = std::sqrt(len2);
+            const double tol = 1e-6 * len;  // 相对容差：跟着图纸尺度缩放
+
+            // 点到直线距离 = |叉积| / |方向|
+            const double d1 = std::fabs((c1.x() - p0.x()) * dy - (c1.y() - p0.y()) * dx) / len;
+            const double d2 = std::fabs((c2.x() - p0.x()) * dy - (c2.y() - p0.y()) * dx) / len;
+            if (d1 > tol || d2 > tol)
+            {
+                return false;
+            }
+
+            // 还要求控制点在 [p0,p1] 之间：共线但落在延长线上的控制点会让曲线折返，
+            // 那不是直线（会先冲出去再回来）
+            const double t1 = ((c1.x() - p0.x()) * dx + (c1.y() - p0.y()) * dy) / len2;
+            const double t2 = ((c2.x() - p0.x()) * dx + (c2.y() - p0.y()) * dy) / len2;
+            return t1 >= -1e-9 && t1 <= 1.0 + 1e-9 && t2 >= -1e-9 && t2 <= 1.0 + 1e-9;
         }
     };
 
     // ========================================================================
     // SvgParser::parseToIR() — 中立 IR 解析路径
-    // SVG path → 保留三次贝塞尔曲线 → 每段生成一条 Bezier 实体（不离散为折线）
-    // 不依赖 Engine2D 类型，跨 DLL 安全
+    // SVG 子路径 → 一个实体（多段为 SmartLine 复合曲线，单段为 Line/Bezier），
+    // 不离散为折线；不依赖 Engine2D 类型，跨 DLL 安全
     // ========================================================================
     FioParseResult SvgParser::parseToIR(const char* filePath)
     {
@@ -691,7 +862,7 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(s_entities, s_layers, s_warnings, m_importFillAsOutline);
+            NsvgInterpreter interpreter(s_entities, s_layers, s_warnings, m_importFillAsOutline, s_extensionBlob);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {

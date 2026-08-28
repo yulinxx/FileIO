@@ -105,6 +105,12 @@ namespace Fio
         m_groups.clear();
         m_blob.clear();
         m_warnings.clear();
+        m_layerIndex.clear();
+
+        // 触顶告警是「每次解析一条」的语义，必须随缓冲区一起复位，
+        // 否则第二个文件撞上限时会静默
+        m_layerLimitWarned = false;
+        m_groupLimitWarned = false;
     }
 
     uint32_t IrPublisher::appendBlob(const void* data, std::size_t bytes)
@@ -132,18 +138,59 @@ namespace Fio
     uint32_t IrPublisher::addLayer(const std::string& name, uint32_t argbColor, bool visible, bool locked)
     {
         IrLayerInfo li;
+        copyFixed(li.name, name);
+
+        // 索引键统一用截断后的名字：DXF 里两个超长图层名可能截断后相同，
+        // 若用原名做键就会登记两条 name 完全一致的图层，下游按名字还原时必然错乱
+        const std::string key(li.name);
+
+        // 查重：DXF 的 LAYER 表允许重复记录，SVG 按颜色分层时更是天然大量重复调用
+        const auto it = m_layerIndex.find(key);
+        if (it != m_layerIndex.end())
+        {
+            return it->second;
+        }
+
+        if (m_layers.size() >= kMaxLayers)
+        {
+            // 返回 0（未分配）让图元落到下游默认图层——图元不能因为图层超限而丢
+            if (!m_layerLimitWarned)
+            {
+                m_layerLimitWarned = true;
+                m_warnings.push_back("Layer count reached the limit (" + std::to_string(kMaxLayers) +
+                                     "), extra layers are merged into the default layer");
+                SY_WARNF("[IrProjector] Layer limit %zu reached, subsequent layers fall back to default: '%s'",
+                    kMaxLayers, key.c_str());
+            }
+            return 0u;
+        }
+
         // 1-based：0 保留为「未分配图层」哨兵（与 EntityInfo::layerSourceId 默认值一致）
         li.sourceId = static_cast<uint32_t>(m_layers.size()) + 1u;
-        copyFixed(li.name, name);
         li.color = argbColor;
         li.visible = visible;
         li.locked = locked;
         m_layers.push_back(li);
+        m_layerIndex.emplace(key, li.sourceId);
         return li.sourceId;
     }
 
     uint64_t IrPublisher::addGroup(const std::string& name, uint64_t parentSourceId)
     {
+        if (m_groups.size() >= kMaxGroups)
+        {
+            // 退回父群组：层级在这里被压平，但图元的归属仍然有效，不会变成孤立图元
+            if (!m_groupLimitWarned)
+            {
+                m_groupLimitWarned = true;
+                m_warnings.push_back("Group count reached the limit (" + std::to_string(kMaxGroups) +
+                                     "), extra groups are flattened into their parent");
+                SY_WARNF("[IrProjector] Group limit %zu reached, subsequent groups are flattened into parent %llu",
+                    kMaxGroups, static_cast<unsigned long long>(parentSourceId));
+            }
+            return parentSourceId;
+        }
+
         IrGroupInfo gi;
         // 1-based：0 保留为「无群组」哨兵（与 EntityInfo::groupSourceId 默认值一致）
         gi.sourceId = static_cast<uint64_t>(m_groups.size()) + 1u;
@@ -155,14 +202,13 @@ namespace Fio
 
     uint32_t IrPublisher::findLayer(const std::string& name) const
     {
-        for (const auto& li : m_layers)
-        {
-            if (name == li.name)
-            {
-                return li.sourceId;
-            }
-        }
-        return 0u;
+        // 必须与 addLayer 用同一把键：先按 IrLayerInfo::name 的容量截断再查，
+        // 否则长名图层「登记得进、查不出来」，每个实体都会触发一次重复登记
+        char buf[sizeof(IrLayerInfo::name)];
+        copyFixed(buf, name);
+
+        const auto it = m_layerIndex.find(std::string(buf));
+        return it != m_layerIndex.end() ? it->second : 0u;
     }
 
     FioParseResult IrPublisher::publish(const char* sourceFormat, const char* sourceUnit)
@@ -538,6 +584,12 @@ namespace Fio
             }
             for (std::size_t i = 0; i < data.groups.size(); ++i)
             {
+                // addGroup 触顶后会拒绝新建，pub.groups() 与 data.groups 的下标就不再一一对应。
+                // 此时继续按 i 改写会把父引用写到别的群组上，宁可整段跳过（层级压平但不错乱）。
+                if (pub.groups().size() != data.groups.size())
+                {
+                    break;
+                }
                 const uint64_t parent = data.groups[i].parentGroupSourceId;
                 if (parent == 0u)
                 {
