@@ -114,10 +114,10 @@ namespace Fio
             *outLayerCount = 0;
         }
 
-        SY_INFOF("[FileIO] Importing file: %s (format=%d)", filePath ? filePath : "", static_cast<int>(format));
+        // Import file entry point
         if (format == FileFormat::STEP)
         {
-            SY_INFOF("[FileIO] STEP/STP import requested: %s", filePath ? filePath : "");
+            // STEP import
         }
 
         // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
@@ -210,7 +210,6 @@ namespace Fio
             *outCount = count;
         }
 
-        SY_INFOF("[FileIO] Imported %zu entities", count);
         return true;
     }
 
@@ -235,7 +234,7 @@ namespace Fio
             *outResult = FioParseResult{};
         }
 
-        SY_INFOF("[FileIO] Importing to IR: %s (format=%d)", filePath ? filePath : "", static_cast<int>(format));
+        // Import to IR entry point
 
         // [F9-P1 修复] 移除操作开始前的"成功"回调。旧代码在解析前就报 success=true，
         // 导致调用方无法区分"操作开始"和"操作完成成功"。回调仅在操作完成后触发。
@@ -327,13 +326,6 @@ namespace Fio
             *outResult = result;
         }
 
-        SY_INFOF("[FileIO] importToIR done: %u entities, %u layers, %u groups, %u warnings, unit='%s', format='%s'",
-            result.entityCount,
-            result.layerCount,
-            result.groupCount,
-            result.warningCount,
-            result.sourceUnit,
-            result.sourceFormat);
         return true;
     }
 
@@ -362,10 +354,7 @@ namespace Fio
         char* errorBuffer,
         size_t errorBufferSize)
     {
-        SY_INFOF("[FileIO] Exporting file: %s (format=%d, entities=%zu)",
-            filePath ? filePath : "",
-            static_cast<int>(format),
-            entityCount);
+        // Export file entry point
 
         // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
 

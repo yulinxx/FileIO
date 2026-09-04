@@ -1,4 +1,4 @@
-﻿#include "FileIO/Writers/NativeWriter.h"
+#include "FileIO/Writers/NativeWriter.h"
 #include "FileIO/SySerializer.h"
 #include "FileIO/SyDocument.h"
 #include "MetadataFiller.h"
@@ -43,7 +43,7 @@ namespace Fio
     NativeWriter::NativeWriter(FileFormat fmt)
         : m_impl(std::make_unique<Impl>(fmt))
     {
-        SY_INFOF("[NativeWriter] Created for format=%d (%s)",
+        SY_DEBUGF("[NativeWriter] Created for format=%d (%s)",
             static_cast<int>(fmt),
             (fmt == FileFormat::Native3D) ? "3D" : "2D");
     }
@@ -91,7 +91,7 @@ namespace Fio
 
     WriteResult NativeWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
-        SY_INFOF("[NativeWriter] write(): path=%s, entities=%zu, format=%d",
+        SY_DEBUGF("[NativeWriter] write(): path=%s, entities=%zu, format=%d",
             filePath ? filePath : "(null)",
             entities.size(),
             static_cast<int>(m_impl->targetFormat));
@@ -130,7 +130,7 @@ namespace Fio
             return WriteResult::fail("Empty file path");
         }
 
-        SY_INFOF("[NativeWriter] writeDocument(): path=%s, format=%d", filePath, static_cast<int>(m_impl->targetFormat));
+        SY_DEBUGF("[NativeWriter] writeDocument(): path=%s, format=%d", filePath, static_cast<int>(m_impl->targetFormat));
 
         auto result = m_impl->serializer.saveToFile(filePath, doc, false, m_impl->targetFormat);
         if (!result.success)
@@ -139,7 +139,7 @@ namespace Fio
             return WriteResult::fail(result.errorMessage);
         }
 
-        SY_INFOF("[NativeWriter] writeDocument() succeeded: %s", filePath);
+        SY_DEBUGF("[NativeWriter] writeDocument() succeeded: %s", filePath);
         return WriteResult::ok();
     }
 }  // namespace Fio

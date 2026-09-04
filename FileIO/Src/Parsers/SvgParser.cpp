@@ -124,16 +124,16 @@ namespace Fio
         }
 
         // Extract SVG color from nanosvg paint, returns normalized RGB (0-1)
-        // 注意：nanosvg 的颜色格式为 0xAABBGGRR（见 NSVG_RGB: r | g<<8 | b<<16，alpha 在高字节），
-        // 与常见的 0xAARRGGBB 不同，直接按高位取会红蓝互换。
+        // nanosvg 使用 0xAABBGGRR 格式（ABGR）
         Ut::Vec3f extractSvgColor(const NSVGpaint& paint)
         {
             if (paint.type == NSVG_PAINT_COLOR)
             {
                 unsigned int color = paint.color;
-                float r = static_cast<float>(color & 0xFF) / 255.0f;
+                // ABGR 格式：color & 0xFF = B, (>>8) & 0xFF = G, (>>16) & 0xFF = R
+                float r = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
                 float g = static_cast<float>((color >> 8) & 0xFF) / 255.0f;
-                float b = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
+                float b = static_cast<float>(color & 0xFF) / 255.0f;
                 return Ut::Vec3f(r, g, b);
             }
             // For gradients or unknown types, return default color
@@ -546,11 +546,27 @@ namespace Fio
                     {
                         continue;
                     }
+                    // 没有 stroke 时，优先用 fill 的颜色
                     shapeColor = extractSvgColor(shape->fill);
+                    SY_INFOF("[SvgParser] shape stroke=none, fill.type=%d color=(%f,%f,%f)",
+                        shape->fill.type, shapeColor.x(), shapeColor.y(), shapeColor.z());
+                    // 如果 fill 也是 none，尝试用 stroke
+                    if (shape->fill.type != NSVG_PAINT_COLOR && shape->stroke.type == NSVG_PAINT_COLOR)
+                    {
+                        shapeColor = extractSvgColor(shape->stroke);
+                    }
                 }
                 else
                 {
+                    // 有 stroke 时，优先用 stroke 的颜色
                     shapeColor = extractSvgColor(shape->stroke);
+                    SY_INFOF("[SvgParser] shape hasStroke stroke.type=%d color=(%f,%f,%f)",
+                        shape->stroke.type, shapeColor.x(), shapeColor.y(), shapeColor.z());
+                    // 如果 stroke 是 none，尝试用 fill
+                    if (shape->stroke.type != NSVG_PAINT_COLOR && shape->fill.type == NSVG_PAINT_COLOR)
+                    {
+                        shapeColor = extractSvgColor(shape->fill);
+                    }
                 }
 
                 // 图层按**颜色**归并，不按 shape id。
