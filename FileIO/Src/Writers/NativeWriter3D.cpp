@@ -32,7 +32,8 @@ namespace Fio
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
         {
-            std::strcpy(buffer, name);
+            std::strncpy(buffer, name, bufferSize - 1);
+            buffer[bufferSize - 1] = '\0';
         }
         return len;
     }
@@ -43,7 +44,8 @@ namespace Fio
         const size_t len = std::strlen(ext);
         if (buffer != nullptr && bufferSize > len)
         {
-            std::strcpy(buffer, ext);
+            std::strncpy(buffer, ext, bufferSize - 1);
+            buffer[bufferSize - 1] = '\0';
         }
         return len;
     }
