@@ -42,6 +42,8 @@ namespace Fio
                 return sanyi::proto::ENTITY_BEZIER;
             case Eg::EType::SPLINE:
                 return sanyi::proto::ENTITY_SPLINE;
+            case Eg::EType::NURBS:
+                return sanyi::proto::ENTITY_NURBS;
             case Eg::EType::SMARTLINE:
                 return sanyi::proto::ENTITY_SMARTLINE;
             case Eg::EType::TEXT:
@@ -84,7 +86,7 @@ namespace Fio
             case sanyi::proto::ENTITY_SPLINE:
                 return Eg::EType::SPLINE;
             case sanyi::proto::ENTITY_NURBS:
-                return Eg::EType::SPLINE;
+                return Eg::EType::NURBS;
             case sanyi::proto::ENTITY_SMARTLINE:
                 return Eg::EType::SMARTLINE;
             case sanyi::proto::ENTITY_TEXT:
