@@ -1803,12 +1803,10 @@ namespace Fio
 
             size_t entityCount = outEntities.size();
             size_t layerCount = converter.getLayerDefs().size();
-            SY_INFOF("[DxfParser] Parse completed: %zu entities, %zu layers", entityCount, layerCount);
 
             ParseResult result = ParseResult::ok();
             result.warnings = warnings;
 
-            SY_INFOF("[DxfParser] Processing layers: count=%zu", layerCount);
             for (const auto& dl : converter.getLayerDefs())
             {
                 DxfLayerInfo info;
@@ -1824,7 +1822,7 @@ namespace Fio
             result.entityLayerMap = converter.getEntityLayerMap();
             result.entityColorMap = converter.getEntityColorMap();
 
-            SY_INFOF("[DxfParser] parse END: success, entities=%zu", entityCount);
+            SY_INFOF("[DxfParser] parse END: success, entities=%zu, layers=%zu", entityCount, layerCount);
             return result;
         }
         catch (const std::exception& ex)

@@ -525,6 +525,10 @@ namespace Fio
             // Wrap in RAII pointer for exception safety
             NsvgImagePtr image(rawImage);
 
+            size_t shapeCount = 0;
+            size_t strokeCount = 0;
+            size_t fillOnlyCount = 0;
+
             for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next)
             {
                 bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
@@ -534,6 +538,8 @@ namespace Fio
                 {
                     continue;
                 }
+
+                ++shapeCount;
 
                 // 默认“只保留描边线条”：丢弃纯填充（fill-only）图形。
                 // nanosvg 会把填充区域自动闭合并给出轮廓多边形，若直接绘成线条就会多出
@@ -548,8 +554,7 @@ namespace Fio
                     }
                     // 没有 stroke 时，优先用 fill 的颜色
                     shapeColor = extractSvgColor(shape->fill);
-                    SY_INFOF("[SvgParser] shape stroke=none, fill.type=%d color=(%f,%f,%f)",
-                        shape->fill.type, shapeColor.x(), shapeColor.y(), shapeColor.z());
+                    ++fillOnlyCount;
                     // 如果 fill 也是 none，尝试用 stroke
                     if (shape->fill.type != NSVG_PAINT_COLOR && shape->stroke.type == NSVG_PAINT_COLOR)
                     {
@@ -560,8 +565,7 @@ namespace Fio
                 {
                     // 有 stroke 时，优先用 stroke 的颜色
                     shapeColor = extractSvgColor(shape->stroke);
-                    SY_INFOF("[SvgParser] shape hasStroke stroke.type=%d color=(%f,%f,%f)",
-                        shape->stroke.type, shapeColor.x(), shapeColor.y(), shapeColor.z());
+                    ++strokeCount;
                     // 如果 stroke 是 none，尝试用 fill
                     if (shape->stroke.type != NSVG_PAINT_COLOR && shape->fill.type == NSVG_PAINT_COLOR)
                     {
@@ -585,6 +589,9 @@ namespace Fio
                     convertPathToCompositeEntity(svgPath, shapeColor, layerSourceId, shape->id);
                 }
             }
+
+            SY_DEBUGF("[SvgParser] Parsed %zu visible shapes: %zu stroked, %zu fill-only",
+                shapeCount, strokeCount, fillOnlyCount);
 
             m_success = !m_outEntities.empty();
         }
