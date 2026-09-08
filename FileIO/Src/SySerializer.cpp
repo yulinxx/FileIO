@@ -112,6 +112,9 @@ namespace Fio
                 l->set_color(layer.color);
                 l->set_visible(layer.visible);
                 l->set_locked(layer.locked);
+                l->set_layer_type(layer.layerType);
+                l->set_fill(layer.fill);
+                l->set_fill_color(layer.fillColor);
                 toProtoProperties(layer.customProperties, protoDoc, l->mutable_custom_properties());
             }
 
@@ -205,6 +208,9 @@ namespace Fio
                 layer.color = l.color();
                 layer.visible = l.visible();
                 layer.locked = l.locked();
+                layer.layerType = l.layer_type();
+                layer.fill = l.fill();
+                layer.fillColor = l.fill_color();
                 layer.customProperties = fromProtoProperties(l.custom_properties());
                 docData.layers.push_back(std::move(layer));
             }

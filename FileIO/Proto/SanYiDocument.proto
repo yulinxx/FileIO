@@ -92,6 +92,9 @@ message LayerData {
     bool   visible          = 4;   // 可见性
     bool   locked           = 5;   // 锁定状态
     repeated PropertyEntry custom_properties = 6;  // 图层扩展属性
+    uint32 layer_type       = 7;   // 图层类型 (0=VECTOR, 1=BITMAP)
+    bool   fill             = 8;   // 是否填充图层
+    uint32 fill_color       = 9;   // 填充颜色 ARGB
 }
 
 // ---------------------------- 硬件信息 ----------------------------

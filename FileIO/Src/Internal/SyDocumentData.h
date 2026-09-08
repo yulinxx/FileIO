@@ -47,6 +47,9 @@ namespace Fio
         uint32_t color = 0xFF000000;   // ARGB 颜色
         bool visible = true;           // 可见性
         bool locked = false;           // 锁定
+        uint32_t layerType = 0;        // 图层类型 (0=VECTOR, 1=BITMAP)
+        bool fill = false;             // 是否填充图层
+        uint32_t fillColor = 0xFFFFFFFF; // 填充颜色 ARGB
         PropertyMap customProperties;  // 扩展属性
     };
 
