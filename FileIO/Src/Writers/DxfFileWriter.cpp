@@ -1,4 +1,4 @@
-﻿#include "FileIO/Writers/DxfWriter.h"
+#include "FileIO/Writers/DxfFileWriter.h"
 
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyArc.h"
@@ -37,12 +37,12 @@ namespace Fio
         }
     }  // namespace
 
-    FileFormat DxfWriter::format() const
+    FileFormat DxfFileWriter::format() const
     {
         return FileFormat::DXF;
     }
 
-    size_t DxfWriter::formatName(char* buffer, size_t bufferSize) const
+    size_t DxfFileWriter::formatName(char* buffer, size_t bufferSize) const
     {
         const char* name = "AutoCAD DXF";
         const size_t len = std::strlen(name);
@@ -54,7 +54,7 @@ namespace Fio
         return len;
     }
 
-    size_t DxfWriter::defaultExtension(char* buffer, size_t bufferSize) const
+    size_t DxfFileWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
         const char* ext = "dxf";
         const size_t len = std::strlen(ext);
@@ -66,7 +66,7 @@ namespace Fio
         return len;
     }
 
-    WriteResult DxfWriter::write(const char* filePath, const VecSyEntityPtr& entities)
+    WriteResult DxfFileWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
         if (entities.empty())
         {

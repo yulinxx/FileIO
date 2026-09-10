@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef _USE_MATH_DEFINES
-    #define _USE_MATH_DEFINES
-#endif
-
 #include "FileIO/FioTypes.h"
 #include "Ut/Vec.h"
 #include "FileIO/FileFormat.h"
@@ -11,9 +7,14 @@
 #include <string>
 #include <vector>
 #include <regex>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <algorithm>
 #include <cctype>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace Fio
 {

@@ -5,7 +5,7 @@
 
 namespace Fio
 {
-    class FILEIO_API DxfWriter : public IFileWriter, public ILegacyWriter
+    class FILEIO_API DxfFileWriter : public IFileWriter, public ILegacyWriter
     {
     public:
         FileFormat format() const override;

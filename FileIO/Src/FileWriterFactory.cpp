@@ -1,6 +1,6 @@
 #include "FileIO/FileWriterFactory.h"
 #include "FileIO/IFileWriter.h"
-#include "FileIO/Writers/DxfWriter.h"
+#include "FileIO/Writers/DxfFileWriter.h"
 #include "FileIO/Writers/SvgWriter.h"
 #include "FileIO/Writers/PltWriter.h"
 #include "FileIO/Writers/NativeWriter.h"
@@ -82,7 +82,7 @@ namespace Fio
         registerWriter(
             FileFormat::DXF,
             []() -> IFileWriter* {
-                return new DxfWriter();
+                return new DxfFileWriter();
             },
             "dxf");
 
