@@ -1,7 +1,7 @@
-// DXF 实体级导入测试（非块引用部分）
+// DXF 图元级导入测试（非块引用部分）
 //
 // 覆盖 Phase C-2 补齐的几项：bulge 圆弧、闭合标志、OCS→WCS 挤出方向、$INSUNITS 单位、
-// SOLID/TRACE/3DFACE 四边形、拟合点式 SPLINE 降级、未支持实体是否留下 warning。
+// SOLID/TRACE/3DFACE 四边形、拟合点式 SPLINE 降级、未支持图元是否留下 warning。
 
 #include <gtest/gtest.h>
 

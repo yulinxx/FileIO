@@ -184,7 +184,7 @@ Mesh3D / 折线顶点四条分支都经过它。
 | SVG / SVGZ | `.svg` `.svgz` | `SvgParser` | NanoSVG，可选 zlib | 见 §5.3 |
 | PDF | `.pdf` | `PdfParser` : `PdfBasedParser` | 外部进程 `pdftocairo` | 转 SVG 后复用 `SvgParser` |
 | AI | `.ai` | `AiParser` : `PdfBasedParser` | `pdftocairo` + Ghostscript | PDF 基 / PS 基两条路 |
-| IGES | `.igs` `.iges` | `UgParser` | 无（自写文本解析） | 实体码 100/106/110/116 |
+| IGES | `.igs` `.iges` | `UgParser` | 无（自写文本解析） | 图元码 100/106/110/116 |
 | STEP | `.stp` `.step` | `StepParser` | GeoModelCore（可选，底层 OCC） | 未启用时返回失败 |
 | OBJ | `.obj` | `ObjParser` | 无 | 见 §5.4 |
 | STL | `.stl` | `StlParser` | 无 | ASCII / 二进制自动识别 |
@@ -218,7 +218,7 @@ Main 侧同样统一：所有 reader 都是 `ImportReaderBase::readViaIR(context
 `DxfParser` 内有两个 `DRW_Interface` 实现：一个负责收集（含 BLOCK 定义），
 一个负责发布；这样才能在 `endBlock` 之后再展开 `INSERT`。
 
-**实体覆盖**
+**图元覆盖**
 
 - 直接落地：`LINE` `POINT` `CIRCLE` `ARC` `ELLIPSE` `LWPOLYLINE` `POLYLINE`
   `SPLINE` `TEXT` `MTEXT` `SOLID` `TRACE` `3DFACE` `INSERT`（块展开）
@@ -233,12 +233,12 @@ Main 侧同样统一：所有 reader 都是 `ImportReaderBase::readViaIR(context
 每个 `INSERT` 实例产出一个 `IrGroupInfo`，嵌套块产出嵌套群组。
 护栏：`kMaxBlockDepth = 16`、`kMaxExpandedEntities = 2'000'000`、`kMaxArrayCount = 4096`；
 引用未定义块时告警并跳过。块定义自身**不**进入模型空间（修好的旧缺陷：
-以前块定义里的实体会连同展开结果一起落地，导致重影）。
+以前块定义里的图元会连同展开结果一起落地，导致重影）。
 
 **颜色**
 
 真彩色 > ACI 索引 > `BYLAYER(256)` > `BYBLOCK(0)`。图层 `"0"` 参与继承。
-实体色写入 `EntityInfo::color`（0xAARRGGBB，0 表示未指定，由消费方回退到图层色），
+图元色写入 `EntityInfo::color`（0xAARRGGBB，0 表示未指定，由消费方回退到图层色），
 以「覆盖色」形式应用，避免被图层去重逻辑吞掉。
 
 **坐标系与单位**
@@ -272,7 +272,7 @@ NanoSVG 会把所有路径统一成三次贝塞尔序列，因此当前导入结
 ——圆弧回拟合列为 P1。`<g>` 应产出 `IrGroupInfo`（IR 通道已就绪），
 但 SVG 侧的群组落地尚未接线，同列 P1。
 
-**一条子路径 = 一个实体。** NanoSVG 把每个子路径（`M ... M ...` 之间）拆成一个
+**一条子路径 = 一个图元。** NanoSVG 把每个子路径（`M ... M ...` 之间）拆成一个
 `NSVGpath`，一条子路径的所有段聚合成**一个** `EntityType::SmartLine`（复合曲线），
 几何写进 `extensionBlob`：
 
@@ -286,9 +286,9 @@ NanoSVG 会把所有路径统一成三次贝塞尔序列，因此当前导入结
 - 闭合性由几何本身携带：NanoSVG 在 `addPath` 里已补上回到起点的闭合段，
   因此 IR 不需要额外传闭合标记。
 
-为什么这么改：旧实现是「每段贝塞尔一个实体」，一条 10 段的 path 产出 10 个图元
+为什么这么改：旧实现是「每段贝塞尔一个图元」，一条 10 段的 path 产出 10 个图元
 ——语义上选不中整条路径，落地阶段还要为每段各走一遍 clone / R-tree insert /
-observer 通知。合成样本（1000 path × 10 段）实测：实体数 10000 → 1000，
+observer 通知。合成样本（1000 path × 10 段）实测：图元数 10000 → 1000，
 解析 19.7 ms → 9.3 ms，转换 2.8 ms → 1.7 ms。
 
 **图层按颜色划分，不按 `id`。** SVG 没有图层概念，早期实现拿 `shape->id` 当图层名，
@@ -297,11 +297,11 @@ observer 通知。合成样本（1000 path × 10 段）实测：实体数 10000 
 1000 个 shape 就产出 1000 个图层，直接撞穿 `LayerManager::kMaxLayerCount = 1024`。
 现在的规则是：
 
-- 图层键 = 实体颜色（有描边取 `stroke`，纯填充取 `fill` 且需开启 `setImportFillAsOutline`），
+- 图层键 = 图元颜色（有描边取 `stroke`，纯填充取 `fill` 且需开启 `setImportFillAsOutline`），
   图层名为 `#RRGGBB`，查找走 `unordered_map`（原线性扫描在多色文件上是 O(shape²)）；
 - 颜色种类上限 `kMaxSvgLayers = 256`，超出部分并入第一个图层并只告警一次
   （不返回 0：0 是「未分配」哨兵，会让图元的图层归属显得凭空消失）；
-- 原始 `shape->id` 降级写入 `EntityInfo::name`，出问题时仍能把画布实体对回 SVG 元素。
+- 原始 `shape->id` 降级写入 `EntityInfo::name`，出问题时仍能把画布图元对回 SVG 元素。
 
 颜色是激光加工里唯一有工艺含义的分层维度（不同颜色 = 不同功率/速度），所以这是默认策略。
 若将来确实需要按 `<g>` id 分层，做法是给 `SvgParser` 加一个 `setLayerStrategy` 开关，
@@ -367,11 +367,11 @@ implemented for format=...`），不再静默返回空结果。
 | 通道 | IR 载体 | 消费者 |
 |---|---|---|
 | 图层 | `FioParseResult::layers` + `EntityInfo::layerSourceId` | `ImportService::restoreImportedLayers`（按名 → 按色 → 新建三级复用） |
-| 实体色 | `EntityInfo::color`（0 = 未指定） | 转换层按覆盖色应用，不被图层去重吞掉 |
+| 图元色 | `EntityInfo::color`（0 = 未指定） | 转换层按覆盖色应用，不被图层去重吞掉 |
 | 群组 | `FioParseResult::groups` + `EntityInfo::groupSourceId` | `ImportService::restoreImportedGroups` → `Eg::GroupManager` |
 | 位图 | `EntityType::Image` + `imageWidth/Height` + extensionBlob | `FioEntityConverter`（越界校验后建图元） |
 
-**群组只单向记录成员关系**：实体记 `groupSourceId`，`IrGroupInfo` 只记 `parentSourceId`，
+**群组只单向记录成员关系**：图元记 `groupSourceId`，`IrGroupInfo` 只记 `parentSourceId`，
 不存成员列表。理由是与 `layerSourceId` 同构、双向存储不一致时无裁决依据、
 少一处越界校验点。IR 侧已保证 id 稠密、缺父降级为顶层并告警、成环打断并告警；
 `ImportService` 侧再用 `SyGroup::wouldCreateCycle()` 兜底一次
@@ -380,8 +380,8 @@ implemented for format=...`），不再静默返回空结果。
 **`IrPublisher` 侧的图层/群组闸门**（`addLayer` / `addGroup`，所有走 IR 的解析器共享）：
 
 - `addLayer` 按名字查重（键取截断后的 `IrLayerInfo::name`，与 `findLayer` 同一把键，
-  否则超长名字「登记得进、查不出来」，每个实体都会重复登记一次）；
-  查找走 `unordered_map`，不再线性扫描（DXF 是「每实体 + 每 INSERT 各查一次」）。
+  否则超长名字「登记得进、查不出来」，每个图元都会重复登记一次）；
+  查找走 `unordered_map`，不再线性扫描（DXF 是「每图元 + 每 INSERT 各查一次」）。
 - `kMaxLayers = 1024`，与 Engine 侧 `LayerManager::kMaxLayerCount` 对齐。触顶返回 0
   （未分配 → 落到下游默认图层），只在首次触顶记一条 warning。**图元不因图层超限而丢**。
 - `kMaxGroups = 65536`。DXF 的 `INSERT` 阵列是「一次引用 = 一个群组」，
@@ -407,12 +407,12 @@ implemented for format=...`），不再静默返回空结果。
 [ImportService]      五阶段主流程 + 图元分拣/落地/图层群组还原统计
 [ImportDispatcher]   命中哪个读取器、读取器总耗时
 [ImportReader:DXF]   IR 解析耗时与统计、转换层丢弃差额、legacy 回退告警
-[FileIO]             DLL 入口：parser 缺失 / 异常 / 零实体
+[FileIO]             DLL 入口：parser 缺失 / 异常 / 零图元
 [DxfParser] 等       单格式细节；所有 parser 的收尾文案统一为 parseToIR END
 ```
 
 约定：每个 parser 必须有 `parseToIR START` 与 `parseToIR END` 成对日志，
-END 至少给出实体数与耗时；提前 return 的分支一律要写明原因，不允许静默返回空结果。
+END 至少给出图元数与耗时；提前 return 的分支一律要写明原因，不允许静默返回空结果。
 
 ### 6.3 `IrProjector` 的降级记账（「文件里 1000 个、界面只出现 800 个」怎么查）
 
@@ -566,7 +566,7 @@ factory.destroyParser(parser);
    `format()` / `formatName()` / `forEachSupportedExtension()` / `parseToIR()`。
    **需要被测试直接链接的类要加 `FILEIO_API`**，否则会以 LNK2001/LNK2019 形式暴露。
 4. `Src/Parsers/XxxParser.cpp`：解析成 `ParseData` 后 `return IrProjector::project(data, "XXX")`；
-   格式极简时也可以直接用 `IrPublisher::threadLocal()` 追加实体再 `publish()`。
+   格式极简时也可以直接用 `IrPublisher::threadLocal()` 追加图元再 `publish()`。
    **不要自己定义 thread_local 缓冲区。**
 5. `FileParserFactory.cpp` 的 `initDefaults()` 里 `registerParser(...)`。
 6. `Test/` 加用例。CMake 用 `GLOB_RECURSE CONFIGURE_DEPENDS`，新文件无需改构建脚本。
@@ -580,7 +580,7 @@ factory.destroyParser(parser);
 ## 11. 分期计划
 
 已完成（P0，框架 + 主链路）：中立 IR 与内存契约、`IrPublisher` 单点发布、
-`IrProjector` 投影与 id 规范化、`IrTransform` 仿射层、DXF 块展开与实体覆盖、
+`IrProjector` 投影与 id 规范化、`IrTransform` 仿射层、DXF 块展开与图元覆盖、
 OBJ 接入 FileIO、STL 去重复实现、群组通道端到端（解析 → IR → 转换 → `SyGroup`）、
 extensionBlob 越界校验、独立构建 + 163 条 ctest 用例。
 转换层已下移到 `Engine/3D/Src/Import/FioEntityConverter.cpp`（`Eg::FioEntityConverter`），
@@ -592,7 +592,7 @@ DLL 入口与工厂的失败分支不再静默），前缀分层见 §6.2。
 
 - PLT 的 `SC` / `IP` 真实实现（当前是占位，带 `SC` 的图纸尺寸会偏）。
 - SVG：圆弧/椭圆回拟合、`<g>` → `IrGroupInfo` 落地、`transform=` 走 `IrXform`。
-  （「一条子路径聚合成一个实体」与「直线段识别」已完成，见 §5.3。）
+  （「一条子路径聚合成一个图元」与「直线段识别」已完成，见 §5.3。）
 - DXF：`HATCH` 边界轮廓（至少取外边界）、`IMAGE` 落地为 `EntityType::Image`。
 - Native（`.sy`）迁移到 `Engine/Persistence`。
 - 把 `_fileio_add_sibling()` 与 DLL 拷贝块上提到 `CMake/StandaloneInit.cmake`，

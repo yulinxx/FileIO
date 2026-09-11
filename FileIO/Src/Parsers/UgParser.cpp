@@ -16,7 +16,7 @@ namespace
     // IGES 行号：固定宽度格式下，行号位于每行末尾 8 列。
     // 段标记（S/G/D/P/T）位于第 73 列（1-based）。
     constexpr std::size_t kIgesSectionCol = 72;
-    // 常用 IGES 实体类型号
+    // 常用 IGES 图元类型号
     constexpr int kEntityCircularArc = 100;
     constexpr int kEntityCopiousData = 106;
     constexpr int kEntityLine = 110;
@@ -59,7 +59,7 @@ namespace
     {
         std::vector<double> tokens;
         std::string token;
-        bool first = true;  // 参数行第一个字段是参数名（如 "110," 或 "100,0,0" 的实体引用），忽略
+        bool first = true;  // 参数行第一个字段是参数名（如 "110," 或 "100,0,0" 的图元引用），忽略
 
         std::istringstream stream(line);
         while (std::getline(stream, token, ','))
@@ -127,8 +127,8 @@ namespace Fio
             lines.push_back(line);
         }
 
-        // ---- 2. 收集目录段 (D) 的实体类型与参数起始行 ----
-        // IGES 目录段每个实体占 2 行：第一行含实体类型(1-8列)与指针信息，
+        // ---- 2. 收集目录段 (D) 的图元类型与参数起始行 ----
+        // IGES 目录段每个图元占 2 行：第一行含图元类型(1-8列)与指针信息，
         // 第二行含参数数据起始行号(41-48列)。两行均以 'D' 为段字母(index 72)。
         std::vector<IgesEntity> entities;
         std::vector<std::pair<std::string, std::string>> directoryRows;  // 收集 D 段行（按出现顺序）
@@ -157,17 +157,17 @@ namespace Fio
                 }
                 if (inDirectory)
                 {
-                    // 每行记录两类信息：实体类型(1-8列) 与 参数数据指针(9-16列)
+                    // 每行记录两类信息：图元类型(1-8列) 与 参数数据指针(9-16列)
                     directoryRows.emplace_back(l.substr(0, 8), l.substr(8, 8));
                 }
             }
         }
 
-        // 每 2 行构成一个实体目录条目：第一行的类型与参数指针即可（第二行多为颜色/权重等外观属性）
+        // 每 2 行构成一个图元目录条目：第一行的类型与参数指针即可（第二行多为颜色/权重等外观属性）
         for (std::size_t i = 0; i + 1 < directoryRows.size(); i += 2)
         {
             IgesEntity ent;
-            ent.type = static_cast<int>(parseField(directoryRows[i].first));  // 第一行 1-8 列：实体类型
+            ent.type = static_cast<int>(parseField(directoryRows[i].first));  // 第一行 1-8 列：图元类型
             ent.paramLineStart =
                 static_cast<int>(parseField(directoryRows[i].second));  // 第一行 9-16 列：参数数据指针(行号)
             if (ent.type > 0)
@@ -201,7 +201,7 @@ namespace Fio
             }
         }
 
-        // ---- 4. 解析各实体为 IR ----
+        // ---- 4. 解析各图元为 IR ----
         for (const IgesEntity& ent : entities)
         {
             const int paramLine = ent.paramLineStart;

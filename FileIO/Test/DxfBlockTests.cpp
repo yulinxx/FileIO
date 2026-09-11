@@ -146,7 +146,7 @@ TEST(DxfBlockTest, InsertOfUndefinedBlockWarnsAndProducesNothing)
 
 TEST(DxfBlockTest, ModelSpaceEntitiesStillImportAlongsideBlocks)
 {
-    // 块定义与模型空间实体混排时，两者都不能互相吞掉
+    // 块定义与模型空间图元混排时，两者都不能互相吞掉
     std::string entities = insertOf("BLK", 0.0, 0.0);
     entities += "0\nCIRCLE\n8\n0\n10\n7.0\n20\n8.0\n30\n0.0\n40\n3.0\n";
 
@@ -164,7 +164,7 @@ TEST(DxfBlockTest, ModelSpaceEntitiesStillImportAlongsideBlocks)
         if (r.entities[i].type == Fio::EntityType::Circle)
         {
             hasCircle = true;
-            // 模型空间实体不属于任何群组
+            // 模型空间图元不属于任何群组
             EXPECT_EQ(r.entities[i].groupSourceId, 0u);
             EXPECT_NEAR(r.entities[i].circle.r, 3.0, 1e-9);
         }

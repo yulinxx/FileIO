@@ -68,7 +68,7 @@ namespace Fio
     ///
     /// 群组是一棵任意深度的树，`parentSourceId == 0` 表示顶层群组。
     ///
-    /// **成员关系刻意只用单向表达**：实体属于哪个群组记在 `EntityInfo::groupSourceId`，
+    /// **成员关系刻意只用单向表达**：图元属于哪个群组记在 `EntityInfo::groupSourceId`，
     /// 本结构不再重复存成员列表。理由：
     ///   1. 与既有的 `EntityInfo::layerSourceId` 完全同构，消费方处理方式一致；
     ///   2. 双向存储（父存成员 + 子存父）一旦不一致就没有裁决依据，畸形文件很容易触发；
@@ -76,7 +76,7 @@ namespace Fio
     /// FileIO 内部的 `ParsedGroup` 同时存了 `subGroupSourceIds`，那是 DLL 内解析期
     /// 的便利结构，投影到本 POD 时只保留 `parentSourceId` 这一个方向。
     ///
-    /// 重建整棵树的方法：按 `parentSourceId` 建父→子索引，按实体的 `groupSourceId`
+    /// 重建整棵树的方法：按 `parentSourceId` 建父→子索引，按图元的 `groupSourceId`
     /// 归集叶子成员。存在环或引用不存在的父 id 时，消费方应把该群组当作顶层处理并告警。
     struct IrGroupInfo
     {
@@ -122,15 +122,15 @@ namespace Fio
         uint32_t layerSourceId = 0;
 
         // 所属群组 id，对应 FioParseResult::groups 里的 IrGroupInfo::sourceId；0 = 不属于任何群组。
-        // 与 layerSourceId 刻意同构：成员关系只在实体侧单向记录，群组侧不存成员列表。
+        // 与 layerSourceId 刻意同构：成员关系只在图元侧单向记录，群组侧不存成员列表。
         uint64_t groupSourceId = 0;
 
         double lineWidth = 1.0;
         bool visible = true;
         bool locked = false;
 
-        // 解析出的实体颜色（0xAARRGGBB，0 = 未指定，渲染时回退到图层颜色）。
-        // 由 DXF/SVG 解析器解析实体自身颜色（真彩色 > ACI 索引 > BYLAYER 图层色）后填充，
+        // 解析出的图元颜色（0xAARRGGBB，0 = 未指定，渲染时回退到图层颜色）。
+        // 由 DXF/SVG 解析器解析图元自身颜色（真彩色 > ACI 索引 > BYLAYER 图层色）后填充，
         // 转换层以覆盖色（override color）形式应用，确保导入颜色不被图层去重/复用逻辑吞掉。
         uint32_t color = 0;
 

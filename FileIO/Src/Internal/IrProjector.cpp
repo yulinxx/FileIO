@@ -203,7 +203,7 @@ namespace Fio
     uint32_t IrPublisher::findLayer(const std::string& name) const
     {
         // 必须与 addLayer 用同一把键：先按 IrLayerInfo::name 的容量截断再查，
-        // 否则长名图层「登记得进、查不出来」，每个实体都会触发一次重复登记
+        // 否则长名图层「登记得进、查不出来」，每个图元都会触发一次重复登记
         char buf[sizeof(IrLayerInfo::name)];
         copyFixed(buf, name);
 

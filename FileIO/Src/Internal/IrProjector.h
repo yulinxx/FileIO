@@ -95,7 +95,7 @@ namespace Fio
         static constexpr std::size_t kMaxLayers = 1024;
 
         /// 群组数上限。DXF 的 INSERT 阵列「一次引用 = 一个群组」，
-        /// cols/rows 各自可达 4096，空块阵列不推进实体计数，故必须单独设闸。
+        /// cols/rows 各自可达 4096，空块阵列不推进图元计数，故必须单独设闸。
         static constexpr std::size_t kMaxGroups = 65536;
 
         /// 组装 FioParseResult 并返回。不清空缓冲区（指针要继续有效）。

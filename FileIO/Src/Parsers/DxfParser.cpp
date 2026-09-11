@@ -109,7 +109,7 @@ namespace Fio
     // 解析 DXF 图层颜色，返回 0xAARRGGBB；0 表示无法解析（未指定）。
     //
     // 返回 0 而不是兜底黑色，是为了与 resolveDxfColor 的「0=未指定」口径统一：
-    // 图层色表用于 BYLAYER 实体查色，一旦把兜底黑塞进色表，色号非法的图层上的
+    // 图层色表用于 BYLAYER 图元查色，一旦把兜底黑塞进色表，色号非法的图层上的
     // BYLAYER 图元就会被强制打上不透明黑覆盖色（表现为整图变黑），而正确行为是
     // 不设覆盖色、交由渲染层回退默认色。需要展示用兜底色的地方（如 IrLayerInfo.color）
     // 由调用方自行补，不要混进色表。
@@ -131,7 +131,7 @@ namespace Fio
         return (layer.flags & 1) == 0 && layer.color >= 0;
     }
 
-    // 解析 DXF 实体颜色，返回 0xAARRGGBB；0 表示未指定（渲染回退到图层/默认色）。
+    // 解析 DXF 图元颜色，返回 0xAARRGGBB；0 表示未指定（渲染回退到图层/默认色）。
     // 优先级：真彩色(420/color24) > ACI 索引(62/color) > BYLAYER/BYBLOCK 用图层颜色。
     static uint32_t resolveDxfColor(const DRW_Entity& e, const std::map<std::string, uint32_t>& layerColors)
     {
@@ -193,7 +193,7 @@ namespace Fio
 
     // OCS → WCS 变换。
     //
-    // DXF 里 CIRCLE / ARC / LWPOLYLINE / 2D POLYLINE / TEXT / SOLID 等实体的坐标记在
+    // DXF 里 CIRCLE / ARC / LWPOLYLINE / 2D POLYLINE / TEXT / SOLID 等图元的坐标记在
     // 「对象坐标系(OCS)」中，OCS 由挤出方向（extrusion，组码 210/220/230）确定。
     // 最常见的情形是挤出方向为 (0,0,-1)——AutoCAD 中镜像过的图元，此时 OCS 的 X 轴反向；
     // 不做换算就会导入成左右颠倒，而且圆弧起止角也是反的。早先本解析器完全没读挤出方向。
@@ -520,7 +520,7 @@ namespace Fio
         {
             m_layerDefs.push_back(layer);
 
-            // 记录图层颜色，供 BYLAYER 实体解析（与 parseToIR 中 IrLayerInfo 的颜色口径共用同一函数）。
+            // 记录图层颜色，供 BYLAYER 图元解析（与 parseToIR 中 IrLayerInfo 的颜色口径共用同一函数）。
             // 只在解析成功时写入：色号非法的图层不进色表，resolveDxfColor 查不到即返回
             // 0（未指定），交由渲染层回退默认色，避免把兜底色当成图层真实颜色。
             if (const uint32_t color = resolveLayerColor(layer); color != 0u)
@@ -888,7 +888,7 @@ namespace Fio
             emitQuad(solid, solid.extPoint, "SOLID");
         }
 
-        // 标注类实体（DIMENSION 的 7 种变体）都是由标注样式驱动、运行期生成几何的复合体，
+        // 标注类图元（DIMENSION 的 7 种变体）都是由标注样式驱动、运行期生成几何的复合体，
         // 逐一还原成图元既不现实也无意义（切割不需要标注）。统一发 warning 而不是静默丢弃：
         // 早先这些回调是空实现，用户完全看不出图纸里有内容没被导入。
         void addDimAlign(const DRW_DimAligned*) override
@@ -981,7 +981,7 @@ namespace Fio
 
         void addLayer(const DRW_Layer& layer) override
         {
-            // 记录图层颜色，供 BYLAYER 实体解析（与 IrLayerInfo 的颜色口径共用同一函数）。
+            // 记录图层颜色，供 BYLAYER 图元解析（与 IrLayerInfo 的颜色口径共用同一函数）。
             // 只在解析成功时写入：色号非法的图层不进色表，resolveDxfColor 查不到即返回
             // 0（未指定），交由渲染层回退默认色，避免把兜底色当成图层真实颜色。
             const uint32_t color = resolveLayerColor(layer);
@@ -1419,7 +1419,7 @@ namespace Fio
             info.sourceId = m_nextSourceId++;
             info.layerSourceId = m_pub.findLayer(drwEntity.layer);
 
-            // 解析实体自身颜色（真彩色 > ACI > BYLAYER 图层色），以覆盖色形式随 IR 带回，
+            // 解析图元自身颜色（真彩色 > ACI > BYLAYER 图层色），以覆盖色形式随 IR 带回，
             // 渲染时优先于图层颜色，避免导入后整图变黑。0 表示未指定。
             info.color = resolveDxfColor(drwEntity, m_layerColorMap);
         }
@@ -1461,7 +1461,7 @@ namespace Fio
         /// SOLID / TRACE / 3DFACE 的统一出口：三者在 libdxfrw 里都是 DRW_Trace，
         /// 都由 4 个角点描述，导入成一条闭合轮廓。
         ///
-        /// **顶点顺序有坑**：DXF 里这三种实体的角点顺序是 1-2-4-3（第 3、4 点是交叉的），
+        /// **顶点顺序有坑**：DXF 里这三种图元的角点顺序是 1-2-4-3（第 3、4 点是交叉的），
         /// 按 1-2-3-4 连线会得到一个自交的「蝴蝶结」而不是四边形。
         /// 第 3、4 点重合时退化为三角形，去重后只留 3 个顶点。
         void emitQuad(const DRW_Trace& quad, const DRW_Coord& extrusion, const char* entityName)

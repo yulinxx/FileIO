@@ -211,7 +211,7 @@ TEST(ObjParserTest, FileWithoutFacesFailsCleanly)
 TEST(StlParserTest, AsciiStlStillParsesAfterBufferUnification)
 {
     // 回归保护：StlParser 的缓冲区改由 IrPublisher 持有后，
-    // 单实体 Mesh3D 与 [顶点][法线] 布局必须保持不变。
+    // 单图元 Mesh3D 与 [顶点][法线] 布局必须保持不变。
     std::string stl;
     stl += "solid test\n";
     stl += "facet normal 0 0 1\nouter loop\n";

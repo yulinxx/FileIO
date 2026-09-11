@@ -582,7 +582,7 @@ namespace Fio
                 uint32_t layerSourceId = getOrCreateLayer(shapeColor);
 
                 // 一条 <path> 里可能有多个子路径（M ... M ...），nanosvg 把每个子路径拆成
-                // 一个 NSVGpath。语义上「整条子路径 = 一个复合曲线实体」：选中就是整条，
+                // 一个 NSVGpath。语义上「整条子路径 = 一个复合曲线图元」：选中就是整条，
                 // 不再是选中其中一段贝塞尔。
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
@@ -662,9 +662,9 @@ namespace Fio
             return layer.sourceId;
         }
 
-        /// 把一条子路径（nanosvg 的一个 NSVGpath）聚合成**一个**实体。
+        /// 把一条子路径（nanosvg 的一个 NSVGpath）聚合成**一个**图元。
         ///
-        /// 旧实现是「每段三次贝塞尔一个实体」：一条 10 段的 path 产出 10 个图元，
+        /// 旧实现是「每段三次贝塞尔一个图元」：一条 10 段的 path 产出 10 个图元，
         /// 语义上选不中整条路径，落地阶段还要为每段各走一遍 clone / R-tree insert /
         /// observer 通知，是导入慢的主要放大器。现在的规则：
         ///   - ≥2 段 → EntityType::SmartLine（复合曲线），几何写进扩展数据块；
@@ -732,7 +732,7 @@ namespace Fio
             info.visible = true;
             info.color = packSvgColor(shapeColor);
             // 源 SVG 的 id（nanosvg 会把 <g id> 继承给无 id 的子 shape）。
-            // 不当图层名用，但保留下来：出问题时能把画布上的实体对回 SVG 里的元素。
+            // 不当图层名用，但保留下来：出问题时能把画布上的图元对回 SVG 里的元素。
             if (sourceName != nullptr && sourceName[0] != '\0')
             {
                 std::strncpy(info.name, sourceName, sizeof(info.name) - 1);
@@ -749,7 +749,7 @@ namespace Fio
 
             const std::size_t bytes = m_segBuf.size() * sizeof(double);
             // extensionDataOffset/Size 都是 uint32_t，越界就无法表达。
-            // 这里丢弃该路径而不是写入截断偏移——截断偏移会指向别的实体的数据（静默错乱）。
+            // 这里丢弃该路径而不是写入截断偏移——截断偏移会指向别的图元的数据（静默错乱）。
             if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
             {
                 m_warnings.push_back("SVG path dropped: extension blob would exceed 4 GiB");
@@ -860,7 +860,7 @@ namespace Fio
 
     // ========================================================================
     // SvgParser::parseToIR() — 中立 IR 解析路径
-    // SVG 子路径 → 一个实体（多段为 SmartLine 复合曲线，单段为 Line/Bezier），
+    // SVG 子路径 → 一个图元（多段为 SmartLine 复合曲线，单段为 Line/Bezier），
     // 不离散为折线；不依赖 Engine2D 类型，跨 DLL 安全
     // ========================================================================
     FioParseResult SvgParser::parseToIR(const char* filePath)
