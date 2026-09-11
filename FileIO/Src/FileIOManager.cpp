@@ -114,6 +114,18 @@ namespace Fio
             *outLayerCount = 0;
         }
 
+        // [防御性编程] 文件路径空指针检查
+        if (!filePath || filePath[0] == '\0')
+        {
+            SY_ERROR("[FileIO] importFile: invalid file path (null or empty)");
+            writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
+            if (m_importCallback)
+            {
+                m_importCallback(filePath ? filePath : "(null)", false, m_importCtx);
+            }
+            return false;
+        }
+
         // Import file entry point
         if (format == FileFormat::STEP)
         {
@@ -216,6 +228,14 @@ namespace Fio
     bool FileIOManager::importFile(
         const char* filePath, Eg::SyEntity*** outEntities, size_t* outCount, char* errorBuffer, size_t errorBufferSize)
     {
+        // [防御性编程] 文件路径空指针检查
+        if (!filePath || filePath[0] == '\0')
+        {
+            writeError(
+                errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
+            return false;
+        }
+
         FileFormat fmt = detectFormat(filePath);
         if (fmt == FileFormat::Unknown)
         {
@@ -232,6 +252,18 @@ namespace Fio
         if (outResult)
         {
             *outResult = FioParseResult{};
+        }
+
+        // [防御性编程] 文件路径空指针检查
+        if (!filePath || filePath[0] == '\0')
+        {
+            SY_ERROR("[FileIO] importToIR: invalid file path (null or empty)");
+            writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
+            if (m_importCallback)
+            {
+                m_importCallback(filePath ? filePath : "(null)", false, m_importCtx);
+            }
+            return false;
         }
 
         // Import to IR entry point
@@ -356,6 +388,18 @@ namespace Fio
     {
         // Export file entry point
 
+        // [防御性编程] 文件路径空指针检查
+        if (!filePath || filePath[0] == '\0')
+        {
+            SY_ERROR("[FileIO] exportFile: invalid file path (null or empty)");
+            writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
+            if (m_exportCallback)
+            {
+                m_exportCallback(filePath ? filePath : "(null)", false, m_exportCtx);
+            }
+            return false;
+        }
+
         // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
 
         auto& factory = FileWriterFactory::instance();
@@ -443,6 +487,15 @@ namespace Fio
         char* errorBuffer,
         size_t errorBufferSize)
     {
+        // [防御性编程] 文件路径空指针检查
+        if (!filePath || filePath[0] == '\0')
+        {
+            writeError(errorBuffer,
+                errorBufferSize,
+                "Invalid file path: path is null or empty");
+            return false;
+        }
+
         FileFormat fmt = detectFormat(filePath);
         if (fmt == FileFormat::Unknown)
         {
