@@ -138,13 +138,18 @@ if(BUILD_FILEIO_TESTS)
     enable_testing()
     find_package(GTest REQUIRED)
     add_subdirectory(Test)
+endif()
+
+# --- 状态输出 ---
+message(STATUS "[${LIB_NAME}]")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}(${CMAKE_SYSTEM_PROCESSOR})")
+message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
+if(BUILD_FILEIO_TESTS)
     message(STATUS "  Tests: ENABLED")
 else()
     message(STATUS "  Tests: DISABLED")
 endif()
-
-message(STATUS "  C++ Standard: 17")
-message(STATUS "  Protobuf: Enabled (lite runtime)")
 message(STATUS "----------------------------------------")
 
 sanyi_export_imported_target(${LIB_NAME}
