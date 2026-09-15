@@ -112,6 +112,13 @@ namespace Fio
 
 
 
+    /// 图元颜色来源策略（跨 DLL 安全，uint8_t）
+    enum class EntityColorPolicy : uint8_t
+    {
+        Explicit = 0,  ///< color 为实体自身显式色（真彩色/ACI），以覆盖色形式应用
+        ByLayer = 1    ///< 随层（DXF BYLAYER）：忽略 color，显示色取所属图层颜色
+    };
+
     /// 图元信息（POD，固定长度缓冲区 + 纯数值几何参数）
     /// 注意：复杂几何数据（如多边形顶点、贝塞尔控制点序列）通过扩展数据块承载
     struct EntityInfo
@@ -130,9 +137,14 @@ namespace Fio
         bool locked = false;
 
         // 解析出的图元颜色（0xAARRGGBB，0 = 未指定，渲染时回退到图层颜色）。
-        // 由 DXF/SVG 解析器解析图元自身颜色（真彩色 > ACI 索引 > BYLAYER 图层色）后填充，
-        // 转换层以覆盖色（override color）形式应用，确保导入颜色不被图层去重/复用逻辑吞掉。
+        // 仅当 colorPolicy == Explicit 时才表示实体自身显式色，转换层以覆盖色
+        // （override color）形式应用；ByLayer 时此值忽略，显示色取所属图层颜色，
+        // 与 AutoCAD 的 BYLAYER 语义一致（改图层色实体跟着变）。
         uint32_t color = 0;
+
+        // 颜色来源策略（见 EntityColorPolicy）。默认 Explicit 兼容不区分颜色来源的旧解析器：
+        // color 非 0 即为显式覆盖色，color 为 0 即回退图层色。
+        uint8_t colorPolicy = 0;
 
         // ---- 基础几何参数（按 type 使用对应字段） ----
 

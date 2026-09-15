@@ -131,6 +131,12 @@ namespace Fio
         return (layer.flags & 1) == 0 && layer.color >= 0;
     }
 
+    // 图层锁定：flags 第 2 位为 locked（第 0 位冻结、第 1 位新视口冻结）
+    static bool layerIsLocked(const DRW_Layer& layer)
+    {
+        return (layer.flags & 4) != 0;
+    }
+
     // 解析 DXF 图元颜色，返回 0xAARRGGBB；0 表示未指定（渲染回退到图层/默认色）。
     // 优先级：真彩色(420/color24) > ACI 索引(62/color) > BYLAYER/BYBLOCK 用图层颜色。
     static uint32_t resolveDxfColor(const DRW_Entity& e, const std::map<std::string, uint32_t>& layerColors)
@@ -856,7 +862,9 @@ namespace Fio
             ref.rowcount = insert.rowcount;
             ref.colspace = insert.colspace;
             ref.rowspace = insert.rowspace;
-            ref.layerSourceId = m_pub.findLayer(insert.layer);
+            ref.layerSourceId = resolveLayerSourceId(insert.layer);
+            // INSERT 的有效色只用于块内 BYBLOCK 图元继承：这里把 BYLAYER 解析成
+            // 具体的图层色，因为继承实体可能位于别的图层，不能简单标记随层
             ref.color = resolveDxfColor(insert, m_layerColorMap);
 
             if (m_currentBlock != nullptr)
@@ -993,7 +1001,10 @@ namespace Fio
             // DXF 的 TABLES 段一定在 BLOCKS/ENTITIES 之前，所以图层在图元之前就全部登记完毕，
             // 可以在图元产出的当场解析 layerSourceId，不再需要「先记图层名、读完再回填」的二次遍历。
             // resolveLayerColor 失败时补不透明黑：IrLayerInfo.color 是展示用颜色，需要确定值。
-            m_pub.addLayer(layer.name, color != 0u ? color : 0xFF000000u, layerIsVisible(layer));
+            m_pub.addLayer(layer.name,
+                color != 0u ? color : 0xFF000000u,
+                layerIsVisible(layer),
+                layerIsLocked(layer));
         }
 
         void addPoint(const DRW_Point& point) override
@@ -1414,14 +1425,45 @@ namespace Fio
             target.insert(target.end(), p, p + byteSize);
         }
 
+        // 按名解析实体所属图层 sourceId。实体引用了 TABLES 段未声明的图层时，
+        // 补登记一个默认色图层，而不是返回 0 让实体静默塌到下游默认图层。
+        uint32_t resolveLayerSourceId(const std::string& layerName)
+        {
+            uint32_t id = m_pub.findLayer(layerName);
+            if (id == 0u && !layerName.empty())
+            {
+                id = m_pub.addLayer(layerName, 0xFF000000u, true);
+            }
+            return id;
+        }
+
         void applyEntityMeta(EntityInfo& info, const DRW_Entity& drwEntity)
         {
             info.sourceId = m_nextSourceId++;
-            info.layerSourceId = m_pub.findLayer(drwEntity.layer);
+            info.layerSourceId = resolveLayerSourceId(drwEntity.layer);
 
-            // 解析图元自身颜色（真彩色 > ACI > BYLAYER 图层色），以覆盖色形式随 IR 带回，
-            // 渲染时优先于图层颜色，避免导入后整图变黑。0 表示未指定。
-            info.color = resolveDxfColor(drwEntity, m_layerColorMap);
+            // 颜色来源必须区分显式色与随层色：
+            //  - 真彩色 / ACI 1-255：实体自身显式色，烤成覆盖色带回；
+            //  - BYLAYER(256) / BYBLOCK(0)：标记随层、不写覆盖色，显示色取所属图层颜色，
+            //    与 AutoCAD 图层色语义一致（图层改色实体跟着变）。
+            //    顶层 BYBLOCK 极少见，按随层处理是合理近似；块内 BYBLOCK 在实例化时
+            //    按 INSERT 的有效色另行解析（见 instantiateBlock）。
+            if (drwEntity.color24 >= 0)
+            {
+                info.color = truecolorToArgb(drwEntity.color24);
+                info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::Explicit);
+            }
+            else if (drwEntity.color == 256 || drwEntity.color == 0)
+            {
+                info.color = 0u;
+                info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::ByLayer);
+            }
+            else if (const uint32_t argb = aciToArgb(drwEntity.color); argb != 0u)
+            {
+                info.color = argb;
+                info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::Explicit);
+            }
+            // 其余非法色号：color=0 且保持 Explicit，转换层不写覆盖色，渲染回退图层色
         }
 
         /// 图元产出的唯一出口：按当前是否处于块定义中，决定进块缓冲区还是模型空间
@@ -1627,7 +1669,9 @@ namespace Fio
                 }
                 if (be.colorFromInsert && ref.color != 0u)
                 {
+                    // 继承自 INSERT 的颜色在副本上是已解析的确定色，按显式色应用
                     copy.color = ref.color;
+                    copy.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::Explicit);
                 }
 
                 m_pub.entities().push_back(copy);
