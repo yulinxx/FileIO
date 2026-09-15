@@ -89,10 +89,6 @@ namespace Fio
         }
     };
 
-    /// 加密提供者智能指针（内部使用，不推荐跨 DLL 传递）
-    /// @deprecated 跨 DLL 使用 raw pointer + 工厂/释放模式
-    using CryptoProviderPtr = std::unique_ptr<ISyCryptoProvider>;
-
     /////////////////////////////////////////////////////////////////////////
     // ---------------------------- 默认 XOR 实现 ----------------------------
 
