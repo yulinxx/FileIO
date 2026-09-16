@@ -30,7 +30,7 @@ namespace
         return path.string();
     }
 
-    void removeFile(const std::string& path)
+    void removeTempFile(const std::string& path)
     {
         std::error_code ec;
         std::filesystem::remove(path, ec);
@@ -59,7 +59,7 @@ TEST(ObjParserTest, SingleTriangleProducesOneMeshWithoutGroups)
     EXPECT_EQ(r.entities[0].meshVertCount, 3u);
     // 没有 o/g/usemtl 的单体模型不套群组壳
     EXPECT_EQ(r.groupCount, 0u);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, MeshBlobLayoutMatchesVerticesThenNormals)
@@ -81,7 +81,7 @@ TEST(ObjParserTest, MeshBlobLayoutMatchesVerticesThenNormals)
 
     // 法线段：三角形位于 XY 平面，法线应为 (0,0,±1)
     EXPECT_NEAR(std::fabs(f[11]), 1.0f, 1e-6);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, ObjectsBecomeTopLevelGroups)
@@ -102,7 +102,7 @@ TEST(ObjParserTest, ObjectsBecomeTopLevelGroups)
     EXPECT_EQ(r.groups[0].parentSourceId, 0u);
     EXPECT_EQ(r.groups[1].parentSourceId, 0u);
     EXPECT_NE(r.entities[0].groupSourceId, r.entities[1].groupSourceId);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, MaterialSwitchCreatesChildGroupUnderObject)
@@ -127,7 +127,7 @@ TEST(ObjParserTest, MaterialSwitchCreatesChildGroupUnderObject)
     EXPECT_EQ(r.groups[2].parentSourceId, objectGroup);
     EXPECT_STREQ(r.groups[1].name, "Steel");
     EXPECT_STREQ(r.groups[2].name, "Copper");
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, QuadFaceIsTriangulated)
@@ -141,7 +141,7 @@ TEST(ObjParserTest, QuadFaceIsTriangulated)
     ASSERT_EQ(r.entityCount, 1u);
     EXPECT_EQ(r.entities[0].meshTriCount, 2u);
     EXPECT_EQ(r.entities[0].meshVertCount, 6u);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, NegativeIndicesAreResolvedRelativeToCurrentCount)
@@ -155,7 +155,7 @@ TEST(ObjParserTest, NegativeIndicesAreResolvedRelativeToCurrentCount)
     const Fio::FioParseResult r = parser.parseToIR(path.c_str());
     ASSERT_EQ(r.entityCount, 1u);
     EXPECT_EQ(r.entities[0].meshTriCount, 1u);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, ExplicitNormalsArePreserved)
@@ -178,7 +178,7 @@ TEST(ObjParserTest, ExplicitNormalsArePreserved)
     EXPECT_FLOAT_EQ(f[9], 0.0f);
     EXPECT_FLOAT_EQ(f[10], 1.0f);
     EXPECT_FLOAT_EQ(f[11], 0.0f);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, OutOfRangeIndexIsSkippedWithWarning)
@@ -192,7 +192,7 @@ TEST(ObjParserTest, OutOfRangeIndexIsSkippedWithWarning)
     ASSERT_EQ(r.entityCount, 1u);
     EXPECT_EQ(r.entities[0].meshTriCount, 1u);
     EXPECT_GE(r.warningCount, 1u);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(ObjParserTest, FileWithoutFacesFailsCleanly)
@@ -205,7 +205,7 @@ TEST(ObjParserTest, FileWithoutFacesFailsCleanly)
     const Fio::FioParseResult r = parser.parseToIR(path.c_str());
     EXPECT_EQ(r.entityCount, 0u);
     EXPECT_EQ(r.entities, nullptr);
-    removeFile(path);
+    removeTempFile(path);
 }
 
 TEST(StlParserTest, AsciiStlStillParsesAfterBufferUnification)
@@ -234,5 +234,5 @@ TEST(StlParserTest, AsciiStlStillParsesAfterBufferUnification)
     const std::vector<float> f = readMeshFloats(r, r.entities[0]);
     EXPECT_FLOAT_EQ(f[3], 1.0f);   // 第二个顶点 x
     EXPECT_FLOAT_EQ(f[11], 1.0f);  // 第一条法线 z
-    removeFile(path);
+    removeTempFile(path);
 }

@@ -125,15 +125,15 @@ namespace Fio
         }
 
         // Extract SVG color from nanosvg paint, returns normalized RGB (0-1)
-        // nanosvg 使用 NSVG_RGB 格式: r | (g<<8) | (b<<16)
+        // nanosvg 使用 NSVG_RGB 格式: r | (g<<8) | (b<<16)，即低字节是 R、高字节是 B
         Ut::Vec3f extractSvgColor(const NSVGpaint& paint)
         {
             if (paint.type == NSVG_PAINT_COLOR)
             {
                 unsigned int color = paint.color;
-                float r = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
+                float r = static_cast<float>(color & 0xFF) / 255.0f;
                 float g = static_cast<float>((color >> 8) & 0xFF) / 255.0f;
-                float b = static_cast<float>(color & 0xFF) / 255.0f;
+                float b = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
                 return Ut::Vec3f(r, g, b);
             }
             // For gradients or unknown types, return default color
@@ -202,8 +202,16 @@ namespace Fio
                     ++p;
                 if (p >= n)
                     break;
-                if (tag[p] == '>' || (tag[p] == '/' && p + 1 < n && tag[p + 1] == '>'))
+                if (tag[p] == '>')
                     break; // 标签结束
+                if (tag[p] == '/')
+                {
+                    // 传入的 tag 已去掉 '<' 和 '>'，末尾的 '/' 即为自闭合标记
+                    if (p + 1 >= n || tag[p + 1] == '>')
+                        break;
+                    ++p; // 非末尾的 '/'：跳过，避免 p 不前进导致死循环
+                    continue;
+                }
 
                 size_t nameStart = p;
                 while (p < n && !std::isspace(static_cast<unsigned char>(tag[p])) && tag[p] != '=' && tag[p] != '>' && tag[p] != '/')
@@ -745,6 +753,11 @@ namespace Fio
             info.layerSourceId = layerSourceId;
             info.visible = true;
             info.color = packSvgColor(shapeColor);
+            // SVG 按颜色分层，层色就是该 shape 的自身颜色，所以标成随层色（ByLayer）而不是
+            // 显式覆盖色：导入后的观感与源文件完全一致（显示色 = 层色 = 原色），而把图元移到
+            // 其它图层、或修改图层颜色时颜色会跟着变（与 AutoCAD 的 BYLAYER 语义一致）。
+            // color 字段仍记录源色，仅作追溯用——ByLayer 时转换层不会再写覆盖色。
+            info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::ByLayer);
             // 源 SVG 的 id（nanosvg 会把 <g id> 继承给无 id 的子 shape）。
             // 不当图层名用，但保留下来：出问题时能把画布上的图元对回 SVG 里的元素。
             if (sourceName != nullptr && sourceName[0] != '\0')

@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 
 
 // ==================== 文件格式检测 ====================
@@ -526,4 +527,47 @@ TEST(FileIORegressionTest, IgesParser_LineArcPoint)
     EXPECT_EQ(result.entities[2].type, Fio::EntityType::Point);
     EXPECT_DOUBLE_EQ(result.entities[2].line.x1, 5.0);
     EXPECT_DOUBLE_EQ(result.entities[2].line.y1, 5.0);
+}
+
+// ==================== SVG 解析 ====================
+
+// 带 <style> class 的自闭合标签（<path class="st0" .../>）曾让 class 内联的属性扫描
+// 停在标签末尾的 '/' 上不再前进，导入表现为长时间无响应（死循环）。
+// 用例同时校验 class 样式确实被内联成了元素属性（fill / stroke 颜色可见）。
+TEST(FileIORegressionTest, SvgParser_SelfClosingClassTagDoesNotHang)
+{
+    const char* kSvg =
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+        "<style type=\"text/css\">\n"
+        "\t.icon{fill:#E60012;}\n"
+        "\t.box{fill:none;stroke:#040000;stroke-width:0.5;}\n"
+        "</style>\n"
+        "<path class=\"icon\" d=\"M10,10 L90,10 L90,90 Z\"/>\n"
+        "<path class=\"box\" d=\"M5,5 L25,5 L25,25 Z\"/>\n"
+        "</svg>\n";
+
+    const std::filesystem::path tempFile =
+        std::filesystem::temp_directory_path() / "sanyi_svg_selfclose_test.svg";
+    {
+        std::ofstream out(tempFile, std::ios::binary);
+        ASSERT_TRUE(out.is_open());
+        out << kSvg;
+    }
+
+    Fio::FileIOManager mgr;
+    char err[512] = {};
+    Fio::FioParseResult result{};
+    ASSERT_TRUE(mgr.importToIR(tempFile.string().c_str(), Fio::FileFormat::SVG, &result, err, sizeof(err))) << err;
+    std::filesystem::remove(tempFile);
+
+    ASSERT_EQ(result.entityCount, 2u);
+    ASSERT_EQ(result.entities[0].colorPolicy, static_cast<uint8_t>(Fio::EntityColorPolicy::ByLayer));
+    ASSERT_EQ(result.entities[1].colorPolicy, static_cast<uint8_t>(Fio::EntityColorPolicy::ByLayer));
+
+    // color 仍记录源色：SVG 按颜色分层，导入后层色即该色，显示色 = 层色 = 源色（观感不变）；
+    // 图元之后被移到别的图层时显示色随新图层走（ByLayer 语义）。
+    // 未内联时 nanosvg 读不到颜色，两条都会退化成默认黑（0xFF000000）。
+    EXPECT_EQ(result.entities[0].color, 0xFFE60012u);  // .icon 只有 fill → 取 fill 色
+    EXPECT_EQ(result.entities[1].color, 0xFF040000u);  // .box 有 stroke → 取 stroke 色
 }
