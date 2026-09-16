@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <algorithm>
 #include <numeric>
@@ -124,18 +125,15 @@ namespace Fio
         }
 
         // Extract SVG color from nanosvg paint, returns normalized RGB (0-1)
-        // nanosvg 用 NSVG_RGB 打包：低位 R、高位 B（既不是 ARGB 也不是 ABGR）
+        // nanosvg 使用 NSVG_RGB 格式: r | (g<<8) | (b<<16)
         Ut::Vec3f extractSvgColor(const NSVGpaint& paint)
         {
             if (paint.type == NSVG_PAINT_COLOR)
             {
                 unsigned int color = paint.color;
-                // nanosvg 的打包宏是 NSVG_RGB(r,g,b) = r | (g<<8) | (b<<16)：
-                // 低位是 R、高位是 B。早先这里按「ABGR」解读，把 R 与 B 读反了，
-                // 结果是红色 (#FF0000) 被解析成蓝色，图层名也变成 #0000FF。
-                float r = static_cast<float>(color & 0xFF) / 255.0f;
+                float r = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
                 float g = static_cast<float>((color >> 8) & 0xFF) / 255.0f;
-                float b = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
+                float b = static_cast<float>(color & 0xFF) / 255.0f;
                 return Ut::Vec3f(r, g, b);
             }
             // For gradients or unknown types, return default color
