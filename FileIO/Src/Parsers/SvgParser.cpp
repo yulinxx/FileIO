@@ -153,7 +153,7 @@ namespace Fio
                 (static_cast<uint32_t>(toByte(c.y())) << 8) | static_cast<uint32_t>(toByte(c.z()));
         }
 
-        // ===== SVG CSS <style> 类样式内联 =====
+        // ===== SVG CSS <style> 类样式内联（优化版：单次遍历 + string_view 避免拷贝）=====
         // nanosvg 不解析 <style> 中的 .class 规则，只认元素内联属性。大量（尤其 Illustrator
         // 导出）SVG 把颜色/描边放在 class 里，导致 nanosvg 看不到颜色 → 整图变黑。
         // 这里在交给 nanosvg 前，把 class 引用的样式内联成元素属性。
@@ -171,19 +171,16 @@ namespace Fio
             "stroke-dashoffset",
             nullptr };
 
-        static bool isSvgInlineProp(const std::string& name)
+        // 使用无序集合做 O(1) 属性名查找
+        static const std::unordered_set<std::string_view> kInlinePropSet(
+            kSvgInlineProps, kSvgInlineProps + 10);
+
+        inline bool isSvgInlineProp(std::string_view name)
         {
-            for (int i = 0; kSvgInlineProps[i] != nullptr; ++i)
-            {
-                if (name == kSvgInlineProps[i])
-                {
-                    return true;
-                }
-            }
-            return false;
+            return kInlinePropSet.find(name) != kInlinePropSet.end();
         }
 
-        static std::string trimWhitespace(const std::string& s)
+        inline std::string_view trimWhitespace(std::string_view s)
         {
             size_t a = 0, b = s.size();
             while (a < b && std::isspace(static_cast<unsigned char>(s[a])))
@@ -193,93 +190,99 @@ namespace Fio
             return s.substr(a, b - a);
         }
 
-        // 读取标签中某个属性的值（name="..." 或 name='...'），找不到返回空串
-        static std::string getSvgAttr(const std::string& tag, const std::string& name)
+        // 单次扫描标签提取所有属性：返回 {name -> value} map（string_view 指向原 tag 缓冲）
+        static void extractTagAttrs(std::string_view tag,
+                                    std::vector<std::pair<std::string_view, std::string_view>>& outAttrs)
         {
+            outAttrs.clear();
             size_t p = 0;
-            while (p < tag.size())
+            const size_t n = tag.size();
+            while (p < n)
             {
-                size_t found = tag.find(name, p);
-                if (found == std::string::npos)
-                {
+                // 跳过空白
+                while (p < n && std::isspace(static_cast<unsigned char>(tag[p])))
+                    ++p;
+                if (p >= n)
                     break;
-                }
-                // 属性名前必须是空白或 '<'，避免匹配到属性值里的子串
-                if (found == 0 || tag[found - 1] == ' ' || tag[found - 1] == '\t' || tag[found - 1] == '\n' ||
-                    tag[found - 1] == '\r' || tag[found - 1] == '<')
-                {
-                    size_t after = found + name.size();
-                    while (after < tag.size() && (tag[after] == ' ' || tag[after] == '\t'))
-                        ++after;
-                    if (after < tag.size() && tag[after] == '=')
-                    {
-                        ++after;
-                        while (after < tag.size() && (tag[after] == ' ' || tag[after] == '\t'))
-                            ++after;
-                        if (after < tag.size() && (tag[after] == '"' || tag[after] == '\''))
-                        {
-                            char q = tag[after];
-                            size_t start = after + 1;
-                            size_t end = tag.find(q, start);
-                            if (end != std::string::npos)
-                            {
-                                return tag.substr(start, end - start);
-                            }
-                        }
-                    }
-                }
-                p = found + name.size();
+                if (tag[p] == '>' || (tag[p] == '/' && p + 1 < n && tag[p + 1] == '>'))
+                    break; // 标签结束
+
+                size_t nameStart = p;
+                while (p < n && !std::isspace(static_cast<unsigned char>(tag[p])) && tag[p] != '=' && tag[p] != '>' && tag[p] != '/')
+                    ++p;
+                std::string_view name = tag.substr(nameStart, p - nameStart);
+
+                // 跳到 =
+                while (p < n && std::isspace(static_cast<unsigned char>(tag[p])))
+                    ++p;
+                if (p >= n || tag[p] != '=')
+                    continue;
+                ++p;
+                while (p < n && std::isspace(static_cast<unsigned char>(tag[p])))
+                    ++p;
+                if (p >= n)
+                    break;
+                char quote = tag[p];
+                if (quote != '"' && quote != '\'')
+                    continue;
+                ++p;
+                size_t valStart = p;
+                while (p < n && tag[p] != quote)
+                    ++p;
+                std::string_view value = tag.substr(valStart, p - valStart);
+                if (p < n)
+                    ++p; // 跳过结束引号
+
+                outAttrs.emplace_back(name, value);
             }
-            return "";
         }
 
-        static bool hasSvgAttr(const std::string& tag, const std::string& name)
+        // 检查标签是否已有某属性
+        inline bool hasAttr(const std::vector<std::pair<std::string_view, std::string_view>>& attrs, std::string_view name)
         {
-            return !getSvgAttr(tag, name).empty();
+            for (const auto& kv : attrs)
+                if (kv.first == name)
+                    return true;
+            return false;
         }
 
         // 解析 <style> 文本中的 .class 规则 → class 名 → (属性 → 值)
-        static std::map<std::string, std::map<std::string, std::string>> parseCssRules(const std::string& css)
+        // 使用 unordered_map + string 存储值（需拥有所有权）
+        static std::unordered_map<std::string, std::unordered_map<std::string, std::string>>
+        parseCssRules(std::string_view css)
         {
-            std::map<std::string, std::map<std::string, std::string>> rules;
+            std::unordered_map<std::string, std::unordered_map<std::string, std::string>> rules;
             size_t i = 0;
             const size_t n = css.size();
             while (i < n)
             {
                 size_t brace = css.find('{', i);
-                if (brace == std::string::npos)
-                {
+                if (brace == std::string_view::npos)
                     break;
-                }
                 size_t close = css.find('}', brace);
-                if (close == std::string::npos)
-                {
+                if (close == std::string_view::npos)
                     break;
-                }
-                std::string selectors = css.substr(i, brace - i);
-                std::string body = css.substr(brace + 1, close - brace - 1);
+
+                std::string_view selectors = css.substr(i, brace - i);
+                std::string_view body = css.substr(brace + 1, close - brace - 1);
 
                 // 解析声明：prop: value;
-                std::map<std::string, std::string> decls;
+                std::unordered_map<std::string, std::string> decls;
                 size_t pos = 0;
                 const size_t pb = body.size();
                 while (pos < pb)
                 {
                     size_t colon = body.find(':', pos);
-                    if (colon == std::string::npos)
-                    {
+                    if (colon == std::string_view::npos)
                         break;
-                    }
                     size_t semi = body.find(';', colon);
-                    if (semi == std::string::npos)
-                    {
+                    if (semi == std::string_view::npos)
                         semi = pb;
-                    }
-                    std::string key = trimWhitespace(body.substr(pos, colon - pos));
-                    std::string val = trimWhitespace(body.substr(colon + 1, semi - colon - 1));
-                    if (!key.empty() && !val.empty())
+                    std::string key = std::string(trimWhitespace(body.substr(pos, colon - pos)));
+                    std::string val = std::string(trimWhitespace(body.substr(colon + 1, semi - colon - 1)));
+                    if (!key.empty() && !val.empty() && isSvgInlineProp(key))
                     {
-                        decls[key] = val;
+                        decls.emplace(std::move(key), std::move(val));
                     }
                     pos = semi + 1;
                 }
@@ -289,82 +292,74 @@ namespace Fio
                 while (s < selectors.size())
                 {
                     size_t comma = selectors.find(',', s);
-                    std::string sel =
-                        trimWhitespace(selectors.substr(s, comma == std::string::npos ? std::string::npos : comma - s));
+                    std::string_view sel = trimWhitespace(
+                        selectors.substr(s, comma == std::string_view::npos ? std::string_view::npos : comma - s));
                     if (!sel.empty() && sel[0] == '.')
                     {
-                        std::string cls = sel.substr(1);
+                        std::string cls(sel.substr(1));
+                        auto& target = rules[cls];
                         for (const auto& kv : decls)
                         {
-                            if (isSvgInlineProp(kv.first))
-                            {
-                                rules[cls][kv.first] = kv.second;
-                            }
+                            target.emplace(kv.first, kv.second);
                         }
                     }
-                    if (comma == std::string::npos)
-                    {
+                    if (comma == std::string_view::npos)
                         break;
-                    }
                     s = comma + 1;
                 }
-
                 i = close + 1;
             }
             return rules;
         }
 
         // 将 <style> 中的 class 样式内联到引用它的元素上（元素自身属性优先，不被覆盖）
+        // 单次遍历 SVG 字符串，用 string_view 避免拷贝，仅在需要插入属性时构建新字符串
         static std::string inlineSvgCss(const std::string& svg)
         {
-            // 1) 收集所有 <style> 块内容
+            // 1) 收集所有 <style> 块内容（使用 string_view 避免拷贝）
             std::string css;
+            css.reserve(svg.size() / 10); // 估算
             size_t pos = 0;
             while (true)
             {
                 size_t open = svg.find("<style", pos);
                 if (open == std::string::npos)
-                {
                     break;
-                }
                 size_t tagEnd = svg.find('>', open);
                 if (tagEnd == std::string::npos)
-                {
                     break;
-                }
                 size_t close = svg.find("</style>", tagEnd);
                 if (close == std::string::npos)
-                {
                     break;
-                }
                 css += svg.substr(tagEnd + 1, close - tagEnd - 1);
                 pos = close + 8;
             }
             if (css.empty())
-            {
                 return svg;
-            }
 
             auto rules = parseCssRules(css);
             if (rules.empty())
-            {
                 return svg;
-            }
 
-            // 2) 扫描每个元素标签，内联 class 样式
+            // 2) 单次遍历处理元素标签
             std::string out;
-            out.reserve(svg.size());
+            out.reserve(svg.size() + rules.size() * 32); // 预留插入空间
             size_t i = 0;
             const size_t n = svg.size();
+
+            // 复用属性提取缓冲，避免逐标签分配
+            std::vector<std::pair<std::string_view, std::string_view>> tagAttrs;
+            tagAttrs.reserve(16);
+
             while (i < n)
             {
                 size_t lt = svg.find('<', i);
                 if (lt == std::string::npos)
                 {
-                    out += svg.substr(i);
+                    out.append(svg.data() + i, n - i);
                     break;
                 }
-                out += svg.substr(i, lt - i);
+                out.append(svg.data() + i, lt - i);
 
                 // 闭合/声明/注释标签：原样复制
                 if (lt + 1 < n && (svg[lt + 1] == '/' || svg[lt + 1] == '?' || svg[lt + 1] == '!'))
@@ -372,10 +367,10 @@ namespace Fio
                     size_t gt = svg.find('>', lt);
                     if (gt == std::string::npos)
                     {
-                        out += svg.substr(lt);
+                        out.append(svg.data() + lt, n - lt);
                         break;
                     }
-                    out += svg.substr(lt, gt - lt + 1);
+                    out.append(svg.data() + lt, gt - lt + 1);
                     i = gt + 1;
                     continue;
                 }
@@ -383,64 +378,83 @@ namespace Fio
                 size_t gt = svg.find('>', lt);
                 if (gt == std::string::npos)
                 {
-                    out += svg.substr(lt);
+                    out.append(svg.data() + lt, n - lt);
                     break;
                 }
-                std::string tag = svg.substr(lt, gt - lt + 1);
 
-                std::string cls = getSvgAttr(tag, "class");
-                if (!cls.empty())
+                std::string_view tag(svg.data() + lt, gt - lt + 1);
+
+                // 提取 class 属性
+                extractTagAttrs(tag.substr(1, tag.size() - 2), tagAttrs); // 去掉 < >
+
+                std::string_view classAttr;
+                for (const auto& kv : tagAttrs)
+                {
+                    if (kv.first == "class")
+                    {
+                        classAttr = kv.second;
+                        break;
+                    }
+                }
+
+                if (!classAttr.empty())
                 {
                     // 合并 class 列表中的样式（后者覆盖前者）
-                    std::map<std::string, std::string> merged;
+                    std::unordered_map<std::string, std::string> merged;
                     size_t c = 0;
-                    while (c < cls.size())
+                    while (c < classAttr.size())
                     {
-                        size_t sp = cls.find_first_of(" \t\r\n", c);
-                        std::string one =
-                            trimWhitespace(cls.substr(c, sp == std::string::npos ? std::string::npos : sp - c));
+                        size_t sp = classAttr.find_first_of(" \t\r\n", c);
+                        std::string_view one = trimWhitespace(
+                            classAttr.substr(c, sp == std::string_view::npos ? std::string_view::npos : sp - c));
                         if (!one.empty())
                         {
-                            auto it = rules.find(one);
+                            auto it = rules.find(std::string(one));
                             if (it != rules.end())
                             {
                                 for (const auto& kv : it->second)
                                 {
-                                    merged[kv.first] = kv.second;
+                                    merged.emplace(kv.first, kv.second);
                                 }
                             }
                         }
-                        if (sp == std::string::npos)
-                        {
+                        if (sp == std::string_view::npos)
                             break;
-                        }
                         c = sp + 1;
                     }
 
                     if (!merged.empty())
                     {
+                        // 检查已有属性，构建插入字符串
                         std::string insertion;
                         for (const auto& kv : merged)
                         {
-                            if (!hasSvgAttr(tag, kv.first))
+                            if (!hasAttr(tagAttrs, kv.first))
                             {
-                                insertion += " " + kv.first + "=\"" + kv.second + "\"";
+                                insertion += ' ';
+                                insertion += kv.first;
+                                insertion += "=\"";
+                                insertion += kv.second;
+                                insertion += '"';
                             }
                         }
                         if (!insertion.empty())
                         {
-                            size_t endPos = tag.size() - 1;  // 指向 '>'
-                            size_t insertAt = endPos;
-                            if (tag[endPos - 1] == '/')
-                            {
-                                insertAt = endPos - 1;  // 写在 '/>' 的 '/' 之前
-                            }
-                            tag.insert(insertAt, insertion);
+                            // 在 '>' 或 '/>' 前插入
+                            size_t insertAt = tag.size() - 1; // 指向 '>'
+                            if (tag.size() >= 2 && tag[tag.size() - 2] == '/')
+                                insertAt = tag.size() - 2; // '/>' 前
+
+                            out.append(tag.data(), insertAt);
+                            out += insertion;
+                            out.append(tag.data() + insertAt, tag.size() - insertAt);
+                            i = gt + 1;
+                            continue;
                         }
                     }
                 }
 
-                out += tag;
+                out.append(tag);
                 i = gt + 1;
             }
             return out;
