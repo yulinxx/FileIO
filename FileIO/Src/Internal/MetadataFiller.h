@@ -20,13 +20,8 @@
 #include <iomanip>
 #include <sstream>
 
-// 平台检测
 #ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
 #include <windows.h>
-#include <Lmcons.h>
 #elif defined(__APPLE__) || defined(__linux__)
 #include <unistd.h>
 #include <pwd.h>
@@ -41,8 +36,14 @@ namespace Fio
         {
             const auto now = std::chrono::system_clock::now();
             const auto time = std::chrono::system_clock::to_time_t(now);
+            std::tm tm_buf;
+#ifdef _WIN32
+            localtime_s(&tm_buf, &time);
+#else
+            localtime_r(&time, &tm_buf);
+#endif
             std::ostringstream oss;
-            oss << std::put_time(std::localtime(&time), "%Y-%m-%dT%H:%M:%S");
+            oss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%S");
             return oss.str();
         }
 

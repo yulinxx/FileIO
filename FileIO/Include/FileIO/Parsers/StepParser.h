@@ -2,6 +2,7 @@
 
 #include "FileIO/IFileParser.h"
 
+#include <cstdio>
 #include <cstring>
 
 namespace Fio
@@ -26,7 +27,7 @@ namespace Fio
             const size_t len = std::strlen(name);
             if (buffer != nullptr && bufferSize > len)
             {
-                std::strcpy(buffer, name);
+                std::snprintf(buffer, bufferSize, "%s", name);
             }
             return len;
         }

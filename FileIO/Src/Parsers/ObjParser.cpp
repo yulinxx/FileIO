@@ -3,6 +3,7 @@
 #include "IrProjector.h"
 #include "Log/SyLogger.h"
 
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -118,7 +119,7 @@ namespace Fio
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
         {
-            std::strcpy(buffer, name);
+            std::snprintf(buffer, bufferSize, "%s", name);
         }
         return len;
     }

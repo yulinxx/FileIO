@@ -19,6 +19,7 @@
 #include "drw_interface.h"
 #include "libdxfrw.h"
 
+#include <cstdio>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -43,7 +44,7 @@ namespace Fio
 
         if (buffer != nullptr && bufferSize > len)
         {
-            std::strcpy(buffer, name);
+            std::snprintf(buffer, bufferSize, "%s", name);
         }
 
         return len;
