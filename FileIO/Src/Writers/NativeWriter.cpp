@@ -63,25 +63,13 @@ namespace Fio
     {
         const char* name =
             (m_impl->targetFormat == FileFormat::Native3D) ? "SanYi 3D Native (Protobuf)" : "SanYi Native (Protobuf)";
-        const size_t len = std::strlen(name);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, name, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, name);
     }
 
     size_t NativeWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
         const char* ext = (m_impl->targetFormat == FileFormat::Native3D) ? "syx" : "sy";
-        const size_t len = std::strlen(ext);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, ext, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, ext);
     }
 
     // ============================================================

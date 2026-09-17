@@ -47,26 +47,12 @@ namespace Fio
 
     size_t SvgWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = "SVG";
-        const size_t len = std::strlen(name);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, name, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "SVG");
     }
 
     size_t SvgWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        const char* ext = "svg";
-        const size_t len = std::strlen(ext);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, ext, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "svg");
     }
 
     WriteResult SvgWriter::write(const char* filePath, const VecSyEntityPtr& entities)

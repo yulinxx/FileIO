@@ -1,11 +1,10 @@
 #pragma once
 
+#include <cstring>
 #include <cstddef>
 
 #include "FileIO/FileIOAPI.h"
 #include "FileIO/FileFormat.h"
-
-#include <cstddef>
 
 namespace Fio
 {
@@ -24,5 +23,18 @@ namespace Fio
 
         /// 默认扩展名（buffer 模式替代 std::string 返回）
         virtual size_t defaultExtension(char* buffer, size_t bufferSize) const = 0;
+
+    protected:
+        /// 将字符串安全复制到 buffer（统一实现，避免各 Writer 重复模板代码）
+        static size_t copyToBuffer(char* buffer, size_t bufferSize, const char* str)
+        {
+            const size_t len = std::strlen(str);
+            if (buffer != nullptr && bufferSize > len)
+            {
+                std::strncpy(buffer, str, bufferSize - 1);
+                buffer[bufferSize - 1] = '\0';
+            }
+            return len;
+        }
     };
 }  // namespace Fio

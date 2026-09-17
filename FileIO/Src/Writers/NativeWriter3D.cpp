@@ -28,26 +28,12 @@ namespace Fio
 
     size_t NativeWriter3D::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = "SanYi 3D Native (Protobuf)";
-        const size_t len = std::strlen(name);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, name, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "SanYi 3D Native (Protobuf)");
     }
 
     size_t NativeWriter3D::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        const char* ext = "syx";
-        const size_t len = std::strlen(ext);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, ext, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "syx");
     }
 
     WriteResult NativeWriter3D::write(const char* filePath, const VecSyEntityPtr& entities)

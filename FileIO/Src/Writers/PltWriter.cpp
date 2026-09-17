@@ -37,26 +37,12 @@ namespace Fio
 
     size_t PltWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = "HPGL PLT";
-        const size_t len = std::strlen(name);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, name, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "HPGL PLT");
     }
 
     size_t PltWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        const char* ext = "plt";
-        const size_t len = std::strlen(ext);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, ext, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "plt");
     }
 
     WriteResult PltWriter::write(const char* filePath, const VecSyEntityPtr& entities)

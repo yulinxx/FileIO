@@ -161,26 +161,12 @@ namespace Fio
 
     size_t DxfFileWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = "AutoCAD DXF";
-        const size_t len = std::strlen(name);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, name, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "AutoCAD DXF");
     }
 
     size_t DxfFileWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        const char* ext = "dxf";
-        const size_t len = std::strlen(ext);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, ext, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "dxf");
     }
 
     WriteResult DxfFileWriter::write(const char* filePath, const VecSyEntityPtr& entities)

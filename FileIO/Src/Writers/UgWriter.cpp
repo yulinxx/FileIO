@@ -343,26 +343,12 @@ namespace Fio
 
     size_t UgWriter::formatName(char* buffer, size_t bufferSize) const
     {
-        const char* name = "IGES 5.3 (UG/NX)";
-        const size_t len = std::strlen(name);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, name, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "IGES 5.3 (UG/NX)");
     }
 
     size_t UgWriter::defaultExtension(char* buffer, size_t bufferSize) const
     {
-        const char* ext = "igs";
-        const size_t len = std::strlen(ext);
-        if (buffer != nullptr && bufferSize > len)
-        {
-            std::strncpy(buffer, ext, bufferSize - 1);
-            buffer[bufferSize - 1] = '\0';
-        }
-        return len;
+        return copyToBuffer(buffer, bufferSize, "igs");
     }
 
     WriteResult UgWriter::write(const char* filePath, const VecSyEntityPtr& entities)
