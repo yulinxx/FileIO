@@ -56,7 +56,8 @@ namespace Fio
     class PltHpglInterpreter
     {
     public:
-        PltHpglInterpreter(std::vector<EntityInfo>& outEntities, std::vector<std::string>& warnings)
+        PltHpglInterpreter(std::vector<EntityInfo>& outEntities, std::vector<std::string>& warnings,
+                           std::vector<uint8_t>& extensionBlob)
             : m_penDown(false)
             , m_currentPos(0.0, 0.0)
             , m_lastPos(0.0, 0.0)
@@ -66,6 +67,7 @@ namespace Fio
             , m_lineWidth(0.5)
             , m_outEntities(outEntities)
             , m_warnings(warnings)
+            , m_extensionBlob(extensionBlob)
         {
         }
 
@@ -238,10 +240,7 @@ namespace Fio
 
         void finalize()
         {
-            if (m_penDown && (m_currentPos.x() != m_lastPos.x() || m_currentPos.y() != m_lastPos.y()))
-            {
-                emitLine(m_lastPos, m_currentPos);
-            }
+            flushPolyline();
         }
 
     private:
@@ -255,6 +254,10 @@ namespace Fio
 
         std::vector<EntityInfo>& m_outEntities;
         std::vector<std::string>& m_warnings;
+        std::vector<uint8_t>& m_extensionBlob;
+
+        /// 笔落期间累积的折线顶点（HPGL 坐标，未缩放）
+        std::vector<Ut::Vec2d> m_polylinePoints;
 
         static const std::regex m_regexCommaSpace;
 
@@ -332,6 +335,67 @@ namespace Fio
             m_outEntities.push_back(info);
         }
 
+        /// 笔落期间累积的折线顶点刷入 extensionBlob 并输出 Polyline 实体
+        void flushPolyline()
+        {
+            if (m_polylinePoints.empty())
+            {
+                return;
+            }
+
+            // 单点 → 输出 Point（不占 extension 空间）
+            if (m_polylinePoints.size() == 1)
+            {
+                EntityInfo info{};
+                info.type = EntityType::Point;
+                info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+                info.visible = true;
+                Ut::Vec2d p = m_polylinePoints[0] * m_scale;
+                info.line.x1 = p.x();
+                info.line.y1 = p.y();
+                m_outEntities.push_back(info);
+                m_polylinePoints.clear();
+                return;
+            }
+
+            // 两点以上 → Polyline，顶点写入 extensionBlob
+            EntityInfo info{};
+            info.type = EntityType::Polyline;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.vertexCount = static_cast<uint32_t>(m_polylinePoints.size());
+
+            // 写入 extensionBlob：Point2D 数组（每个16字节）
+            info.extensionDataOffset = static_cast<uint32_t>(m_extensionBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(m_polylinePoints.size() * sizeof(Point2D));
+
+            // 检查是否闭合（首尾重合）
+            const auto& first = m_polylinePoints.front();
+            const auto& last = m_polylinePoints.back();
+            const double closeThreshold = 0.5;  // HPGL 单位
+            const bool closed = (std::abs(first.x() - last.x()) < closeThreshold &&
+                                 std::abs(first.y() - last.y()) < closeThreshold);
+
+            // 扩展 blob 追加顶点
+            m_extensionBlob.resize(m_extensionBlob.size() + info.extensionDataSize);
+            auto* dst = reinterpret_cast<Point2D*>(m_extensionBlob.data() + info.extensionDataOffset);
+            for (size_t i = 0; i < m_polylinePoints.size(); ++i)
+            {
+                Ut::Vec2d scaled = m_polylinePoints[i] * m_scale;
+                dst[i].x = scaled.x();
+                dst[i].y = scaled.y();
+            }
+
+            // 闭合折线标记为 Polygon
+            if (closed)
+            {
+                info.type = EntityType::Polygon;
+            }
+
+            m_outEntities.push_back(info);
+            m_polylinePoints.clear();
+        }
+
         void handleIN(const std::vector<std::string>& /*params*/)
         {
             m_penDown = false;
@@ -343,10 +407,7 @@ namespace Fio
 
         void handlePU(const std::vector<std::string>& params)
         {
-            if (m_penDown && (m_currentPos.x() != m_lastPos.x() || m_currentPos.y() != m_lastPos.y()))
-            {
-                emitLine(m_lastPos, m_currentPos);
-            }
+            flushPolyline();
             m_penDown = false;
 
             if (params.size() >= 2)
@@ -359,44 +420,46 @@ namespace Fio
         void handlePD(const std::vector<std::string>& params)
         {
             m_penDown = true;
+            // 笔落瞬间：当前位是折线起点
+            m_polylinePoints.push_back(m_currentPos);
 
             for (size_t i = 0; i + 1 < params.size(); i += 2)
             {
-                m_lastPos = m_currentPos;
                 m_currentPos =
                     Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
-                emitLine(m_lastPos, m_currentPos);
+                m_polylinePoints.push_back(m_currentPos);
             }
+            m_lastPos = m_currentPos;
         }
 
         void handlePA(const std::vector<std::string>& params)
         {
             for (size_t i = 0; i + 1 < params.size(); i += 2)
             {
-                m_lastPos = m_currentPos;
                 m_currentPos =
                     Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
 
                 if (m_penDown)
                 {
-                    emitLine(m_lastPos, m_currentPos);
+                    m_polylinePoints.push_back(m_currentPos);
                 }
             }
+            m_lastPos = m_currentPos;
         }
 
         void handlePR(const std::vector<std::string>& params)
         {
             for (size_t i = 0; i + 1 < params.size(); i += 2)
             {
-                m_lastPos = m_currentPos;
                 m_currentPos = m_currentPos +
                     Ut::Vec2d(getParam(params, static_cast<int>(i)), getParam(params, static_cast<int>(i + 1)));
 
                 if (m_penDown)
                 {
-                    emitLine(m_lastPos, m_currentPos);
+                    m_polylinePoints.push_back(m_currentPos);
                 }
             }
+            m_lastPos = m_currentPos;
         }
 
         void handleAA(const std::vector<std::string>& params)

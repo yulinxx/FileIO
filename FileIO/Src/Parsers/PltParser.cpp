@@ -48,9 +48,9 @@ namespace Fio
 
     // ========================================================================
     // PltParser::parseToIR() — 中立 IR 解析路径
-    // HPGL 文本 → PltHpglInterpreter → EntityInfo(POD)
+    // HPGL 文本 → PltHpglInterpreter → EntityInfo(POD) + extensionBlob
     // 不依赖 Engine2D 类型，跨 DLL 安全
-    // PLT 几何（Line/Arc/Circle）全部用 EntityInfo 内联字段承载，无需 extensionBlob
+    // PLT 折线（Polyline/Polygon）的顶点数据存放在 extensionBlob 中
     // ========================================================================
     FioParseResult PltParser::parseToIR(const char* filePath)
     {
@@ -69,8 +69,10 @@ namespace Fio
 
         // thread_local 缓冲区管理生命周期（与 DxfParser/StepParser 一致）
         thread_local std::vector<EntityInfo> s_entities;
+        thread_local std::vector<uint8_t> s_extensionBlob;
         thread_local std::vector<std::string> s_warnings;
         s_entities.clear();
+        s_extensionBlob.clear();
         s_warnings.clear();
 
         if (!filePath)
@@ -131,7 +133,7 @@ namespace Fio
 
         try
         {
-            PltHpglInterpreter interpreter(s_entities, s_warnings);
+            PltHpglInterpreter interpreter(s_entities, s_warnings, s_extensionBlob);
 
             std::string line;
             int lineIdx = 0;
@@ -188,8 +190,8 @@ namespace Fio
         result.entityCount = static_cast<uint32_t>(s_entities.size());
         result.layers = nullptr;
         result.layerCount = 0;
-        result.extensionBlob.data = nullptr;
-        result.extensionBlob.size = 0;
+        result.extensionBlob.data = s_extensionBlob.empty() ? nullptr : s_extensionBlob.data();
+        result.extensionBlob.size = s_extensionBlob.size();
         std::strncpy(result.sourceFormat, "PLT", sizeof(result.sourceFormat) - 1);
         result.warningCount = static_cast<uint32_t>(s_warnings.size());
 
