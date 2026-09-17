@@ -113,6 +113,12 @@ namespace Fio
         Eg::SyEntity* entityAt(size_t index) const;
         /// 添加图元（接管所有权，传入的指针由文档负责释放）
         void addEntity(Eg::SyEntity* entity);
+
+        /// 添加借出图元（不接管所有权）。仅用于序列化输出路径：调用方须保证
+        /// 该指针在文档被序列化的整个期间内存活，且不在此之后被文档访问。
+        /// 目的是免去「为了写入而先深拷贝到文档」的开销。
+        void addBorrowedEntity(const Eg::SyEntity* entity);
+
         void clearEntities();
 
         // ---- 硬件 ----

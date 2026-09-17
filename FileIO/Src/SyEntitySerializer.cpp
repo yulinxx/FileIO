@@ -155,7 +155,9 @@ namespace Fio
         {
             const auto* line = static_cast<const Eg::SyLine*>(&entity);
             auto* data = out->mutable_line_data();
-            for (const auto& pt : line->pointRef())
+            const auto& pts = line->pointRef();
+            data->mutable_points()->Reserve(static_cast<int>(pts.size()));
+            for (const auto& pt : pts)
             {
                 toProtoVec2(pt, data->add_points());
             }
@@ -167,6 +169,7 @@ namespace Fio
             const auto* poly = static_cast<const Eg::SyPolygon*>(&entity);
             auto* data = out->mutable_polygon_data();
             const auto& verts = poly->vertices();
+            data->mutable_vertices()->Reserve(static_cast<int>(verts.size()));
             for (const auto& v : verts)
             {
                 toProtoVec2(v, data->add_vertices());
@@ -227,6 +230,9 @@ namespace Fio
             const auto* spl = static_cast<const Eg::SyNurbs*>(&entity);
             auto* data = out->mutable_spline_data();
             data->set_degree(spl->nDegree);
+            data->mutable_knots()->Reserve(static_cast<int>(spl->knotRef().size()));
+            data->mutable_weights()->Reserve(static_cast<int>(spl->weightRef().size()));
+            data->mutable_control_points()->Reserve(static_cast<int>(spl->controlPointRef().size()));
             for (double k : spl->knotRef())
             {
                 data->add_knots(k);
@@ -297,6 +303,9 @@ namespace Fio
             const auto* mesh = static_cast<const Eg::SyMeshEntity*>(&entity);
             auto* data = out->mutable_mesh_data();
             data->set_name(mesh->name());
+
+            data->mutable_vertices()->Reserve(static_cast<int>(mesh->vertices.size()));
+            data->mutable_normals()->Reserve(static_cast<int>(mesh->normals.size()));
 
             // 顶点数据
             for (const auto& v : mesh->vertices)

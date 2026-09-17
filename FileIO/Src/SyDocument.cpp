@@ -49,7 +49,8 @@ namespace Fio
 
     bool SyDocument::isValid() const
     {
-        return m_data && (!m_data->entities.empty() || !m_data->layers.empty());
+        return m_data &&
+            (!m_data->entities.empty() || !m_data->borrowedEntities.empty() || !m_data->layers.empty());
     }
 
     // ---- 元数据 ----
@@ -297,11 +298,21 @@ namespace Fio
         m_data->entities.emplace_back(entity);
     }
 
+    void SyDocument::addBorrowedEntity(const Eg::SyEntity* entity)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->borrowedEntities.push_back(entity);
+    }
+
     void SyDocument::clearEntities()
     {
         if (m_data)
         {
             m_data->entities.clear();
+            m_data->borrowedEntities.clear();
         }
     }
 

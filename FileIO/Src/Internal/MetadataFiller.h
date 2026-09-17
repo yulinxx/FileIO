@@ -32,6 +32,10 @@ namespace Fio
 {
     namespace MetadataFiller
     {
+        // 前置声明：缓存包装函数在各自 Impl 定义之前调用
+        inline std::string osVersionDetailImpl();
+        inline std::string deviceSerialNumberImpl();
+
         /// 获取当前时间的 ISO 8601 字符串 (本地时间)
         inline std::string currentIsoTime()
         {
@@ -64,6 +68,14 @@ namespace Fio
 
         /// 获取操作系统版本详情 (如 "Windows 11 23H2", "macOS 14.5", "Ubuntu 22.04")
         inline std::string osVersionDetail()
+        {
+            // 平台版本在进程生命周期内恒定，仅首次真实查询（Windows 走 API、macOS/Linux 走子进程），
+            // 之后直接返回缓存。函数局部 static 由 C++11 保证线程安全初始化。
+            static const std::string cached = osVersionDetailImpl();
+            return cached;
+        }
+
+        inline std::string osVersionDetailImpl()
         {
 #ifdef _WIN32
             // Windows: 使用 RtlGetVersion 获取精确版本
@@ -182,6 +194,14 @@ namespace Fio
 
         /// 获取设备序列号 (用于追溯文件来源设备)
         inline std::string deviceSerialNumber()
+        {
+            // 设备序列号在进程生命周期内恒定，仅首次查询（Windows/macOS 走命令、Linux 读 DMI 文件），
+            // 之后直接返回缓存。函数局部 static 由 C++11 保证线程安全初始化。
+            static const std::string cached = deviceSerialNumberImpl();
+            return cached;
+        }
+
+        inline std::string deviceSerialNumberImpl()
         {
 #ifdef _WIN32
             // Windows: 通过 WMIC 获取 BIOS SerialNumber

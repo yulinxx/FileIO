@@ -82,6 +82,12 @@ namespace Fio
         DocumentMetadata metadata;
         std::vector<LayerInfo> layers;
         std::vector<std::unique_ptr<Eg::SyEntity>> entities;
+
+        /// 借出图元（不拥有）。仅用于「序列化输出」路径：调用方（如 NativeWriter）
+        /// 已持有图元且承诺在序列化期间存活，无需再深拷贝一份到文档里。
+        /// serializeToProto 会先输出 entities，再依次输出 borrowedEntities。
+        std::vector<const Eg::SyEntity*> borrowedEntities;
+
         std::vector<GroupInfo> groups;  // 群组信息
         HardwareInfo hardware;
 

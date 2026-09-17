@@ -91,12 +91,13 @@ namespace Fio
         // 使用共享元数据填充工具
         MetadataFiller::fillMetadata(doc, m_impl->softwareName(), "1.0.0");
 
-        // 克隆图元到文档
+        // 借出图元到文档（不克隆）：调用方保证这些指针在 saveToFile 期间存活，
+        // 避免为了写入而把每个图元（含图片像素/网格顶点）再深拷贝一份。
         for (const auto& entity : entities)
         {
             if (entity)
             {
-                doc.addEntity(entity->clone());
+                doc.addBorrowedEntity(entity.get());
             }
         }
 

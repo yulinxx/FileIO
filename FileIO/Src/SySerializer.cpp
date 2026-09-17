@@ -104,6 +104,10 @@ namespace Fio
                 toProtoProperties(docData.metadata.customProperties, protoDoc, meta->mutable_custom_properties());
             }
 
+            if (!docData.layers.empty())
+            {
+                protoDoc.mutable_layers()->Reserve(static_cast<int>(docData.layers.size()));
+            }
             for (const auto& layer : docData.layers)
             {
                 auto* l = protoDoc.add_layers();
@@ -118,6 +122,13 @@ namespace Fio
                 toProtoProperties(layer.customProperties, protoDoc, l->mutable_custom_properties());
             }
 
+            // 预先 Reserve，避免 add_entities() 反复扩容搬移整个 repeated message 数组。
+            const size_t totalEntities = docData.entities.size() + docData.borrowedEntities.size();
+            if (totalEntities > 0)
+            {
+                protoDoc.mutable_entities()->Reserve(static_cast<int>(totalEntities));
+            }
+
             for (const auto& entity : docData.entities)
             {
                 if (!entity)
@@ -128,6 +139,21 @@ namespace Fio
                 SyEntitySerializer::serializeEntity(*entity, e);
             }
 
+            // 借出图元（不拥有）：直接序列化，不深拷贝
+            for (const Eg::SyEntity* entity : docData.borrowedEntities)
+            {
+                if (!entity)
+                {
+                    continue;
+                }
+                auto* e = protoDoc.add_entities();
+                SyEntitySerializer::serializeEntity(*entity, e);
+            }
+
+            if (!docData.groups.empty())
+            {
+                protoDoc.mutable_groups()->Reserve(static_cast<int>(docData.groups.size()));
+            }
             for (const auto& groupInfo : docData.groups)
             {
                 if (groupInfo.isEmpty())
@@ -389,33 +415,32 @@ namespace Fio
 
         const uint32_t crc = computeCrc32(finalData.data(), finalData.size());
 
-        std::vector<uint8_t> fileBuffer;
-        fileBuffer.resize(SyFileConst::HEADER_SIZE + finalData.size() + SyFileConst::FOOTER_SIZE);
+        // 直接分三段写出：header(16) + payload + crc(4)。
+        // 不再额外分配 HEADER+payload+FOOTER 的整块缓冲并把 payload 再 memcpy 一遍，
+        // 大文件下省掉一次与 payload 等大的内存分配和拷贝。
+        uint8_t header[SyFileConst::HEADER_SIZE] = { 0 };
+        std::memcpy(header, magic, 4);
 
-        std::memcpy(fileBuffer.data(), magic, 4);
+        header[4] = static_cast<uint8_t>(SyFileConst::FILE_VERSION & 0xFF);
+        header[5] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 8) & 0xFF);
+        header[6] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 16) & 0xFF);
+        header[7] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 24) & 0xFF);
 
-        fileBuffer[4] = static_cast<uint8_t>(SyFileConst::FILE_VERSION & 0xFF);
-        fileBuffer[5] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 8) & 0xFF);
-        fileBuffer[6] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 16) & 0xFF);
-        fileBuffer[7] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 24) & 0xFF);
+        header[8] = static_cast<uint8_t>(flags & 0xFF);
+        header[9] = static_cast<uint8_t>((flags >> 8) & 0xFF);
+        header[10] = static_cast<uint8_t>((flags >> 16) & 0xFF);
+        header[11] = static_cast<uint8_t>((flags >> 24) & 0xFF);
 
-        fileBuffer[8] = static_cast<uint8_t>(flags & 0xFF);
-        fileBuffer[9] = static_cast<uint8_t>((flags >> 8) & 0xFF);
-        fileBuffer[10] = static_cast<uint8_t>((flags >> 16) & 0xFF);
-        fileBuffer[11] = static_cast<uint8_t>((flags >> 24) & 0xFF);
+        header[12] = static_cast<uint8_t>(finalData.size() & 0xFF);
+        header[13] = static_cast<uint8_t>((finalData.size() >> 8) & 0xFF);
+        header[14] = static_cast<uint8_t>((finalData.size() >> 16) & 0xFF);
+        header[15] = static_cast<uint8_t>((finalData.size() >> 24) & 0xFF);
 
-        fileBuffer[12] = static_cast<uint8_t>(finalData.size() & 0xFF);
-        fileBuffer[13] = static_cast<uint8_t>((finalData.size() >> 8) & 0xFF);
-        fileBuffer[14] = static_cast<uint8_t>((finalData.size() >> 16) & 0xFF);
-        fileBuffer[15] = static_cast<uint8_t>((finalData.size() >> 24) & 0xFF);
-
-        std::memcpy(fileBuffer.data() + SyFileConst::HEADER_SIZE, finalData.data(), finalData.size());
-
-        const size_t crcOffset = SyFileConst::HEADER_SIZE + finalData.size();
-        fileBuffer[crcOffset + 0] = static_cast<uint8_t>(crc & 0xFF);
-        fileBuffer[crcOffset + 1] = static_cast<uint8_t>((crc >> 8) & 0xFF);
-        fileBuffer[crcOffset + 2] = static_cast<uint8_t>((crc >> 16) & 0xFF);
-        fileBuffer[crcOffset + 3] = static_cast<uint8_t>((crc >> 24) & 0xFF);
+        uint8_t footer[SyFileConst::FOOTER_SIZE];
+        footer[0] = static_cast<uint8_t>(crc & 0xFF);
+        footer[1] = static_cast<uint8_t>((crc >> 8) & 0xFF);
+        footer[2] = static_cast<uint8_t>((crc >> 16) & 0xFF);
+        footer[3] = static_cast<uint8_t>((crc >> 24) & 0xFF);
 
         std::ofstream out(std::filesystem::u8path(filePath), std::ios::binary | std::ios::trunc);
         if (!out)
@@ -423,7 +448,13 @@ namespace Fio
             return SerializeResult::fail(std::string("Cannot open file for writing: ").append(filePath).c_str());
         }
 
-        out.write(reinterpret_cast<const char*>(fileBuffer.data()), static_cast<std::streamsize>(fileBuffer.size()));
+        out.write(reinterpret_cast<const char*>(header), sizeof(header));
+        if (!finalData.empty())
+        {
+            out.write(reinterpret_cast<const char*>(finalData.data()),
+                static_cast<std::streamsize>(finalData.size()));
+        }
+        out.write(reinterpret_cast<const char*>(footer), sizeof(footer));
 
         if (!out.good())
         {

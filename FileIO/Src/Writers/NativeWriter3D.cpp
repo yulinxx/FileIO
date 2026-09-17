@@ -47,7 +47,7 @@ namespace Fio
         {
             if (entity)
             {
-                doc.addEntity(entity->clone());
+                doc.addBorrowedEntity(entity.get());
             }
         }
         return writeDocument(filePath, doc);
