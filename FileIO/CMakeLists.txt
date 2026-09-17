@@ -167,4 +167,6 @@ sanyi_export_imported_target(${LIB_NAME}
         "${SANYI_ENGINE_COMMON_DIR}/Include/Engine"
     INTERFACE_LINK_LIBRARIES
         EngineCommon::EngineCommon
+        protobuf::libprotobuf-lite
+        NanoSVG::nanosvg
 )
