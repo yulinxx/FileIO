@@ -313,8 +313,6 @@ namespace Fio
         }
     }
 
-
-
     class DxfConverter : public DRW_Interface
     {
     public:
@@ -760,7 +758,6 @@ namespace Fio
         // 单次引用的阵列行/列上限
         static constexpr int kMaxArrayCount = 4096;
 
-
         explicit DxfIrConverter(IrPublisher& pub,
             std::vector<std::string>& warnings,
             ParseProgressCallback onProgress = nullptr,
@@ -784,8 +781,7 @@ namespace Fio
             // DRW_Header::getInt 是 private，只能走公开的 vars 表。
             // $INSUNITS 是组码 70 的整型变量；类型不符时按未声明处理，不硬转。
             const auto it = header->vars.find("$INSUNITS");
-            if (it == header->vars.end() || it->second == nullptr ||
-                it->second->type() != DRW_Variant::INTEGER)
+            if (it == header->vars.end() || it->second == nullptr || it->second->type() != DRW_Variant::INTEGER)
             {
                 return;
             }
@@ -802,14 +798,11 @@ namespace Fio
             }
         }
 
-
         /// 图纸单位（来自 $INSUNITS）；空串表示文件未声明
         const std::string& sourceUnit() const
         {
             return m_sourceUnit;
         }
-
-
 
         void addLType(const DRW_LType&) override {}
 
@@ -883,7 +876,6 @@ namespace Fio
 
             expandInsert(ref, IrXform{}, 0u, 0);
         }
-
 
         void addTrace(const DRW_Trace& trace) override
         {
@@ -970,7 +962,6 @@ namespace Fio
 
         void addPlotSettings(const DRW_PlotSettings*) override {}
 
-
         void writeHeader(DRW_Header&) override {}
 
         void writeBlocks() override {}
@@ -1007,10 +998,7 @@ namespace Fio
             // DXF 的 TABLES 段一定在 BLOCKS/ENTITIES 之前，所以图层在图元之前就全部登记完毕，
             // 可以在图元产出的当场解析 layerSourceId，不再需要「先记图层名、读完再回填」的二次遍历。
             // resolveLayerColor 失败时补不透明黑：IrLayerInfo.color 是展示用颜色，需要确定值。
-            m_pub.addLayer(layer.name,
-                color != 0u ? color : 0xFF000000u,
-                layerIsVisible(layer),
-                layerIsLocked(layer));
+            m_pub.addLayer(layer.name, color != 0u ? color : 0xFF000000u, layerIsVisible(layer), layerIsLocked(layer));
         }
 
         void addPoint(const DRW_Point& point) override
@@ -1028,7 +1016,6 @@ namespace Fio
             info.line.y1 = p.y();
             emit(info, point);
         }
-
 
         void addLine(const DRW_Line& line) override
         {
@@ -1201,7 +1188,6 @@ namespace Fio
             emitPolylineVerts(verts, (data.flags & 1) != 0, data, data.extPoint, "LWPOLYLINE");
         }
 
-
         void addPolyline(const DRW_Polyline& polyline) override
         {
             if (polyline.vertlist.empty())
@@ -1253,7 +1239,6 @@ namespace Fio
 
             emitPolylineVerts(verts, (polyline.flags & 1) != 0, polyline, polyline.extPoint, "POLYLINE");
         }
-
 
         void addSpline(const DRW_Spline* data) override
         {
@@ -1549,7 +1534,6 @@ namespace Fio
             emitPolylineVerts(verts, true, quad, extrusion, entityName);
         }
 
-
         /// SPLINE 拟合点降级）。顶点先做 OCS→WCS 换算，再打包进扩展数据块。
         /// 闭合折线用 EntityType::Polygon 表达，消费侧据此设置 bClosed。
         ///
@@ -1584,7 +1568,6 @@ namespace Fio
             appendExtensionData(verts.data(), info.extensionDataSize);
             emit(info, drwEntity);
         }
-
 
         /// 把一次块引用实例化成真实图元，并用一个群组表达「这些图元来自同一个块引用」。
         /// 嵌套引用递归展开，每层再套一层子群组，于是 IR 里的群组树就是 DXF 的块嵌套结构。
@@ -1700,7 +1683,6 @@ namespace Fio
             }
         }
 
-
     private:
         IrPublisher& m_pub;
         std::vector<std::string>& m_warnings;
@@ -1713,8 +1695,6 @@ namespace Fio
         void* m_progressCtx = nullptr;
         size_t m_emittedCount = 0;
 
-
-
         // 块状态。用 std::map 而非 unordered_map：节点地址稳定，m_currentBlock 指针在
         // 后续插入其他块时不会失效。
         std::map<std::string, BlockDef> m_blocks;
@@ -1724,7 +1704,6 @@ namespace Fio
         size_t m_instanceCount = 0;
         size_t m_expandedCount = 0;
     };
-
 
     // libdxfrw 的 ASCII 读取器用 std::getline 按行切分，无法识别多字节编码（如 GBK/ANSI_936）
     // 中第二字节恰好为 0x0A 的字符，会把这个字节误判为换行，导致整份文件记录错位、解析失败。
@@ -1846,7 +1825,6 @@ namespace Fio
             return FioParseResult{};
         }
     }
-
 
     ParseResult DxfParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
     {

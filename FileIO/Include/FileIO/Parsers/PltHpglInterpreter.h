@@ -56,8 +56,9 @@ namespace Fio
     class PltHpglInterpreter
     {
     public:
-        PltHpglInterpreter(std::vector<EntityInfo>& outEntities, std::vector<std::string>& warnings,
-                           std::vector<uint8_t>& extensionBlob)
+        PltHpglInterpreter(std::vector<EntityInfo>& outEntities,
+            std::vector<std::string>& warnings,
+            std::vector<uint8_t>& extensionBlob)
             : m_penDown(false)
             , m_currentPos(0.0, 0.0)
             , m_lastPos(0.0, 0.0)
@@ -373,8 +374,8 @@ namespace Fio
             const auto& first = m_polylinePoints.front();
             const auto& last = m_polylinePoints.back();
             const double closeThreshold = 0.5;  // HPGL 单位
-            const bool closed = (std::abs(first.x() - last.x()) < closeThreshold &&
-                                 std::abs(first.y() - last.y()) < closeThreshold);
+            const bool closed =
+                (std::abs(first.x() - last.x()) < closeThreshold && std::abs(first.y() - last.y()) < closeThreshold);
 
             // 扩展 blob 追加顶点
             m_extensionBlob.resize(m_extensionBlob.size() + info.extensionDataSize);

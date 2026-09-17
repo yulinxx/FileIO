@@ -406,7 +406,7 @@ namespace Fio
             g.type = ParsedGeometryType::Mesh3D;
             g.groupSourceId = groupId;
             g.name = !chunk.objectName.empty() ? chunk.objectName
-                : (!chunk.groupName.empty() ? chunk.groupName : std::string("mesh"));
+                                               : (!chunk.groupName.empty() ? chunk.groupName : std::string("mesh"));
             g.mesh.vertices = chunk.vertices;
             g.mesh.normals = chunk.normals;
             // 顶点已按三角形逐角展开，索引就是顺序自增；消费侧目前只用顶点+法线，

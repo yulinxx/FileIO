@@ -231,8 +231,7 @@ namespace Fio
         // [防御性编程] 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
-            writeError(
-                errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
+            writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
             return false;
         }
 
@@ -314,8 +313,8 @@ namespace Fio
         catch (const std::exception& e)
         {
             // 异常类型与文案必须落日志：errorBuffer 只回一句概括，排查时不够用
-            SY_CRITICALF("[FileIO] importToIR: exception from parser (format=%d): %s", static_cast<int>(format),
-                e.what());
+            SY_CRITICALF(
+                "[FileIO] importToIR: exception from parser (format=%d): %s", static_cast<int>(format), e.what());
             factory.destroyParser(parser);
             if (m_importCallback)
             {
@@ -495,9 +494,7 @@ namespace Fio
         // [防御性编程] 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
-            writeError(errorBuffer,
-                errorBufferSize,
-                "Invalid file path: path is null or empty");
+            writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
             return false;
         }
 

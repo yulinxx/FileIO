@@ -170,8 +170,7 @@ namespace Fio
             nullptr };
 
         // 使用无序集合做 O(1) 属性名查找
-        static const std::unordered_set<std::string_view> kInlinePropSet(
-            kSvgInlineProps, kSvgInlineProps + 10);
+        static const std::unordered_set<std::string_view> kInlinePropSet(kSvgInlineProps, kSvgInlineProps + 10);
 
         inline bool isSvgInlineProp(std::string_view name)
         {
@@ -189,8 +188,8 @@ namespace Fio
         }
 
         // 单次扫描标签提取所有属性：返回 {name -> value} map（string_view 指向原 tag 缓冲）
-        static void extractTagAttrs(std::string_view tag,
-                                    std::vector<std::pair<std::string_view, std::string_view>>& outAttrs)
+        static void extractTagAttrs(
+            std::string_view tag, std::vector<std::pair<std::string_view, std::string_view>>& outAttrs)
         {
             outAttrs.clear();
             size_t p = 0;
@@ -203,18 +202,19 @@ namespace Fio
                 if (p >= n)
                     break;
                 if (tag[p] == '>')
-                    break; // 标签结束
+                    break;  // 标签结束
                 if (tag[p] == '/')
                 {
                     // 传入的 tag 已去掉 '<' 和 '>'，末尾的 '/' 即为自闭合标记
                     if (p + 1 >= n || tag[p + 1] == '>')
                         break;
-                    ++p; // 非末尾的 '/'：跳过，避免 p 不前进导致死循环
+                    ++p;  // 非末尾的 '/'：跳过，避免 p 不前进导致死循环
                     continue;
                 }
 
                 size_t nameStart = p;
-                while (p < n && !std::isspace(static_cast<unsigned char>(tag[p])) && tag[p] != '=' && tag[p] != '>' && tag[p] != '/')
+                while (p < n && !std::isspace(static_cast<unsigned char>(tag[p])) && tag[p] != '=' && tag[p] != '>' &&
+                    tag[p] != '/')
                     ++p;
                 std::string_view name = tag.substr(nameStart, p - nameStart);
 
@@ -237,14 +237,15 @@ namespace Fio
                     ++p;
                 std::string_view value = tag.substr(valStart, p - valStart);
                 if (p < n)
-                    ++p; // 跳过结束引号
+                    ++p;  // 跳过结束引号
 
                 outAttrs.emplace_back(name, value);
             }
         }
 
         // 检查标签是否已有某属性
-        inline bool hasAttr(const std::vector<std::pair<std::string_view, std::string_view>>& attrs, std::string_view name)
+        inline bool hasAttr(
+            const std::vector<std::pair<std::string_view, std::string_view>>& attrs, std::string_view name)
         {
             for (const auto& kv : attrs)
                 if (kv.first == name)
@@ -254,8 +255,8 @@ namespace Fio
 
         // 解析 <style> 文本中的 .class 规则 → class 名 → (属性 → 值)
         // 使用 unordered_map + string 存储值（需拥有所有权）
-        static std::unordered_map<std::string, std::unordered_map<std::string, std::string>>
-        parseCssRules(std::string_view css)
+        static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> parseCssRules(
+            std::string_view css)
         {
             std::unordered_map<std::string, std::unordered_map<std::string, std::string>> rules;
             size_t i = 0;
@@ -324,7 +325,7 @@ namespace Fio
         {
             // 1) 收集所有 <style> 块内容（使用 string_view 避免拷贝）
             std::string css;
-            css.reserve(svg.size() / 10); // 估算
+            css.reserve(svg.size() / 10);  // 估算
             size_t pos = 0;
             while (true)
             {
@@ -349,7 +350,7 @@ namespace Fio
 
             // 2) 单次遍历处理元素标签
             std::string out;
-            out.reserve(svg.size() + rules.size() * 32); // 预留插入空间
+            out.reserve(svg.size() + rules.size() * 32);  // 预留插入空间
             size_t i = 0;
             const size_t n = svg.size();
 
@@ -391,7 +392,7 @@ namespace Fio
                 std::string_view tag(svg.data() + lt, gt - lt + 1);
 
                 // 提取 class 属性
-                extractTagAttrs(tag.substr(1, tag.size() - 2), tagAttrs); // 去掉 < >
+                extractTagAttrs(tag.substr(1, tag.size() - 2), tagAttrs);  // 去掉 < >
 
                 std::string_view classAttr;
                 for (const auto& kv : tagAttrs)
@@ -447,9 +448,9 @@ namespace Fio
                         if (!insertion.empty())
                         {
                             // 在 '>' 或 '/>' 前插入
-                            size_t insertAt = tag.size() - 1; // 指向 '>'
+                            size_t insertAt = tag.size() - 1;  // 指向 '>'
                             if (tag.size() >= 2 && tag[tag.size() - 2] == '/')
-                                insertAt = tag.size() - 2; // '/>' 前
+                                insertAt = tag.size() - 2;  // '/>' 前
 
                             out.append(tag.data(), insertAt);
                             out += insertion;
@@ -633,7 +634,9 @@ namespace Fio
             }
 
             SY_DEBUGF("[SvgParser] Parsed %zu visible shapes: %zu stroked, %zu fill-only",
-                shapeCount, strokeCount, fillOnlyCount);
+                shapeCount,
+                strokeCount,
+                fillOnlyCount);
 
             if (m_onProgress)
             {
@@ -659,7 +662,6 @@ namespace Fio
 
         /// 单条 path 的段缓冲，逐路径复用容量，避免每条路径各分配一次
         std::vector<double> m_segBuf;
-
 
         /// ARGB 颜色 → 图层 sourceId。O(1) 查找，取代原来对 m_outLayers 的线性扫描
         /// （线性版在「每个 shape 一个图层」时是 O(shape²)）。
@@ -692,8 +694,8 @@ namespace Fio
                     m_layerLimitWarned = true;
                     m_warnings.push_back("SVG color count exceeds " + std::to_string(kMaxSvgLayers) +
                         ", extra colors are merged into the first layer");
-                    SY_WARNF("[SvgParser] Color layer limit %zu reached, extra colors merged into layer 1",
-                        kMaxSvgLayers);
+                    SY_WARNF(
+                        "[SvgParser] Color layer limit %zu reached, extra colors merged into layer 1", kMaxSvgLayers);
                 }
                 return 1u;
             }
@@ -884,8 +886,7 @@ namespace Fio
         }
 
         /// 判断一段三次贝塞尔是否等价于直线：两个控制点都落在 p0→p1 线段上
-        static bool isStraightCubic(
-            const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1)
+        static bool isStraightCubic(const Ut::Vec2d& p0, const Ut::Vec2d& c1, const Ut::Vec2d& c2, const Ut::Vec2d& p1)
         {
             const double dx = p1.x() - p0.x();
             const double dy = p1.y() - p0.y();

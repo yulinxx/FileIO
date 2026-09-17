@@ -49,8 +49,7 @@ namespace Fio
 
     bool SyDocument::isValid() const
     {
-        return m_data &&
-            (!m_data->entities.empty() || !m_data->borrowedEntities.empty() || !m_data->layers.empty());
+        return m_data && (!m_data->entities.empty() || !m_data->borrowedEntities.empty() || !m_data->layers.empty());
     }
 
     // ---- 元数据 ----

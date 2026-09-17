@@ -155,8 +155,7 @@ namespace Fio
                     const std::streamoff pos = static_cast<std::streamoff>(file.tellg());
                     const float p = (pos < 0)
                         ? 0.0f
-                        : std::min(1.0f,
-                              static_cast<float>(static_cast<double>(pos) / static_cast<double>(totalBytes)));
+                        : std::min(1.0f, static_cast<float>(static_cast<double>(pos) / static_cast<double>(totalBytes)));
                     onProgress(p, progressCtx);
                 }
             }

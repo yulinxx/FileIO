@@ -121,7 +121,8 @@ namespace Fio
             return WriteResult::fail("Empty file path");
         }
 
-        SY_DEBUGF("[NativeWriter] writeDocument(): path=%s, format=%d", filePath, static_cast<int>(m_impl->targetFormat));
+        SY_DEBUGF(
+            "[NativeWriter] writeDocument(): path=%s, format=%d", filePath, static_cast<int>(m_impl->targetFormat));
 
         auto result = m_impl->serializer.saveToFile(filePath, doc, false, m_impl->targetFormat);
         if (!result.success)

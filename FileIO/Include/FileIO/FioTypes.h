@@ -120,8 +120,6 @@ namespace Fio
     /// 读取方无需边解析边推进就能校验完整性（畸形文件给出的 vertexCount 不可信）。
     constexpr uint32_t kSmartSegStride = 9;
 
-
-
     /// 图元颜色来源策略（跨 DLL 安全，uint8_t）
     enum class EntityColorPolicy : uint8_t
     {
@@ -299,7 +297,6 @@ namespace Fio
         /// 群组来源举例：DXF 的 BLOCK/INSERT 实例、SVG 的 <g>、OBJ 的 o/g 分段。
         const IrGroupInfo* groups = nullptr;
         uint32_t groupCount = 0;
-
 
         /// 扩展数据块（多边形顶点、贝塞尔控制点序列等可变长度数据）
         BinaryBlob extensionBlob{};

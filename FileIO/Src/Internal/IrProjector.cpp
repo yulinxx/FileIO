@@ -8,7 +8,6 @@
 #include <string>
 #include <unordered_map>
 
-
 namespace Fio
 {
     namespace
@@ -18,7 +17,7 @@ namespace Fio
         /// @return true 表示发生了截断。截断不是无害的：图层名被截短后
         ///         IrPublisher::findLayer 按名字比对会失配，于是同一个图层被重复登记；
         ///         图元名被截短则影响上层按名字定位。所以调用方要把截断计入统计。
-        template <std::size_t N>
+        template<std::size_t N>
         bool copyFixed(char (&dst)[N], const std::string& src)
         {
             const std::size_t n = std::min(src.size(), N - 1);
@@ -158,9 +157,10 @@ namespace Fio
             {
                 m_layerLimitWarned = true;
                 m_warnings.push_back("Layer count reached the limit (" + std::to_string(kMaxLayers) +
-                                     "), extra layers are merged into the default layer");
+                    "), extra layers are merged into the default layer");
                 SY_WARNF("[IrProjector] Layer limit %zu reached, subsequent layers fall back to default: '%s'",
-                    kMaxLayers, key.c_str());
+                    kMaxLayers,
+                    key.c_str());
             }
             return 0u;
         }
@@ -184,9 +184,10 @@ namespace Fio
             {
                 m_groupLimitWarned = true;
                 m_warnings.push_back("Group count reached the limit (" + std::to_string(kMaxGroups) +
-                                     "), extra groups are flattened into their parent");
+                    "), extra groups are flattened into their parent");
                 SY_WARNF("[IrProjector] Group limit %zu reached, subsequent groups are flattened into parent %llu",
-                    kMaxGroups, static_cast<unsigned long long>(parentSourceId));
+                    kMaxGroups,
+                    static_cast<unsigned long long>(parentSourceId));
             }
             return parentSourceId;
         }
@@ -302,12 +303,12 @@ namespace Fio
             /// 「文件里 1000 个图元、界面只出现 800 个」就会变成查不下去的现场。
             struct ProjectionStats
             {
-                uint32_t unknownType = 0;      ///< 类型无法映射，整条图元被跳过
-                uint32_t smartLineSkipped = 0; ///< SmartLine 目前无 IR 通道
-                uint32_t blobOverflow = 0;     ///< 扩展数据溢出，图元退化成无几何的空壳
-                uint32_t missingLayerRef = 0;  ///< 引用了不存在的图层，落到「未分配」
-                uint32_t missingGroupRef = 0;  ///< 引用了不存在的群组，落到「无群组」
-                uint32_t nameTruncated = 0;    ///< 名字超长被截断
+                uint32_t unknownType = 0;       ///< 类型无法映射，整条图元被跳过
+                uint32_t smartLineSkipped = 0;  ///< SmartLine 目前无 IR 通道
+                uint32_t blobOverflow = 0;      ///< 扩展数据溢出，图元退化成无几何的空壳
+                uint32_t missingLayerRef = 0;   ///< 引用了不存在的图层，落到「未分配」
+                uint32_t missingGroupRef = 0;   ///< 引用了不存在的群组，落到「无群组」
+                uint32_t nameTruncated = 0;     ///< 名字超长被截断
                 uint32_t groupParentMissing = 0;
                 uint32_t groupCycleBroken = 0;
 
@@ -318,9 +319,8 @@ namespace Fio
 
                 bool anyDegradation() const
                 {
-                    return unknownType != 0 || smartLineSkipped != 0 || blobOverflow != 0 || missingLayerRef != 0
-                        || missingGroupRef != 0 || nameTruncated != 0 || groupParentMissing != 0
-                        || groupCycleBroken != 0;
+                    return unknownType != 0 || smartLineSkipped != 0 || blobOverflow != 0 || missingLayerRef != 0 ||
+                        missingGroupRef != 0 || nameTruncated != 0 || groupParentMissing != 0 || groupCycleBroken != 0;
                 }
             };
 
@@ -708,19 +708,18 @@ namespace Fio
             }
             if (stats.smartLineSkipped != 0)
             {
-                pub.warnings().emplace_back("SmartLine geometries imported as empty shells (no IR channel yet): "
-                    + std::to_string(stats.smartLineSkipped));
+                pub.warnings().emplace_back("SmartLine geometries imported as empty shells (no IR channel yet): " +
+                    std::to_string(stats.smartLineSkipped));
             }
             if (stats.blobOverflow != 0)
             {
-                pub.warnings().emplace_back("Entities imported as empty shells due to extension blob overflow: "
-                    + std::to_string(stats.blobOverflow));
+                pub.warnings().emplace_back("Entities imported as empty shells due to extension blob overflow: " +
+                    std::to_string(stats.blobOverflow));
             }
             if (stats.missingLayerRef != 0)
             {
-                pub.warnings().emplace_back(
-                    "Dangling layer references, entities fell back to the unassigned layer: "
-                    + std::to_string(stats.missingLayerRef));
+                pub.warnings().emplace_back("Dangling layer references, entities fell back to the unassigned layer: " +
+                    std::to_string(stats.missingLayerRef));
             }
             if (stats.missingGroupRef != 0)
             {
@@ -729,15 +728,14 @@ namespace Fio
             }
             if (stats.nameTruncated != 0)
             {
-                pub.warnings().emplace_back("Names truncated to fit fixed-size buffers: "
-                    + std::to_string(stats.nameTruncated));
+                pub.warnings().emplace_back(
+                    "Names truncated to fit fixed-size buffers: " + std::to_string(stats.nameTruncated));
             }
 
             for (const auto& w : data.warnings)
             {
                 pub.warnings().push_back(w);
             }
-
 
             FioParseResult result = pub.publish(sourceFormat, sourceUnit);
             const char* fmt = sourceFormat != nullptr ? sourceFormat : "?";

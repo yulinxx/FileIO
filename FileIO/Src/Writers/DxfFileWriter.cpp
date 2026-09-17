@@ -91,8 +91,7 @@ namespace Fio
         /// 写 DXF 真彩色（组码 420，值域 0x00RRGGBB）
         void writeTrueColor(std::ostream& out, const Ut::Color& color)
         {
-            const int argb =
-                (channel255(color.r()) << 16) | (channel255(color.g()) << 8) | channel255(color.b());
+            const int argb = (channel255(color.r()) << 16) | (channel255(color.g()) << 8) | channel255(color.b());
             writePair(out, 420, argb);
         }
 
@@ -141,7 +140,8 @@ namespace Fio
                 writePair(out, 0, "LAYER");
                 writePair(out, 2, name);
                 writePair(out, 70, 0);
-                writePair(out, 62,
+                writePair(out,
+                    62,
                     nearestAci(static_cast<uint8_t>(channel255(color.r())),
                         static_cast<uint8_t>(channel255(color.g())),
                         static_cast<uint8_t>(channel255(color.b()))));

@@ -451,8 +451,7 @@ namespace Fio
         out.write(reinterpret_cast<const char*>(header), sizeof(header));
         if (!finalData.empty())
         {
-            out.write(reinterpret_cast<const char*>(finalData.data()),
-                static_cast<std::streamsize>(finalData.size()));
+            out.write(reinterpret_cast<const char*>(finalData.data()), static_cast<std::streamsize>(finalData.size()));
         }
         out.write(reinterpret_cast<const char*>(footer), sizeof(footer));
 

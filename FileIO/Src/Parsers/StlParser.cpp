@@ -69,9 +69,8 @@ namespace Fio
         std::vector<uint8_t> data(static_cast<size_t>(fileSize));
         if (!file.read(reinterpret_cast<char*>(data.data()), fileSize))
         {
-            SY_ERRORF("[StlParser] parseToIR: read failed at %lld bytes: %s",
-                static_cast<long long>(fileSize),
-                filePath);
+            SY_ERRORF(
+                "[StlParser] parseToIR: read failed at %lld bytes: %s", static_cast<long long>(fileSize), filePath);
             return result;
         }
 
@@ -110,7 +109,6 @@ namespace Fio
                 triangleCount = count;
                 vertices.reserve(triangleCount * 9);
                 normals.reserve(triangleCount * 9);
-
 
                 const uint8_t* ptr = data.data() + 84;
                 for (uint32_t i = 0; i < triangleCount; ++i)

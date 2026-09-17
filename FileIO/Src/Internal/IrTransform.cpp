@@ -156,10 +156,8 @@ namespace Fio
     namespace
     {
         /// 取出 info 的扩展数据（double 序列）。越界返回 false。
-        bool readDoubleBlob(const EntityInfo& info,
-            const uint8_t* srcBlob,
-            std::size_t srcBlobSize,
-            std::vector<double>& out)
+        bool readDoubleBlob(
+            const EntityInfo& info, const uint8_t* srcBlob, std::size_t srcBlobSize, std::vector<double>& out)
         {
             if (info.extensionDataSize == 0)
             {
@@ -184,8 +182,8 @@ namespace Fio
 
         /// 圆/圆弧在非等比缩放下升级为椭圆。DXF INSERT 的语义是「先缩放再旋转」，
         /// 因此椭圆两轴分别是 r*|sx| 与 r*|sy|，长轴方向就是变换的旋转角。
-        void circleToEllipse(EntityInfo& info, double cx, double cy, double r, const IrXform& xf, bool isArc,
-            double sa, double ea)
+        void circleToEllipse(
+            EntityInfo& info, double cx, double cy, double r, const IrXform& xf, bool isArc, double sa, double ea)
         {
             const double sx = xf.scaleX();
             const double sy = xf.scaleY();
@@ -285,8 +283,7 @@ namespace Fio
             }
             else
             {
-                circleToEllipse(
-                    info, info.arc.cx, info.arc.cy, info.arc.r, xf, true, info.arc.sa, info.arc.ea);
+                circleToEllipse(info, info.arc.cx, info.arc.cy, info.arc.r, xf, true, info.arc.sa, info.arc.ea);
             }
             break;
 
@@ -436,8 +433,8 @@ namespace Fio
             {
                 break;
             }
-            const std::size_t end = static_cast<std::size_t>(info.extensionDataOffset) +
-                static_cast<std::size_t>(info.extensionDataSize);
+            const std::size_t end =
+                static_cast<std::size_t>(info.extensionDataOffset) + static_cast<std::size_t>(info.extensionDataSize);
             if (srcBlob == nullptr || end > srcBlobSize || (info.extensionDataSize % sizeof(float)) != 0)
             {
                 warnings.emplace_back("Mesh extension data out of range, entity dropped");
