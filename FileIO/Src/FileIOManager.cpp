@@ -246,8 +246,13 @@ namespace Fio
         return importFile(filePath, fmt, outEntities, outCount, errorBuffer, errorBufferSize);
     }
 
-    bool FileIOManager::importToIR(
-        const char* filePath, FileFormat format, FioParseResult* outResult, char* errorBuffer, size_t errorBufferSize)
+    bool FileIOManager::importToIR(const char* filePath,
+        FileFormat format,
+        FioParseResult* outResult,
+        char* errorBuffer,
+        size_t errorBufferSize,
+        ParseProgressCallback onProgress,
+        void* progressCtx)
     {
         if (outResult)
         {
@@ -304,7 +309,7 @@ namespace Fio
         FioParseResult result;
         try
         {
-            result = parser->parseToIR(filePath);
+            result = parser->parseToIRWithProgress(filePath, onProgress, progressCtx);
         }
         catch (const std::exception& e)
         {

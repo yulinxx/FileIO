@@ -22,6 +22,10 @@ namespace Fio
         // SVG path 采样为 Polyline，顶点数据存入 extensionBlob
         FioParseResult parseToIR(const char* filePath) override;
 
+        // 带进度：按已处理的 <shape> 数 / 总数上报，大 SVG 解析时进度条平滑推进
+        FioParseResult parseToIRWithProgress(
+            const char* filePath, ParseProgressCallback onProgress, void* progressCtx) override;
+
         /// 配置：是否把纯填充(fill-only)色块也导入为闭合轮廓线。
         /// 默认 true = 纯填充色块（无描边，常见于 Illustrator 导出的图标/Logo）按
         /// 其填充色绘制轮廓（闭合曲线），避免整图被跳过、导入无图元。
@@ -37,6 +41,8 @@ namespace Fio
         }
 
     private:
+        FioParseResult parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx);
+
         bool m_importFillAsOutline = true;
     };
 }  // namespace Fio

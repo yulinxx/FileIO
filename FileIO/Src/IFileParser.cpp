@@ -19,4 +19,12 @@ namespace Fio
             filePath ? filePath : "(null path)");
         return FioParseResult{};
     }
+
+    // 默认进度实现：该解析器尚未接入细粒度进度，忽略回调直接走原路径。
+    // 覆写者见 PltParser / SvgParser / DxfParser。
+    FioParseResult IFileParser::parseToIRWithProgress(const char* filePath, ParseProgressCallback /*onProgress*/,
+        void* /*progressCtx*/)
+    {
+        return parseToIR(filePath);
+    }
 }  // namespace Fio

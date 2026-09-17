@@ -15,8 +15,10 @@
 #include <algorithm>
 #include <memory>
 #include <cctype>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <system_error>
 #include <vector>
 
 namespace Fio
@@ -51,6 +53,17 @@ namespace Fio
     // PLT 几何（Line/Arc/Circle）全部用 EntityInfo 内联字段承载，无需 extensionBlob
     // ========================================================================
     FioParseResult PltParser::parseToIR(const char* filePath)
+    {
+        return parseToIRImpl(filePath, nullptr, nullptr);
+    }
+
+    FioParseResult PltParser::parseToIRWithProgress(
+        const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
+    {
+        return parseToIRImpl(filePath, onProgress, progressCtx);
+    }
+
+    FioParseResult PltParser::parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
     {
         SY_INFOF("[PltParser] parseToIR START: %s", filePath ? filePath : "");
 
@@ -109,6 +122,13 @@ namespace Fio
 
         const int MAX_ENTITIES = 1000000;
 
+        // 进度：PLT 逐行顺序读取，流位置即可靠的单调进度信号（总行数事先不可知，
+        // 但文件字节数是确定的）。每 kProgressStride 行取一次 tellg，避免逐行系统调用。
+        std::error_code sizeEc;
+        const std::uintmax_t totalBytes = std::filesystem::file_size(fsPath, sizeEc);
+        constexpr int kProgressStride = 2048;
+        const bool reportProgress = (onProgress != nullptr) && !sizeEc && totalBytes > 0;
+
         try
         {
             PltHpglInterpreter interpreter(s_entities, s_warnings);
@@ -127,9 +147,24 @@ namespace Fio
                 line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
                 interpreter.processLine(line, lineIdx);
                 ++lineIdx;
+
+                if (reportProgress && (lineIdx % kProgressStride == 0))
+                {
+                    const std::streamoff pos = static_cast<std::streamoff>(file.tellg());
+                    const float p = (pos < 0)
+                        ? 0.0f
+                        : std::min(1.0f,
+                              static_cast<float>(static_cast<double>(pos) / static_cast<double>(totalBytes)));
+                    onProgress(p, progressCtx);
+                }
             }
 
             interpreter.finalize();
+
+            if (onProgress)
+            {
+                onProgress(1.0f, progressCtx);
+            }
         }
         catch (const std::exception& ex)
         {

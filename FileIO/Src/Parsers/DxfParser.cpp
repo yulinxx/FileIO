@@ -761,9 +761,14 @@ namespace Fio
         static constexpr int kMaxArrayCount = 4096;
 
 
-        explicit DxfIrConverter(IrPublisher& pub, std::vector<std::string>& warnings)
+        explicit DxfIrConverter(IrPublisher& pub,
+            std::vector<std::string>& warnings,
+            ParseProgressCallback onProgress = nullptr,
+            void* progressCtx = nullptr)
             : m_pub(pub)
             , m_warnings(warnings)
+            , m_onProgress(onProgress)
+            , m_progressCtx(progressCtx)
         {
         }
 
@@ -1474,6 +1479,16 @@ namespace Fio
         ///        自行换算（见 emitPolylineVerts），避免把未换算的旧顶点留在缓冲区里。
         void emit(EntityInfo& info, const DRW_Entity& drwEntity, const DRW_Coord* ocsExtrusion = nullptr)
         {
+            // 进度：libdxfrw 不提供读取位置，无法得到真实百分比，这里按已产出图元数做
+            // 单调饱和估算：n → 1 - 1/(1 + n/50000)（50k→0.5、100k→0.67、200k→0.8），
+            // 保证进度条持续前进且不发散；解析结束时由上层补 1.0。
+            // 每 256 个图元上报一次：百万级文件下避免逐条加锁拖慢解析，精度对进度条足够。
+            if (m_onProgress && (++m_emittedCount % 256 == 0))
+            {
+                const float p = 1.0f - 1.0f / (1.0f + static_cast<float>(m_emittedCount) / 50000.0f);
+                m_onProgress(p, m_progressCtx);
+            }
+
             applyEntityMeta(info, drwEntity);
 
             if (ocsExtrusion != nullptr)
@@ -1692,6 +1707,12 @@ namespace Fio
         std::map<std::string, uint32_t> m_layerColorMap;
         std::string m_sourceUnit;  // 来自 $INSUNITS，空串 = 文件未声明
 
+        /// 解析进度（可空）。libdxfrw 不透出读取位置、事前也无法得知图元总数，
+        /// 故按「已产出图元数」做单调饱和估算（见 emit()）。
+        ParseProgressCallback m_onProgress = nullptr;
+        void* m_progressCtx = nullptr;
+        size_t m_emittedCount = 0;
+
 
 
         // 块状态。用 std::map 而非 unordered_map：节点地址稳定，m_currentBlock 指针在
@@ -1738,6 +1759,17 @@ namespace Fio
 
     FioParseResult DxfParser::parseToIR(const char* filePath)
     {
+        return parseToIRImpl(filePath, nullptr, nullptr);
+    }
+
+    FioParseResult DxfParser::parseToIRWithProgress(
+        const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
+    {
+        return parseToIRImpl(filePath, onProgress, progressCtx);
+    }
+
+    FioParseResult DxfParser::parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
+    {
         SY_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath ? filePath : "(null path)");
         const auto startTime = std::chrono::steady_clock::now();
 
@@ -1766,7 +1798,7 @@ namespace Fio
         try
         {
             dxfRW reader(tempCopy.path().c_str());
-            DxfIrConverter converter(pub, warnings);
+            DxfIrConverter converter(pub, warnings, onProgress, progressCtx);
             bool readResult = reader.read(&converter, false);
 
             if (!readResult)
@@ -1776,6 +1808,11 @@ namespace Fio
             }
 
             converter.logBlockSummary();
+
+            if (onProgress)
+            {
+                onProgress(1.0f, progressCtx);
+            }
 
             // 图层在 addLayer 回调里就已登记进 pub，图元的 layerSourceId 也在产出当场解析完成，
             // 因此这里不再需要「按图层名回填」的二次遍历。

@@ -20,5 +20,12 @@ namespace Fio
         // 输出中立 IR，跨 DLL 安全
         // PLT 几何（Line/Arc/Circle）全部用 EntityInfo 内联字段承载，无需 extensionBlob
         FioParseResult parseToIR(const char* filePath) override;
+
+        // 带进度：按已读取字节数 / 文件总大小上报，逐行解析大 PLT 时进度条平滑推进
+        FioParseResult parseToIRWithProgress(
+            const char* filePath, ParseProgressCallback onProgress, void* progressCtx) override;
+
+    private:
+        FioParseResult parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx);
     };
 }  // namespace Fio

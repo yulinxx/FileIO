@@ -31,6 +31,16 @@ namespace Fio
 {
     // ===== 基础枚举与 POD 结构 =====
 
+    /// 解析进度回调（跨 DLL 安全，C 函数指针 + 不透明上下文）。
+    ///
+    /// progress 为当前解析进度 0.0 ~ 1.0；解析器在长循环里周期性调用，调用方据此
+    /// 驱动进度条。约定：
+    ///   - 回调在**解析发生的线程**上同步调用（异步导入时即工作线程），实现方需自行
+    ///     保证线程安全（典型做法：写入线程安全的 ProgressTracker）；
+    ///   - ctx 由调用方提供并保证在整次 parseToIR 期间存活，解析器只透传不解引用；
+    ///   - 允许重复/回退值，消费方不应假设严格单调。
+    using ParseProgressCallback = void (*)(float progress, void* ctx);
+
     /// 图元类型枚举（跨 DLL 安全，uint8_t）
     enum class EntityType : uint8_t
     {

@@ -38,5 +38,13 @@ namespace Fio
         // 输出中立 IR（FioParseResult），纯 POD 类型，跨 DLL 安全
         // 调用方通过 FioEntityConverter 将 IR 转换为 Engine 领域对象
         virtual FioParseResult parseToIR(const char* filePath);
+
+        /// 带进度上报的 IR 解析（可选覆写）。
+        ///
+        /// 默认实现忽略进度回调、直接转调 parseToIR()，因此尚未接入进度的解析器
+        /// 无需改动。支持进度的解析器（PLT / DXF / SVG）覆写本方法，在长循环里按
+        /// [0,1] 调用 onProgress（onProgress 可能为空，需判空）。
+        virtual FioParseResult parseToIRWithProgress(
+            const char* filePath, ParseProgressCallback onProgress, void* progressCtx);
     };
 }  // namespace Fio

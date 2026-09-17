@@ -23,5 +23,12 @@ namespace Fio
 
         // 新版 API（输出中立 IR，跨 DLL 安全）
         FioParseResult parseToIR(const char* filePath) override;
+
+        // 带进度：libdxfrw 不透出文件位置，按已产出图元数做单调估算上报
+        FioParseResult parseToIRWithProgress(
+            const char* filePath, ParseProgressCallback onProgress, void* progressCtx) override;
+
+    private:
+        FioParseResult parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx);
     };
 }  // namespace Fio

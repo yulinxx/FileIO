@@ -91,8 +91,14 @@ namespace Fio
         // 注意：FioParseResult 内的指针指向解析器内部缓冲区，仅在本函数返回后
         // 到下一次同线程解析调用前有效，调用方需立即消费（如立即转换）。
         // 若解析失败返回 false，错误消息写入 errorBuffer。
-        bool importToIR(
-            const char* filePath, FileFormat format, FioParseResult* outResult, char* errorBuffer, size_t errorBufferSize);
+        // onProgress 非空时，解析器在长循环里按 [0,1] 上报进度；在调用线程同步回调。
+        bool importToIR(const char* filePath,
+            FileFormat format,
+            FioParseResult* outResult,
+            char* errorBuffer,
+            size_t errorBufferSize,
+            ParseProgressCallback onProgress = nullptr,
+            void* progressCtx = nullptr);
 
         // 释放 importFile() 产生的图元数组（删除每个图元 + 数组本身）
         static void deleteEntities(Eg::SyEntity** entities, size_t count);

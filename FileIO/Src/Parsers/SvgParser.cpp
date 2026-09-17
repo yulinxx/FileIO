@@ -477,13 +477,17 @@ namespace Fio
             std::vector<IrLayerInfo>& outLayers,
             std::vector<std::string>& warnings,
             bool importFillAsOutline,
-            std::vector<uint8_t>& outBlob)
+            std::vector<uint8_t>& outBlob,
+            ParseProgressCallback onProgress = nullptr,
+            void* progressCtx = nullptr)
             : m_outEntities(outEntities)
             , m_outLayers(outLayers)
             , m_warnings(warnings)
             , m_importFillAsOutline(importFillAsOutline)
             , m_success(false)
             , m_outBlob(outBlob)
+            , m_onProgress(onProgress)
+            , m_progressCtx(progressCtx)
         {
         }
 
@@ -551,8 +555,24 @@ namespace Fio
             size_t strokeCount = 0;
             size_t fillOnlyCount = 0;
 
+            // 进度：shape 迭代即主要工作量。先数一遍总数作为分母，再逐个上报已处理比例。
+            size_t totalShapes = 0;
+            for (NSVGshape* s = image->shapes; s != nullptr; s = s->next)
+            {
+                ++totalShapes;
+            }
+            size_t processedShapes = 0;
+
             for (NSVGshape* shape = image->shapes; shape != nullptr; shape = shape->next)
             {
+                ++processedShapes;
+                if (m_onProgress && totalShapes > 0)
+                {
+                    m_onProgress(
+                        static_cast<float>(static_cast<double>(processedShapes) / static_cast<double>(totalShapes)),
+                        m_progressCtx);
+                }
+
                 bool visible = (shape->flags & NSVG_FLAGS_VISIBLE) != 0;
                 bool hasStroke = shape->stroke.type != NSVG_PAINT_NONE;
 
@@ -615,6 +635,11 @@ namespace Fio
             SY_DEBUGF("[SvgParser] Parsed %zu visible shapes: %zu stroked, %zu fill-only",
                 shapeCount, strokeCount, fillOnlyCount);
 
+            if (m_onProgress)
+            {
+                m_onProgress(1.0f, m_progressCtx);
+            }
+
             m_success = !m_outEntities.empty();
         }
 
@@ -624,6 +649,10 @@ namespace Fio
         std::vector<std::string>& m_warnings;
         bool m_importFillAsOutline;
         bool m_success;
+
+        /// 解析进度回调与上下文（可空）；在 parseFile 的 shape 循环里按比例上报
+        ParseProgressCallback m_onProgress = nullptr;
+        void* m_progressCtx = nullptr;
 
         /// 复合曲线的段几何统一写在这里（EntityInfo 只记偏移与长度）
         std::vector<uint8_t>& m_outBlob;
@@ -892,6 +921,17 @@ namespace Fio
     // ========================================================================
     FioParseResult SvgParser::parseToIR(const char* filePath)
     {
+        return parseToIRImpl(filePath, nullptr, nullptr);
+    }
+
+    FioParseResult SvgParser::parseToIRWithProgress(
+        const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
+    {
+        return parseToIRImpl(filePath, onProgress, progressCtx);
+    }
+
+    FioParseResult SvgParser::parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
+    {
         SY_INFOF("[SvgParser] parseToIR START: %s", filePath ? filePath : "");
 
         // thread_local 缓冲区管理生命周期（与 StepParser/PltParser 一致）
@@ -912,7 +952,8 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(s_entities, s_layers, s_warnings, m_importFillAsOutline, s_extensionBlob);
+            NsvgInterpreter interpreter(
+                s_entities, s_layers, s_warnings, m_importFillAsOutline, s_extensionBlob, onProgress, progressCtx);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
