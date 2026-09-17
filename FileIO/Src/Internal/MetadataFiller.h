@@ -22,6 +22,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <Lmcons.h>
 #elif defined(__APPLE__) || defined(__linux__)
 #include <unistd.h>
 #include <pwd.h>
