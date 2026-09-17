@@ -41,14 +41,14 @@ list(FILTER LIB_HEADERS EXCLUDE REGEX "${SANYI_HEADER_EXCLUDE_REGEX}")
 # --- 第三方依赖 ---
 find_package(protobuf CONFIG REQUIRED)
 find_package(NanoSVG CONFIG REQUIRED)
-find_package(Stb CONFIG REQUIRED)
-find_package(WebP CONFIG REQUIRED)
-find_package(TIFF CONFIG REQUIRED)
+find_package(Stb REQUIRED)
+find_package(WebP REQUIRED)
+find_package(TIFF REQUIRED)
 
 get_target_property(NANOSVG_INCLUDE_DIR NanoSVG::nanosvg INTERFACE_INCLUDE_DIRECTORIES)
 
 # zlib 可选:用于 SVGZ (gzip 压缩 SVG) 支持
-find_package(ZLIB CONFIG QUIET)
+find_package(ZLIB QUIET)
 
 # --- Protobuf 代码生成 ---
 # 始终输出到构建目录，避免生成的中间文件污染源码树
