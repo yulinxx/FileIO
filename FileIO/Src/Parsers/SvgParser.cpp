@@ -486,9 +486,9 @@ namespace Fio
             , m_warnings(warnings)
             , m_importFillAsOutline(importFillAsOutline)
             , m_success(false)
-            , m_outBlob(outBlob)
             , m_onProgress(onProgress)
             , m_progressCtx(progressCtx)
+            , m_outBlob(outBlob)
         {
         }
 
