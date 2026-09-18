@@ -46,8 +46,13 @@ find_package(WebP REQUIRED)
 find_package(TIFF REQUIRED)
 
 # macOS/Linux: QtCore for BundleResources (QString)
+# Windows 上 BundleResources / QString 不参与编译（见 PdfToSvgConverter.cpp 的平台条件），
+# 所以链接必须用同一个条件。否则 Windows 上 Qt6::Core 目标不存在，CMake 会把它当成
+# 库名原样传给链接器，报「无法打开文件 Qt6::Core.lib」。
+set(FILEIO_QT_CORE_LIBS "")
 if(APPLE OR UNIX)
     find_package(Qt6 COMPONENTS Core REQUIRED)
+    set(FILEIO_QT_CORE_LIBS Qt6::Core)
 endif()
 
 get_target_property(NANOSVG_INCLUDE_DIR NanoSVG::nanosvg INTERFACE_INCLUDE_DIRECTORIES)
@@ -104,7 +109,7 @@ sanyi_add_shared_library(${LIB_NAME}
             Log
             ${WebP_LIBRARIES}
             TIFF::TIFF
-            Qt6::Core
+            ${FILEIO_QT_CORE_LIBS}
 )
 
 # libdxfrw 第三方源码添加到目标(统一入口将其归入 External 源组)
