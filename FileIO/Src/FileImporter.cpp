@@ -216,7 +216,7 @@ namespace Fio
         }
 
         // 使用 FileParserFactory 直接解析（模块内部，不经过 FileIOManager 的 ABI 层）
-        FileParserFactory::instance().initDefaults();
+        // 解析器通过各 .cpp 末尾的静态初始化器自注册，无需显式 initDefaults()
         auto& factory = FileParserFactory::instance();
 
         std::filesystem::path pathObj = std::filesystem::u8path(path);

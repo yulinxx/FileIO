@@ -27,10 +27,11 @@ FileIO/
     │   ├── FioTypes.h            # ★ 中立 IR：EntityType / IrLayerInfo / IrGroupInfo
     │   │                         #   / EntityInfo / BinaryBlob / FioParseResult
     │   ├── FileFormat.h          # FileFormat 枚举
-    │   ├── FormatRegistry.h      # 扩展名 ↔ 格式 映射（单例）
-    │   ├── IFileParser.h         # 解析器接口（parseToIR）
+    │   ├── FormatRegistry.h      # 扩展名 ↔ 格式 映射（单例，PIMPL）
+    │   ├── IFileParser.h         # 解析器接口（parseToIR + setOption）
     │   ├── IFileWriter.h         # 写出器接口
-    │   ├── FileParserFactory.h   # 格式 → 解析器 工厂
+    │   ├── ILegacyTypes.h        # 旧版 ParseResult/WriteResult/ILegacyParser/Writer
+    │   ├── FileParserFactory.h   # 格式 → 解析器 工厂（自注册）
     │   ├── FileWriterFactory.h   # 格式 → 写出器 工厂
     │   ├── FileIOManager.h       # 门面：存盘 / 打开 / 导入 / 导出
     │   ├── FileImporter.h        # C 风格导入入口（含 ExportBlob/FreeBlob）
@@ -44,11 +45,12 @@ FileIO/
     │   │   ├── IrProjector.h/.cpp   # ★ IrPublisher（缓冲区所有者）+ IrProjector（投影）
     │   │   ├── IrTransform.h/.cpp   # ★ IrXform 2D 仿射变换 + transformEntity
     │   │   ├── ParsedGeometry.h     # 解析期中间结构 ParseData / ParsedEntity / ParsedGroup
-    │   │   ├── FileIOInternal.h     # ILegacyParser / ILegacyWriter / 错误码
+    │   │   ├── FileIOInternal.h     # 向后兼容 wrapper → ILegacyTypes.h
+    │   │   ├── FileIOUtils.h        # TempFileCopy / generateHash（内部工具）
     │   │   ├── MetadataFiller.h
     │   │   └── SyDocumentData.h
-    │   ├── Parsers/              # 12 个解析实现
-    │   ├── Writers/              # 6 个写出实现
+    │   ├── Parsers/              # 10 个解析实现（自注册）
+    │   ├── Writers/              # 5 个写出实现
     │   └── *.cpp                 # 工厂 / 门面 / 序列化 / 图像工具
     └── Test/                     # GTest 用例（ctest）
 ```
@@ -107,9 +109,9 @@ FileIO/
 现在收敛为单点：
 
 - `IrPublisher::threadLocal()` —— 每线程一份缓冲区，`reset()` 清空，`publish()` 产出
-  `FioParseResult`。所有解析器只能通过它发布数据。
-- `IrProjector::project(ParseData&, sourceFormat)` —— 走 `ParseData` 的解析器（DXF/SVG/
-  PLT/OBJ/…）统一在这里投影；`StlParser` 等极简格式直接用 `IrPublisher` 追加。
+  `FioParseResult`。所有解析器（PLT/SVG/UG/STEP/DXF/OBJ…）统一通过它发布数据。
+- `IrProjector::project(ParseData&, sourceFormat)` —— 走 `ParseData` 的解析器统一在这里
+  投影；`StlParser` 等极简格式直接用 `IrPublisher` 追加。
 
 ### 2.2 `IrTransform` —— 2D 仿射变换的唯一实现
 
@@ -175,7 +177,7 @@ Mesh3D / 折线顶点四条分支都经过它。
 
 ## 4. 格式支持矩阵
 
-### 4.1 导入（`FileParserFactory::initDefaults`）
+### 4.1 导入（解析器自注册）
 
 | 格式 | 扩展名 | 解析器 | 第三方依赖 | 备注 |
 |---|---|---|---|---|
@@ -188,8 +190,7 @@ Mesh3D / 折线顶点四条分支都经过它。
 | STEP | `.stp` `.step` | `StepParser` | GeoModelCore（可选，底层 OCC） | 未启用时返回失败 |
 | OBJ | `.obj` | `ObjParser` | 无 | 见 §5.4 |
 | STL | `.stl` | `StlParser` | 无 | ASCII / 二进制自动识别 |
-| 原生 2D | `.sy` | `NativeParser(Native)` | protobuf-lite | |
-| 原生 3D | `.syx` | `NativeParser(Native3D)` | protobuf-lite | |
+| 原生 2D/3D | `.sy` `.syx` | `NativeParser` | protobuf-lite | 构造时传 FileFormat 区分 |
 
 `FormatRegistry` 另外注册了 `BMP` / `PNG`（供扩展名识别与文件对话框过滤），
 但工厂里**没有**对应 parser：位图解码走导出函数 `Fio::loadImageToRgba()`
@@ -259,8 +260,15 @@ Main 侧同样统一：所有 reader 都是 `ImportReaderBase::readViaIR(context
 无第三方依赖，`PltHpglInterpreter` 是一个 header-only 状态机，直接产出 `EntityInfo`。
 支持 `PU`/`PD`/`PA`/`PR`/`AA`/`AR`/`CI`/`PE` 等常用指令，`kPluPerMm = 40.0`。
 
-**已知缺口**：`SC`（用户缩放）与 `IP`（硬剪裁窗口）目前是占位实现，
-不真正参与坐标变换——遇到带 `SC` 的图纸尺寸会偏。列为 P1，见 §11。
+**SC（用户缩放）**：支持两种语法——4 参数 `SC xmin,xmax,ymin,ymax`（将指定范围缩放
+到绘图仪物理坐标）和 2 参数 `SC sx,sy`（乘以缩放因子）。IP（硬剪裁窗口）目前不
+参与坐标变换。
+
+**EA/ER（轴对齐矩形）**：`EA x,y` / `ER dx,dy` 在 pen down 时生成 4 条线段（闭合矩形），
+通过 `flushPolyline()` 保证矩形与之前的折线分组正确断开。
+
+**多行命令缓冲**：不以 `;` 结尾的命令行会被缓冲，直到遇到以 `;` 结尾的行才作为
+完整命令处理——解决跨行参数被截断的问题。
 
 ### 5.3 SVG / SVGZ
 
@@ -350,12 +358,10 @@ PS 基的老 AI 需要 Ghostscript（`gswin64c`）。外部工具缺失时解析
 
 protobuf-lite + `Proto/SanYiDocument.proto`，2D/3D 共用 `NativeParser` / `NativeWriter`
 （构造时传 `FileFormat::Native` 或 `Native3D`）。
-`NativeParser3D` / `NativeWriter3D` 已被取代，未在任何工厂注册。
 
 **原生格式不走中立 IR**：protobuf 文档直接反序列化成 Engine 图元，中间没有 IR 表达，
 `NativeParser` 因此没有实现 `parseToIR`，`.sy` / `.syx` 导入走 `importFile` 旧路径
 （`ImportReaderBase::readViaLegacy`，会打一条 WARN 说明"无 IR、不还原图层/群组"）。
-`NativeImportReader` 已不再先尝试 IR——那只会每次白跑一次并留下误导性的失败日志。
 后续计划见 §11 P1「Native 迁移到 `Engine/Persistence`」。
 落到 `IFileParser::parseToIR` 默认实现的格式会打一条 ERROR（`[IFileParser] parseToIR not
 implemented for format=...`），不再静默返回空结果。
@@ -538,7 +544,10 @@ Fio::FileParserFactory& factory = Fio::FileParserFactory::instance();
 Fio::IFileParser* parser = factory.createParser(fmt);
 if (!parser) { return; }
 
-// 3) 解析出 IR —— 借用内存，立即消费
+// 3) 可选：设置解析选项（如 SVG/AI 的填充描边模式）
+parser->setOption("importFillAsOutline", "true");
+
+// 4) 解析出 IR —— 借用内存，立即消费
 const Fio::FioParseResult ir = parser->parseToIR(path);
 for (uint32_t i = 0; i < ir.entityCount; ++i)
 {
@@ -568,7 +577,21 @@ factory.destroyParser(parser);
 4. `Src/Parsers/XxxParser.cpp`：解析成 `ParseData` 后 `return IrProjector::project(data, "XXX")`；
    格式极简时也可以直接用 `IrPublisher::threadLocal()` 追加图元再 `publish()`。
    **不要自己定义 thread_local 缓冲区。**
-5. `FileParserFactory.cpp` 的 `initDefaults()` 里 `registerParser(...)`。
+5. 在 `XxxParser.cpp` 末尾添加自注册块：
+   ```cpp
+   #include "FileIO/FileParserFactory.h"
+   namespace Fio {
+   namespace {
+       static struct XxxRegistrar {
+           XxxRegistrar() {
+               FileParserFactory::instance().registerParser(FileFormat::XXX, []() -> IFileParser* {
+                   return new XxxParser();
+               });
+           }
+       } s_xxxRegistrar;
+   }
+   }  // namespace Fio
+   ```
 6. `Test/` 加用例。CMake 用 `GLOB_RECURSE CONFIGURE_DEPENDS`，新文件无需改构建脚本。
 7. Main 侧新增 reader 时只写一行：
    `return readViaIR(context, Fio::FileFormat::XXX, outEntities, collectLayers);`
@@ -588,9 +611,27 @@ extensionBlob 越界校验、独立构建 + 163 条 ctest 用例。
 导入链路日志已统一（每个 parser 的 `parseToIR START/END` 成对、提前 return 一律写明原因、
 DLL 入口与工厂的失败分支不再静默），前缀分层见 §6.2。
 
+已完成（架构清理 #1-#8）：
+
+- **#1** `IFileParser::setOption`：消除 Facade 层对 SvgParser/PdfBasedParser 的 `dynamic_cast`
+- **#2** `ILegacyTypes.h`：从 `FileIOInternal.h` 分离公共类型，公开头不再暴露 STL
+- **#3** IrPublisher 统一：PLT/SVG/UG/STEP 迁移到 `IrPublisher::threadLocal()` + `reset()`
+- **#4** FormatRegistry PIMPL：公开头不再暴露 `std::vector`/`Entry`
+- **#5** `FileIOUtils.h` 移入 `Src/Internal/`：公开 include 路径不再有 `<filesystem>/<fstream>/<random>`
+- **#6** TempFileCopy 线程安全：`static` → `thread_local` 防止并发 PDF 导入竞争
+- **#7** 删除 `NativeParser3D`/`NativeWriter3D` 死代码（4 文件）
+- **#8** 解析器自注册：每 parser .cpp 末尾静态初始化器注册，工厂删除硬编码 include
+
+PLT 格式改进：
+
+- SC 缩放命令真实实现（4 参数范围映射 / 2 参数因子缩放）
+- EA/ER 轴对齐矩形命令支持
+- 多行命令缓冲（无分号结尾的行跨行拼接）
+- Arc/Circle 在发出前 flush 折线分组
+
 **P1（下一批，主链路上的正确性缺口）**
 
-- PLT 的 `SC` / `IP` 真实实现（当前是占位，带 `SC` 的图纸尺寸会偏）。
+- PLT 的 `IP`（硬剪裁窗口）真实实现。
 - SVG：圆弧/椭圆回拟合、`<g>` → `IrGroupInfo` 落地、`transform=` 走 `IrXform`。
   （「一条子路径聚合成一个图元」与「直线段识别」已完成，见 §5.3。）
 - DXF：`HATCH` 边界轮廓（至少取外边界）、`IMAGE` 落地为 `EntityType::Image`。
