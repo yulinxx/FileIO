@@ -1,4 +1,5 @@
 #include "FileIO/Parsers/StepParser.h"
+#include "IrProjector.h"
 
 #include "Log/SyLogger.h"
 
@@ -25,11 +26,9 @@ namespace Fio
     {
         SY_INFOF("[StepParser] parseToIR START: %s", filePath ? filePath : "");
 
-        // thread_local 缓冲区管理生命周期（与 DxfParser 一致）
-        thread_local std::vector<EntityInfo> s_entities;
-        thread_local std::vector<uint8_t> s_extensionBlob;
-        s_entities.clear();
-        s_extensionBlob.clear();
+        // 统一缓冲区管理（与 DxfParser/StlParser 一致）
+        IrPublisher& pub = IrPublisher::threadLocal();
+        pub.reset();
 
         if (!filePath || !std::filesystem::exists(std::filesystem::u8path(filePath)))
         {
@@ -66,7 +65,7 @@ namespace Fio
                 return FioParseResult{};
             }
 
-            s_entities.reserve(polylines.size());
+            pub.entities().reserve(polylines.size());
             for (const auto& poly : polylines)
             {
                 if (poly.points.size() < 2)
@@ -85,39 +84,30 @@ namespace Fio
 
                 EntityInfo info{};
                 info.type = EntityType::Polyline;
-                info.sourceId = static_cast<uint64_t>(s_entities.size());
+                info.sourceId = static_cast<uint64_t>(pub.entities().size());
                 info.visible = true;
                 info.vertexCount = static_cast<uint32_t>(poly.points.size());
-                info.extensionDataOffset = static_cast<uint32_t>(s_extensionBlob.size());
+                info.extensionDataOffset = static_cast<uint32_t>(pub.blob().size());
                 info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
-                s_extensionBlob.insert(s_extensionBlob.end(),
+                pub.blob().insert(pub.blob().end(),
                     reinterpret_cast<const uint8_t*>(verts.data()),
                     reinterpret_cast<const uint8_t*>(verts.data()) + info.extensionDataSize);
-                s_entities.push_back(info);
+                pub.entities().push_back(info);
             }
 
-            if (s_entities.empty())
+            if (pub.entities().empty())
             {
                 SY_WARNF("[StepParser] parseToIR: no usable 2D geometry: %s", filePath);
                 return FioParseResult{};
             }
 
-            FioParseResult result;
-            result.entities = s_entities.data();
-            result.entityCount = static_cast<uint32_t>(s_entities.size());
-            result.layers = nullptr;
-            result.layerCount = 0;
-            result.extensionBlob.data = s_extensionBlob.data();
-            result.extensionBlob.size = s_extensionBlob.size();
-            std::strncpy(result.sourceFormat, "STEP", sizeof(result.sourceFormat) - 1);
-
             const auto t1 = std::chrono::steady_clock::now();
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
             SY_INFOF("[StepParser] parseToIR END: %u entities (%lld ms): %s",
-                result.entityCount,
+                static_cast<uint32_t>(pub.entities().size()),
                 static_cast<long long>(ms),
                 filePath);
-            return result;
+            return pub.publish("STEP");
         }
         catch (const std::exception& ex)
         {

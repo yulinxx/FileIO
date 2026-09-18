@@ -1,6 +1,7 @@
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/FileIOUtils.h"
 #include "FileIO/ImageUtils.h"
+#include "IrProjector.h"
 
 #include "Log/SyLogger.h"
 
@@ -1639,15 +1640,9 @@ namespace Fio
     {
         SY_INFOF("[SvgParser] parseToIR START: %s", filePath ? filePath : "");
 
-        // thread_local 缓冲区管理生命周期（与 StepParser/PltParser 一致）
-        thread_local std::vector<EntityInfo> s_entities;
-        thread_local std::vector<uint8_t> s_extensionBlob;
-        thread_local std::vector<IrLayerInfo> s_layers;
-        thread_local std::vector<std::string> s_warnings;
-        s_entities.clear();
-        s_extensionBlob.clear();
-        s_layers.clear();
-        s_warnings.clear();
+        // 统一缓冲区管理（与 DxfParser/StlParser 一致）
+        IrPublisher& pub = IrPublisher::threadLocal();
+        pub.reset();
 
         if (!filePath)
         {
@@ -1658,12 +1653,12 @@ namespace Fio
         try
         {
             NsvgInterpreter interpreter(
-                s_entities, s_layers, s_warnings, m_importFillAsOutline, s_extensionBlob, onProgress, progressCtx);
+                pub.entities(), pub.layers(), pub.warnings(), m_importFillAsOutline, pub.blob(), onProgress, progressCtx);
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
                 const std::string message =
-                    s_warnings.empty() ? std::string("Failed to parse SVG file: ") + filePath : s_warnings.back();
+                    pub.warnings().empty() ? std::string("Failed to parse SVG file: ") + filePath : pub.warnings().back();
                 SY_ERRORF("[SvgParser] parseToIR: %s", message.c_str());
                 return FioParseResult{};
             }
@@ -1679,29 +1674,18 @@ namespace Fio
             return FioParseResult{};
         }
 
-        if (s_entities.empty())
+        if (pub.entities().empty())
         {
             SY_WARNF("[SvgParser] parseToIR: no entities produced: %s", filePath);
             return FioParseResult{};
         }
 
-        // 填充 FioParseResult
-        FioParseResult result;
-        result.entities = s_entities.data();
-        result.entityCount = static_cast<uint32_t>(s_entities.size());
-        result.layers = s_layers.data();
-        result.layerCount = static_cast<uint32_t>(s_layers.size());
-        result.extensionBlob.data = s_extensionBlob.data();
-        result.extensionBlob.size = s_extensionBlob.size();
-        std::strncpy(result.sourceFormat, "SVG", sizeof(result.sourceFormat) - 1);
-        result.warningCount = static_cast<uint32_t>(s_warnings.size());
-
         SY_INFOF("[SvgParser] parseToIR END: %u entities, %u layers, %u warnings: %s",
-            result.entityCount,
-            result.layerCount,
-            result.warningCount,
+            static_cast<uint32_t>(pub.entities().size()),
+            static_cast<uint32_t>(pub.layers().size()),
+            static_cast<uint32_t>(pub.warnings().size()),
             filePath);
-        return result;
+        return pub.publish("SVG");
     }
 
     FileFormat SvgParser::format() const

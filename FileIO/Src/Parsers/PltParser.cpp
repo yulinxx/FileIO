@@ -5,6 +5,7 @@
 
 #include "FileIO/Parsers/PltParser.h"
 #include "FileIO/Parsers/PltHpglInterpreter.h"
+#include "IrProjector.h"
 
 #include "Log/SyLogger.h"
 
@@ -67,13 +68,9 @@ namespace Fio
     {
         SY_INFOF("[PltParser] parseToIR START: %s", filePath ? filePath : "");
 
-        // thread_local 缓冲区管理生命周期（与 DxfParser/StepParser 一致）
-        thread_local std::vector<EntityInfo> s_entities;
-        thread_local std::vector<uint8_t> s_extensionBlob;
-        thread_local std::vector<std::string> s_warnings;
-        s_entities.clear();
-        s_extensionBlob.clear();
-        s_warnings.clear();
+        // 统一缓冲区管理（与 DxfParser/StlParser 一致）
+        IrPublisher& pub = IrPublisher::threadLocal();
+        pub.reset();
 
         if (!filePath)
         {
@@ -133,7 +130,7 @@ namespace Fio
 
         try
         {
-            PltHpglInterpreter interpreter(s_entities, s_warnings, s_extensionBlob);
+            PltHpglInterpreter interpreter(pub.entities(), pub.warnings(), pub.blob());
 
             std::string line;
             std::string pending;  // 跨行拼接缓冲：上一行末尾无分号时暂存
@@ -141,9 +138,9 @@ namespace Fio
 
             while (std::getline(file, line))
             {
-                if (s_entities.size() >= static_cast<size_t>(MAX_ENTITIES))
+                if (pub.entities().size() >= static_cast<size_t>(MAX_ENTITIES))
                 {
-                    s_warnings.push_back("Entity limit (" + std::to_string(MAX_ENTITIES) + ") reached, stopping parse.");
+                    pub.warnings().push_back("Entity limit (" + std::to_string(MAX_ENTITIES) + ") reached, stopping parse.");
                     break;
                 }
 
@@ -207,24 +204,17 @@ namespace Fio
             return FioParseResult{};
         }
 
-        if (s_entities.empty())
+        if (pub.entities().empty())
         {
             SY_WARNF("[PltParser] parseToIR: no entities produced: %s", filePath);
             return FioParseResult{};
         }
 
-        FioParseResult result;
-        result.entities = s_entities.data();
-        result.entityCount = static_cast<uint32_t>(s_entities.size());
-        result.layers = nullptr;
-        result.layerCount = 0;
-        result.extensionBlob.data = s_extensionBlob.empty() ? nullptr : s_extensionBlob.data();
-        result.extensionBlob.size = s_extensionBlob.size();
-        std::strncpy(result.sourceFormat, "PLT", sizeof(result.sourceFormat) - 1);
-        result.warningCount = static_cast<uint32_t>(s_warnings.size());
-
         SY_INFOF(
-            "[PltParser] parseToIR END: %u entities, %u warnings: %s", result.entityCount, result.warningCount, filePath);
-        return result;
+            "[PltParser] parseToIR END: %u entities, %u warnings: %s",
+            static_cast<uint32_t>(pub.entities().size()),
+            static_cast<uint32_t>(pub.warnings().size()),
+            filePath);
+        return pub.publish("PLT");
     }
 }  // namespace Fio

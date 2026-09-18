@@ -1,4 +1,5 @@
 #include "FileIO/Parsers/UgParser.h"
+#include "IrProjector.h"
 
 #include "Log/SyLogger.h"
 
@@ -91,14 +92,11 @@ namespace Fio
     {
         SY_INFOF("[UgParser] parseToIR START: filePath=%s", filePath ? filePath : "");
 
-        thread_local std::vector<EntityInfo> s_entities;
-        thread_local std::vector<uint8_t> s_extensionBlob;
-        thread_local std::vector<IrLayerInfo> s_layers;
-        s_entities.clear();
-        s_extensionBlob.clear();
-        s_layers.clear();
+        // 统一缓冲区管理（与 DxfParser/StlParser 一致）
+        IrPublisher& pub = IrPublisher::threadLocal();
+        pub.reset();
 
-        std::vector<std::string> warnings;
+        std::vector<std::string> warnings;  // 本地警告，publish 时合入 pub
 
         if (!filePath)
         {
@@ -214,7 +212,7 @@ namespace Fio
 
             EntityInfo info;
             info.type = EntityType::Unknown;
-            info.sourceId = static_cast<uint64_t>(s_entities.size()) + 1;
+            info.sourceId = static_cast<uint64_t>(pub.entities().size()) + 1;
 
             switch (ent.type)
             {
@@ -290,10 +288,10 @@ namespace Fio
                 info.type = EntityType::Polyline;
                 info.vertexCount = static_cast<uint32_t>(pts.size() / 2);
                 // 顶点序列存入扩展数据块
-                const std::size_t offset = s_extensionBlob.size();
+                const std::size_t offset = pub.blob().size();
                 const std::size_t bytes = pts.size() * sizeof(double);
-                s_extensionBlob.resize(offset + bytes);
-                std::memcpy(s_extensionBlob.data() + offset, pts.data(), bytes);
+                pub.blob().resize(offset + bytes);
+                std::memcpy(pub.blob().data() + offset, pts.data(), bytes);
                 info.extensionDataOffset = static_cast<uint32_t>(offset);
                 info.extensionDataSize = static_cast<uint32_t>(bytes);
                 break;
@@ -306,29 +304,27 @@ namespace Fio
 
             if (info.type != EntityType::Unknown)
             {
-                s_entities.push_back(info);
+                pub.entities().push_back(info);
             }
         }
 
-        if (s_entities.empty())
+        // 合入本地警告到 pub
+        for (auto& w : warnings)
+        {
+            pub.warnings().push_back(std::move(w));
+        }
+
+        if (pub.entities().empty())
         {
             SY_WARNF("[UgParser] parseToIR: no supported entities in IGES file: %s", filePath);
             return FioParseResult{};
         }
 
-        // ---- 5. 组装 FioParseResult ----
-        FioParseResult result;
-        result.entities = s_entities.data();
-        result.entityCount = static_cast<uint32_t>(s_entities.size());
-        result.layers = s_layers.data();
-        result.layerCount = static_cast<uint32_t>(s_layers.size());
-        result.extensionBlob.data = s_extensionBlob.data();
-        result.extensionBlob.size = s_extensionBlob.size();
-        std::strncpy(result.sourceFormat, "UG/IGES", sizeof(result.sourceFormat) - 1);
-        result.warningCount = static_cast<uint32_t>(warnings.size());
-
         SY_INFOF(
-            "[UgParser] parseToIR END: %u entities, %zu warnings: %s", result.entityCount, warnings.size(), filePath);
-        return result;
+            "[UgParser] parseToIR END: %u entities, %u warnings: %s",
+            static_cast<uint32_t>(pub.entities().size()),
+            static_cast<uint32_t>(pub.warnings().size()),
+            filePath);
+        return pub.publish("UG/IGES");
     }
 }  // namespace Fio
