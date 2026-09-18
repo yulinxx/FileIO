@@ -28,6 +28,9 @@ namespace Fio
     public:
         ~PdfBasedParser() override = default;
 
+        /// 设置是否将纯填充色块也导入为轮廓线（传递给内部 SvgParser）
+        void setImportFillAsOutline(bool enable) { m_importFillAsOutline = enable; }
+
         /// 模板方法：封装完整的 PDF→SVG→解析 管道，子类不可重写
         // 输出中立 IR，跨 DLL 安全（委托给 SvgParser::parseToIR）
         FioParseResult parseToIR(const char* filePath) override final
@@ -85,6 +88,7 @@ namespace Fio
 
             // 委托给 SvgParser 解析
             SvgParser svgParser;
+            svgParser.setImportFillAsOutline(m_importFillAsOutline);
             FioParseResult result = svgParser.parseToIR(tempSvg.c_str());
 
             auto elapsed =
@@ -122,5 +126,7 @@ namespace Fio
         {
             return {};
         }
+
+        bool m_importFillAsOutline = true;
     };
 }  // namespace Fio

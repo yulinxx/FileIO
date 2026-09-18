@@ -475,14 +475,21 @@ namespace Fio
             double arcAngle = getParam(params, 2, 360.0);
 
             double radius = (m_currentPos - Ut::Vec2d(cx, cy)).length();
-            double startAng = std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx);
-            double endAng = startAng + arcAngle * M_PI / 180.0;
-
-            if (m_penDown)
+            if (radius < 0.01)
             {
-                emitArc(Ut::Vec2d(cx, cy), radius, startAng, endAng);
+                return;
             }
 
+            // 笔落期间遇到弧：先刷新当前折线，再输出弧
+            if (m_penDown)
+            {
+                flushPolyline();
+                emitArc(Ut::Vec2d(cx, cy), radius,
+                        std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx),
+                        std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx) + arcAngle * M_PI / 180.0);
+            }
+
+            double endAng = std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx) + arcAngle * M_PI / 180.0;
             m_currentPos = Ut::Vec2d(cx + radius * std::cos(endAng), cy + radius * std::sin(endAng));
         }
 
@@ -499,14 +506,21 @@ namespace Fio
 
             Ut::Vec2d center = m_currentPos + Ut::Vec2d(rx, ry);
             double radius = Ut::Vec2d(rx, ry).length();
-            double startAng = std::atan2(-ry, -rx);
-            double endAng = startAng + arcAngle * M_PI / 180.0;
-
-            if (m_penDown)
+            if (radius < 0.01)
             {
-                emitArc(center, radius, startAng, endAng);
+                return;
             }
 
+            // 笔落期间遇到弧：先刷新当前折线，再输出弧
+            if (m_penDown)
+            {
+                flushPolyline();
+                emitArc(center, radius,
+                        std::atan2(-ry, -rx),
+                        std::atan2(-ry, -rx) + arcAngle * M_PI / 180.0);
+            }
+
+            double endAng = std::atan2(-ry, -rx) + arcAngle * M_PI / 180.0;
             m_currentPos = Ut::Vec2d(center.x() + radius * std::cos(endAng), center.y() + radius * std::sin(endAng));
         }
 
@@ -518,10 +532,19 @@ namespace Fio
             }
 
             double radius = getParam(params, 0);
-            if (radius > 0)
+            if (radius < 0.01)
             {
-                emitCircle(m_currentPos, radius);
+                return;
             }
+
+            if (!m_penDown)
+            {
+                return;
+            }
+
+            // 笔落期间遇到圆：先刷新当前折线，再输出圆
+            flushPolyline();
+            emitCircle(m_currentPos, radius);
         }
 
         void handleSP(const std::vector<std::string>& params)

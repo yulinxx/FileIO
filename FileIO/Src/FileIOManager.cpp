@@ -3,6 +3,7 @@
 #include "FileIO/FileWriterFactory.h"
 #include "FileIO/FormatRegistry.h"
 #include "FileIO/Parsers/SvgParser.h"
+#include "FileIO/Parsers/PdfBasedParser.h"
 #include "FileIO/IFileParser.h"
 #include "FileIO/IFileWriter.h"
 #include "FileIOInternal.h"
@@ -303,6 +304,10 @@ namespace Fio
         if (auto* svgParser = dynamic_cast<SvgParser*>(parser))
         {
             svgParser->setImportFillAsOutline(m_svgImportFillAsOutline);
+        }
+        else if (auto* pdfParser = dynamic_cast<PdfBasedParser*>(parser))
+        {
+            pdfParser->setImportFillAsOutline(m_svgImportFillAsOutline);
         }
 
         FioParseResult result;
