@@ -241,16 +241,18 @@ namespace Fio
             FILE* f = fopen("/sys/class/dmi/id/product_serial", "r");
             if (f)
             {
+                bool found = false;
                 if (fgets(buf, sizeof(buf), f))
                 {
                     size_t len = strlen(buf);
                     while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
                         buf[--len] = '\0';
-                    fclose(f);
                     if (len > 0 && strcmp(buf, "To Be Filled By O.E.M.") != 0)
-                        return std::string(buf);
+                        found = true;
                 }
                 fclose(f);
+                if (found)
+                    return std::string(buf);
             }
             return "";
 #else

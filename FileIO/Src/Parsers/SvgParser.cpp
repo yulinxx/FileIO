@@ -1,5 +1,6 @@
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIO/FileIOUtils.h"
+#include "FileIO/ImageUtils.h"
 
 #include "Log/SyLogger.h"
 
@@ -12,6 +13,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cctype>
 #include <map>
@@ -21,6 +23,7 @@
 #include <unordered_set>
 #include <vector>
 #include <algorithm>
+#include <array>
 #include <numeric>
 #include <fstream>
 
@@ -469,6 +472,304 @@ namespace Fio
 
         // 点到线段距离（用于曲线扁平度估计）
         // 注：保留贝塞尔曲线后不再需要把曲线离散为折线，此函数及 computeAdaptiveSegments 已移除。
+
+        // ========================================================================
+        // <text> / <image> 元素辅助工具（nanosvg 不解析这两个元素，需自行抽取）
+        // ========================================================================
+
+        std::string_view attrValue(const std::vector<std::pair<std::string_view, std::string_view>>& attrs,
+            const std::string_view key)
+        {
+            for (const auto& kv : attrs)
+            {
+                if (kv.first == key)
+                {
+                    return kv.second;
+                }
+            }
+            return {};
+        }
+
+        bool attrHas(const std::vector<std::pair<std::string_view, std::string_view>>& attrs,
+            const std::string_view key)
+        {
+            for (const auto& kv : attrs)
+            {
+                if (kv.first == key)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 从属性值里解析首个子串为 double（属性名已知时用 attrValue + 本函数）。
+        double firstNumber(std::string_view s, double def)
+        {
+            s = trimWhitespace(s);
+            if (s.empty())
+            {
+                return def;
+            }
+            char* end = nullptr;
+            const double v = std::strtod(s.data(), &end);
+            if (end == s.data())
+            {
+                return def;
+            }
+            return v;
+        }
+
+        // 把 "rotate(deg)" 或 "rotate(deg cx cy)" 里的旋转角（度）解析出来。
+        bool rotateAngleDeg(std::string_view transform, double& outDeg)
+        {
+            const auto pos = transform.find("rotate(");
+            if (pos == std::string_view::npos)
+            {
+                return false;
+            }
+            const std::string_view sub = transform.substr(pos + 7);
+            outDeg = firstNumber(sub, 0.0);
+            return true;
+        }
+
+        // 解析 CSS 颜色：支持 #rrggbb / #rgb / rgb(r,g,b)。不支持/非法返回 false。
+        bool cssColorToVec3(const std::string_view sIn, Ut::Vec3f& out)
+        {
+            std::string_view s = trimWhitespace(sIn);
+            if (s.empty() || s == "none")
+            {
+                return false;
+            }
+            if (s[0] == '#')
+            {
+                s = s.substr(1);
+                if (s.size() == 3)
+                {
+                    auto hex = [](char c) -> int {
+                        if (c >= '0' && c <= '9')
+                            return c - '0';
+                        if (c >= 'a' && c <= 'f')
+                            return c - 'a' + 10;
+                        if (c >= 'A' && c <= 'F')
+                            return c - 'A' + 10;
+                        return -1;
+                    };
+                    const int r0 = hex(s[0]), g0 = hex(s[1]), b0 = hex(s[2]);
+                    if (r0 < 0 || g0 < 0 || b0 < 0)
+                    {
+                        return false;
+                    }
+                    const int r = r0 * 17, g = g0 * 17, b = b0 * 17;
+                    out = Ut::Vec3f(r / 255.0f, g / 255.0f, b / 255.0f);
+                    return true;
+                }
+                if (s.size() == 6)
+                {
+                    auto hex2 = [](const char* p) -> int {
+                        int v = 0;
+                        for (int k = 0; k < 2; ++k)
+                        {
+                            v <<= 4;
+                            const char c = p[k];
+                            if (c >= '0' && c <= '9')
+                                v |= (c - '0');
+                            else if (c >= 'a' && c <= 'f')
+                                v |= (c - 'a' + 10);
+                            else if (c >= 'A' && c <= 'F')
+                                v |= (c - 'A' + 10);
+                            else
+                                return -1;
+                        }
+                        return v;
+                    };
+                    const int r = hex2(s.data()), g = hex2(s.data() + 2), b = hex2(s.data() + 4);
+                    if (r < 0 || g < 0 || b < 0)
+                    {
+                        return false;
+                    }
+                    out = Ut::Vec3f(r / 255.0f, g / 255.0f, b / 255.0f);
+                    return true;
+                }
+                return false;
+            }
+            // rgb( r , g , b )
+            if (s.rfind("rgb(", 0) == 0 && s.back() == ')')
+            {
+                const std::string_view inner = s.substr(4, s.size() - 5);
+                double vals[3] = { 0.0, 0.0, 0.0 };
+                int got = 0;
+                size_t i = 0;
+                while (got < 3 && i < inner.size())
+                {
+                    while (i < inner.size() && (inner[i] == ',' || inner[i] == ' ' || inner[i] == '\t'))
+                    {
+                        ++i;
+                    }
+                    const double v = firstNumber(inner.substr(i), -1.0);
+                    if (v < 0)
+                    {
+                        break;
+                    }
+                    vals[got++] = v;
+                    // 跳过被 firstNumber 消费的数字字符，回到分隔符
+                    while (i < inner.size() && (inner[i] != ',' && inner[i] != ' ' && inner[i] != '\t'))
+                    {
+                        ++i;
+                    }
+                }
+                if (got != 3)
+                {
+                    return false;
+                }
+                out = Ut::Vec3f(static_cast<float>(vals[0]) / 255.0f,
+                    static_cast<float>(vals[1]) / 255.0f,
+                    static_cast<float>(vals[2]) / 255.0f);
+                return true;
+            }
+            return false;
+        }
+
+        // 简易 base64 解码（标准字母表，忽略空白）。失败返回 false。
+        bool base64Decode(const std::string_view in, std::vector<unsigned char>& out)
+        {
+            static const std::array<signed char, 256> kDec = [] {
+                std::array<signed char, 256> d{};
+                d.fill(static_cast<signed char>(-1));
+                const char* table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                for (int i = 0; i < 64; ++i)
+                {
+                    d[static_cast<unsigned char>(table[i])] = static_cast<signed char>(i);
+                }
+                return d;
+            }();
+            out.clear();
+            unsigned int acc = 0;
+            int nBits = 0;
+            for (char c : in)
+            {
+                if (c == '\n' || c == '\r' || c == ' ' || c == '\t')
+                {
+                    continue;
+                }
+                const signed char v = kDec[static_cast<unsigned char>(c)];
+                if (v < 0)
+                {
+                    // 末尾可能带 '=' 填充；其余非法字符停止
+                    break;
+                }
+                acc = (acc << 6) | static_cast<unsigned int>(v);
+                nBits += 6;
+                if (nBits >= 8)
+                {
+                    nBits -= 8;
+                    out.push_back(static_cast<unsigned char>((acc >> nBits) & 0xFF));
+                }
+            }
+            return !out.empty();
+        }
+
+        // 在编辑中：解码 XML/HTML 常见实体（&amp; &lt; &gt; &quot; &#39; 及数字/十六进制）。
+        void htmlEntityDecodeInplace(std::string& s)
+        {
+            const auto amp = s.find('&');
+            if (amp == std::string::npos)
+            {
+                return;
+            }
+            std::string out;
+            out.reserve(s.size());
+            size_t i = 0;
+            while (i < s.size())
+            {
+                if (s[i] != '&')
+                {
+                    out.push_back(s[i]);
+                    ++i;
+                    continue;
+                }
+                const size_t semi = s.find(';', i);
+                if (semi == std::string::npos || semi - i > 10)
+                {
+                    out.push_back(s[i]);
+                    ++i;
+                    continue;
+                }
+                const std::string_view ent(s.data() + i, semi - i + 1);
+                auto decodeOne = [](const std::string_view e) -> char {
+                    if (e == "&amp;")
+                        return '&';
+                    if (e == "&lt;")
+                        return '<';
+                    if (e == "&gt;")
+                        return '>';
+                    if (e == "&quot;")
+                        return '"';
+                    if (e == "&apos;")
+                        return '\'';
+                    if (e == "&#39;")
+                        return '\'';
+                    if (e.size() > 3 && e[1] == '#')
+                    {
+                        const bool hex = (e[2] == 'x' || e[2] == 'X');
+                        std::string_view num = e.substr(hex ? 3 : 2, e.size() - (hex ? 4 : 3));
+                        unsigned long v = 0;
+                        for (char d : num)
+                        {
+                            int dv = -1;
+                            if (d >= '0' && d <= '9')
+                                dv = d - '0';
+                            else if (hex && d >= 'a' && d <= 'f')
+                                dv = d - 'a' + 10;
+                            else if (hex && d >= 'A' && d <= 'F')
+                                dv = d - 'A' + 10;
+                            if (dv < 0)
+                                return 0;
+                            v = v * (hex ? 16u : 10u) + static_cast<unsigned long>(dv);
+                        }
+                        return v <= 0x7F ? static_cast<char>(v) : static_cast<char>(0);
+                    }
+                    return 0;
+                };
+                const char decoded = decodeOne(ent);
+                if (decoded)
+                {
+                    out.push_back(decoded);
+                    i = semi + 1;
+                    continue;
+                }
+                out.push_back('&');
+                ++i;
+            }
+            s = std::move(out);
+        }
+
+        // 渐变做近似纯色：对全部 stop 的 RGB 求平均（nanosvg stop.color 为 0xAARRGGBB，
+        // 低 24 位与 NSVG_RGB 一致：低字节 R、次低 G、高 B，与 extractSvgColor 同构）。
+        Ut::Vec3f approxGradientColor(const NSVGgradient* gradient)
+        {
+            double r = 0.0, g = 0.0, b = 0.0;
+            int n = 0;
+            if (gradient != nullptr)
+            {
+                for (int i = 0; i < gradient->nstops; ++i)
+                {
+                    const unsigned int c = gradient->stops[i].color;
+                    r += static_cast<double>(c & 0xFF);
+                    g += static_cast<double>((c >> 8) & 0xFF);
+                    b += static_cast<double>((c >> 16) & 0xFF);
+                    ++n;
+                }
+            }
+            if (n <= 0)
+            {
+                return Ut::Vec3f(0.0f, 0.0f, 0.0f);
+            }
+            r /= 255.0 * n;
+            g /= 255.0 * n;
+            b /= 255.0 * n;
+            return Ut::Vec3f(static_cast<float>(r), static_cast<float>(g), static_cast<float>(b));
+        }
     }  // namespace
 
     class NsvgInterpreter
@@ -596,23 +897,23 @@ namespace Fio
                         continue;
                     }
                     // 没有 stroke 时，优先用 fill 的颜色
-                    shapeColor = extractSvgColor(shape->fill);
+                    shapeColor = resolvePaintColor(shape->fill);
                     ++fillOnlyCount;
                     // 如果 fill 也是 none，尝试用 stroke
                     if (shape->fill.type != NSVG_PAINT_COLOR && shape->stroke.type == NSVG_PAINT_COLOR)
                     {
-                        shapeColor = extractSvgColor(shape->stroke);
+                        shapeColor = resolvePaintColor(shape->stroke);
                     }
                 }
                 else
                 {
                     // 有 stroke 时，优先用 stroke 的颜色
-                    shapeColor = extractSvgColor(shape->stroke);
+                    shapeColor = resolvePaintColor(shape->stroke);
                     ++strokeCount;
                     // 如果 stroke 是 none，尝试用 fill
                     if (shape->stroke.type != NSVG_PAINT_COLOR && shape->fill.type == NSVG_PAINT_COLOR)
                     {
-                        shapeColor = extractSvgColor(shape->fill);
+                        shapeColor = resolvePaintColor(shape->fill);
                     }
                 }
 
@@ -629,7 +930,7 @@ namespace Fio
                 // 不再是选中其中一段贝塞尔。
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
-                    convertPathToCompositeEntity(svgPath, shapeColor, layerSourceId, shape->id);
+                    convertPathToCompositeEntity(svgPath, shapeColor, layerSourceId, shape->id, shape->strokeWidth);
                 }
             }
 
@@ -637,6 +938,15 @@ namespace Fio
                 shapeCount,
                 strokeCount,
                 fillOnlyCount);
+
+            // nanosvg 会静默丢弃 <text> 与 <image>，这里从原始（CSS 已内联的）SVG 重新抽取
+            parsePendantElements(svgData.data());
+
+            if (m_imageSkipped > 0)
+            {
+                m_warnings.push_back("SVG: " + std::to_string(m_imageSkipped) +
+                    " <image> element(s) skipped (no embedded raster data or unsupported format)");
+            }
 
             if (m_onProgress)
             {
@@ -667,6 +977,374 @@ namespace Fio
         /// （线性版在「每个 shape 一个图层」时是 O(shape²)）。
         std::unordered_map<uint32_t, uint32_t> m_layerByColor;
         bool m_layerLimitWarned = false;
+
+        /// 渐变近似纯色只告警一次，避免逐图元刷屏
+        bool m_gradientWarned = false;
+
+        /// <image> 因解码失败/无内嵌数据而被跳过的次数（解析结束时统一汇总告警一次）
+        int m_imageSkipped = 0;
+
+        // ========================================================================
+        // <text> / <image> 抽取（nanosvg 不解析这两个元素）
+        // ========================================================================
+
+        /// 遍历原始（CSS 已内联的）SVG 文本，处理所有 <text>/<image> 元素。
+        void parsePendantElements(const char* data)
+        {
+            if (!data)
+            {
+                return;
+            }
+            auto isTag = [](const char* name, const char* tag) -> bool {
+                const size_t n = std::strlen(tag);
+                if (std::strncmp(name, tag, n) != 0)
+                {
+                    return false;
+                }
+                const unsigned char c = static_cast<unsigned char>(name[n]);
+                return c == '\0' || std::isspace(c) || c == '>' || c == '/';
+            };
+
+            const char* p = data;
+            while (*p)
+            {
+                const char* lt = std::strchr(p, '<');
+                if (!lt)
+                {
+                    break;
+                }
+                if (std::strncmp(lt, "<!--", 4) == 0)
+                {
+                    const char* e = std::strstr(lt + 4, "-->");
+                    p = e ? e + 3 : lt + 4;
+                    continue;
+                }
+                const char* name = lt + 1;
+                if (isTag(name, "text"))
+                {
+                    const char* gt = std::strchr(lt, '>');
+                    if (!gt)
+                    {
+                        break;
+                    }
+                    p = parseTextElement(lt, gt);
+                }
+                else if (isTag(name, "image"))
+                {
+                    const char* gt = std::strchr(lt, '>');
+                    if (!gt)
+                    {
+                        break;
+                    }
+                    p = parseImageElement(lt, gt);
+                }
+                else
+                {
+                    const char* gt = std::strchr(lt, '>');
+                    if (!gt)
+                    {
+                        break;
+                    }
+                    p = gt + 1;
+                }
+            }
+        }
+
+        /// 解析 <text ...>…</text>，产出 EntityType::Text（对齐现有 Text 图元逻辑）。
+        /// 返回跳过 </text> 之后的位置。
+        const char* parseTextElement(const char* openTag, const char* gt)
+        {
+            std::string tag(openTag + 1, gt);
+            std::vector<std::pair<std::string_view, std::string_view>> attrs;
+            extractTagAttrs(tag, attrs);
+
+            const char* contentStart = gt + 1;
+            const char* close = std::strstr(contentStart, "</text");
+            const char* contentEnd = close ? close : contentStart;
+
+            // 收集文本内容，剥掉内部的 <tspan>/<comment> 等标签
+            std::string textContent;
+            textContent.reserve(static_cast<size_t>(contentEnd - contentStart) + 8);
+            for (const char* q = contentStart; q < contentEnd;)
+            {
+                unsigned char c = static_cast<unsigned char>(*q);
+                if (c != '<')
+                {
+                    textContent.push_back(static_cast<char>(c));
+                    ++q;
+                    continue;
+                }
+                if (std::strncmp(q, "<!--", 4) == 0)
+                {
+                    const char* e = std::strstr(q + 4, "-->");
+                    if (!e || e >= contentEnd)
+                    {
+                        break;
+                    }
+                    q = e + 3;
+                    continue;
+                }
+                const char* tgt = std::strchr(q, '>');
+                if (!tgt || tgt >= contentEnd)
+                {
+                    break;
+                }
+                q = tgt + 1;
+            }
+            htmlEntityDecodeInplace(textContent);
+
+            const char* afterClose = contentStart;
+            if (close)
+            {
+                const char* ce = std::strchr(close, '>');
+                afterClose = ce ? ce + 1 : close;
+            }
+
+            addTextEntity(attrs, std::move(textContent));
+            return afterClose;
+        }
+
+        /// 把 <text> 构造成一个 EntityInfo（EntityType::Text）。
+        void addTextEntity(
+            const std::vector<std::pair<std::string_view, std::string_view>>& attrs, std::string content)
+        {
+            // 规整文本：去首尾空白、压缩连续空白为单个空格
+            {
+                const size_t b = content.find_first_not_of(" \t\r\n");
+                if (b == std::string::npos)
+                {
+                    return;
+                }
+                const size_t e = content.find_last_not_of(" \t\r\n");
+                std::string cleaned;
+                cleaned.reserve(e - b + 1);
+                bool lastSpace = false;
+                for (size_t i = b; i <= e; ++i)
+                {
+                    const char c = content[i];
+                    if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+                    {
+                        if (!lastSpace)
+                        {
+                            cleaned.push_back(' ');
+                            lastSpace = true;
+                        }
+                    }
+                    else
+                    {
+                        cleaned.push_back(c);
+                        lastSpace = false;
+                    }
+                }
+                content = std::move(cleaned);
+                if (content.empty())
+                {
+                    return;
+                }
+            }
+
+            // SVGO/Illustrator 常把 fill/font-size 等放在 style 里，做一个小解析器兜底
+            std::string_view style;
+            if (attrHas(attrs, "style"))
+            {
+                style = attrValue(attrs, "style");
+            }
+            auto styleVal = [&style](std::string_view key) -> std::string_view {
+                if (style.empty())
+                {
+                    return {};
+                }
+                size_t pos = 0;
+                while (pos <= style.size())
+                {
+                    const size_t semi = style.find(';', pos);
+                    const size_t pieceEnd = (semi == std::string_view::npos) ? style.size() : semi;
+                    const std::string_view piece = style.substr(pos, pieceEnd - pos);
+                    const size_t colon = piece.find(':');
+                    if (colon != std::string_view::npos)
+                    {
+                        const std::string_view k = trimWhitespace(piece.substr(0, colon));
+                        if (k == key)
+                        {
+                            return trimWhitespace(piece.substr(colon + 1));
+                        }
+                    }
+                    if (semi == std::string_view::npos)
+                    {
+                        break;
+                    }
+                    pos = semi + 1;
+                }
+                return {};
+            };
+
+            const double x = attrHas(attrs, "x") ? firstNumber(attrValue(attrs, "x"), 0.0) : 0.0;
+            const double y = attrHas(attrs, "y") ? firstNumber(attrValue(attrs, "y"), 0.0) : 0.0;
+
+            // SVG 默认 font-size = medium = 16px（与应用其它文本高度语义一致）
+            double fontSize = 16.0;
+            if (attrHas(attrs, "font-size"))
+            {
+                fontSize = firstNumber(attrValue(attrs, "font-size"), fontSize);
+            }
+            else
+            {
+                const auto sv = styleVal("font-size");
+                if (!sv.empty())
+                {
+                    fontSize = firstNumber(sv, fontSize);
+                }
+            }
+
+            Ut::Vec3f color(0.0f, 0.0f, 0.0f);
+            bool haveColor = false;
+            std::string_view fill;
+            if (attrHas(attrs, "fill"))
+            {
+                fill = attrValue(attrs, "fill");
+            }
+            else
+            {
+                fill = styleVal("fill");
+            }
+            if (!fill.empty() && cssColorToVec3(fill, color))
+            {
+                haveColor = true;
+            }
+            const Ut::Vec3f effColor = haveColor ? color : Ut::Vec3f(0.0f, 0.0f, 0.0f);
+
+            double angleDeg = 0.0;
+            std::string_view tf;
+            if (attrHas(attrs, "transform"))
+            {
+                tf = attrValue(attrs, "transform");
+            }
+            else
+            {
+                tf = styleVal("transform");
+            }
+            if (!tf.empty())
+            {
+                rotateAngleDeg(tf, angleDeg);
+            }
+
+            EntityInfo info{};
+            info.type = EntityType::Text;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.color = packSvgColor(effColor);
+            info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::ByLayer);
+            info.text.x = x;
+            info.text.y = -y;  // SVG Y 向下 -> 系统 Y 向上，与 path 处理一致
+            info.text.h = fontSize;
+            info.text.a = angleDeg * 3.14159265358979323846 / 180.0;
+            std::strncpy(info.text.text, content.c_str(), sizeof(info.text.text) - 1);
+            info.text.text[sizeof(info.text.text) - 1] = '\0';
+            std::strncpy(info.name, content.c_str(), sizeof(info.name) - 1);
+            info.name[sizeof(info.name) - 1] = '\0';
+            info.layerSourceId = getOrCreateLayer(effColor);
+            m_outEntities.push_back(info);
+        }
+
+        /// 解析 <image ...>（data URI 内嵌位图），解码为 Image 图元。
+        /// 返回跳过该元素之后的位置；任何不支持/解不了码的情况统一计一次 skip。
+        const char* parseImageElement(const char* openTag, const char* gt)
+        {
+            std::string tag(openTag + 1, gt);
+            std::vector<std::pair<std::string_view, std::string_view>> attrs;
+            extractTagAttrs(tag, attrs);
+
+            // 自闭合判断：'>' 前最近的非空白字符是 '/'
+            std::string_view tagv(openTag + 1, static_cast<size_t>(gt - (openTag + 1)));
+            size_t k = tagv.size();
+            while (k > 0 && std::isspace(static_cast<unsigned char>(tagv[k - 1])))
+            {
+                --k;
+            }
+            const bool selfClosed = k > 0 && tagv[k - 1] == '/';
+
+            const char* nextP = gt + 1;
+            if (!selfClosed)
+            {
+                const char* close = std::strstr(nextP, "</image");
+                if (close)
+                {
+                    const char* ce = std::strchr(close, '>');
+                    nextP = ce ? ce + 1 : close;
+                }
+            }
+
+            std::string_view href;
+            if (attrHas(attrs, "href"))
+            {
+                href = attrValue(attrs, "href");
+            }
+            else if (attrHas(attrs, "xlink:href"))
+            {
+                href = attrValue(attrs, "xlink:href");
+            }
+
+            if (href.empty() || href.rfind("data:", 0) != 0 || href.find("base64") == std::string_view::npos)
+            {
+                // 非内嵌 base64（外部 URL 或非 base64 data URI）不处理，计一次 skip
+                ++m_imageSkipped;
+                return nextP;
+            }
+
+            const size_t comma = href.find(',');
+            if (comma == std::string_view::npos)
+            {
+                ++m_imageSkipped;
+                return nextP;
+            }
+
+            std::vector<unsigned char> raw;
+            if (!base64Decode(href.substr(comma + 1), raw) || raw.empty())
+            {
+                ++m_imageSkipped;
+                return nextP;
+            }
+
+            std::vector<unsigned char> rgba;
+            int w = 0, h = 0;
+            if (!Fio::loadImageToRgbaFromMemory(raw.data(), raw.size(), rgba, w, h) || w <= 0 || h <= 0)
+            {
+                ++m_imageSkipped;
+                return nextP;
+            }
+
+            const double ix = attrHas(attrs, "x") ? firstNumber(attrValue(attrs, "x"), 0.0) : 0.0;
+            const double iy = attrHas(attrs, "y") ? firstNumber(attrValue(attrs, "y"), 0.0) : 0.0;
+            addImageEntity(ix, iy, rgba, w, h);
+            return nextP;
+        }
+
+        /// 把解码后的 RGBA 位图构造成一个 EntityInfo（EntityType::Image）。
+        void addImageEntity(double x, double y, const std::vector<unsigned char>& rgba, int w, int h)
+        {
+            const size_t bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 4;
+            if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
+            {
+                m_warnings.push_back("SVG <image> dropped: extension blob would exceed 4 GiB");
+                SY_ERRORF("[SvgParser] Image extension blob overflow, image dropped");
+                return;
+            }
+            EntityInfo info{};
+            info.type = EntityType::Image;
+            info.sourceId = static_cast<uint64_t>(m_outEntities.size());
+            info.visible = true;
+            info.imageWidth = w;
+            info.imageHeight = h;
+            // 锚点取 SVG 的 (x,y)，Y 翻转；世界尺寸由转换层按「1 像素 = 1 单位」展开
+            info.line.x1 = x;
+            info.line.y1 = -y;
+            info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::ByLayer);
+            info.layerSourceId = getOrCreateLayer(Ut::Vec3f(0.0f, 0.0f, 0.0f));
+            info.extensionDataOffset = static_cast<uint32_t>(m_outBlob.size());
+            info.extensionDataSize = static_cast<uint32_t>(bytes);
+            m_outBlob.insert(m_outBlob.end(), rgba.begin(), rgba.end());
+            m_outEntities.push_back(info);
+        }
 
         /// 图层数上限。与 Engine 侧 LayerManager::kMaxLayerCount(1024) 留足余量：
         /// 按颜色分层时 256 种已经远超任何真实激光工艺需求，
@@ -715,6 +1393,30 @@ namespace Fio
             return layer.sourceId;
         }
 
+        /// 解析一个 paint 为纯色：
+        ///   - COLOR → 直接返回；
+        ///   - 渐变 → 近似成 blend 纯色并（首次）告警；
+        ///   - 其它（none/未知）→ 黑色。
+        Ut::Vec3f resolvePaintColor(const NSVGpaint& paint)
+        {
+            if (paint.type == NSVG_PAINT_COLOR)
+            {
+                return extractSvgColor(paint);
+            }
+            if ((paint.type == NSVG_PAINT_LINEAR_GRADIENT || paint.type == NSVG_PAINT_RADIAL_GRADIENT) &&
+                paint.gradient != nullptr)
+            {
+                if (!m_gradientWarned)
+                {
+                    m_gradientWarned = true;
+                    m_warnings.push_back("SVG gradient/pattern fill approximated to a blended solid color");
+                    SY_WARNF("[SvgParser] Gradient fill approximated to blended color");
+                }
+                return approxGradientColor(paint.gradient);
+            }
+            return Ut::Vec3f(0.0f, 0.0f, 0.0f);
+        }
+
         /// 把一条子路径（nanosvg 的一个 NSVGpath）聚合成**一个**图元。
         ///
         /// 旧实现是「每段三次贝塞尔一个图元」：一条 10 段的 path 产出 10 个图元，
@@ -723,7 +1425,7 @@ namespace Fio
         ///   - ≥2 段 → EntityType::SmartLine（复合曲线），几何写进扩展数据块；
         ///   - 单段 → 直接产出 Line 或 Bezier，不套复合曲线容器（少一层间接）。
         void convertPathToCompositeEntity(
-            NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId, const char* sourceName)
+            NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId, const char* sourceName, float strokeWidth)
         {
             if (!svgPath || svgPath->npts < 4)
             {
@@ -784,6 +1486,8 @@ namespace Fio
             info.layerSourceId = layerSourceId;
             info.visible = true;
             info.color = packSvgColor(shapeColor);
+            // 保留 stroke-width：渲染现阶段未实现线宽，先记录属性供后续使用/导出
+            info.lineWidth = (strokeWidth > 0.0f) ? static_cast<double>(strokeWidth) : 1.0;
             // SVG 按颜色分层，层色就是该 shape 的自身颜色，所以标成随层色（ByLayer）而不是
             // 显式覆盖色：导入后的观感与源文件完全一致（显示色 = 层色 = 原色），而把图元移到
             // 其它图层、或修改图层颜色时颜色会跟着变（与 AutoCAD 的 BYLAYER 语义一致）。

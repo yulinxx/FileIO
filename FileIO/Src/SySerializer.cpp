@@ -11,48 +11,39 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <mutex>
 
 namespace Fio
 {
     namespace
     {
-        uint32_t crc32Table[256];
-        bool crc32TableInitialized = false;
-
-        void initCrc32Table()
+        // std::call_once 保证线程安全的一次性初始化（C++11 起）
+        const uint32_t* getCrc32Table()
         {
-            if (crc32TableInitialized)
-            {
-                return;
-            }
-
-            const uint32_t polynomial = 0xEDB88320;
-            for (uint32_t i = 0; i < 256; ++i)
-            {
-                uint32_t crc = i;
-                for (int j = 0; j < 8; ++j)
+            static uint32_t crc32Table[256];
+            static std::once_flag flag;
+            std::call_once(flag, [] {
+                const uint32_t polynomial = 0xEDB88320;
+                for (uint32_t i = 0; i < 256; ++i)
                 {
-                    if (crc & 1)
+                    uint32_t crc = i;
+                    for (int j = 0; j < 8; ++j)
                     {
-                        crc = (crc >> 1) ^ polynomial;
+                        crc = (crc & 1) ? ((crc >> 1) ^ polynomial) : (crc >> 1);
                     }
-                    else
-                    {
-                        crc >>= 1;
-                    }
+                    crc32Table[i] = crc;
                 }
-                crc32Table[i] = crc;
-            }
-            crc32TableInitialized = true;
+            });
+            return crc32Table;
         }
 
         uint32_t computeCrc32(const uint8_t* data, size_t len)
         {
-            initCrc32Table();
+            const uint32_t* table = getCrc32Table();
             uint32_t crc = 0xFFFFFFFF;
             for (size_t i = 0; i < len; ++i)
             {
-                crc = (crc >> 8) ^ crc32Table[(crc ^ data[i]) & 0xFF];
+                crc = (crc >> 8) ^ table[(crc ^ data[i]) & 0xFF];
             }
             return crc ^ 0xFFFFFFFF;
         }

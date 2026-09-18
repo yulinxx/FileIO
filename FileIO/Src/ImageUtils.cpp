@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <vector>
 
 namespace
@@ -186,6 +187,32 @@ namespace Fio
 
         // 3) TIFF：libtiff 解码
         return decodeTiffToRgba(strUtf8Path, outRgba, outW, outH);
+    }
+
+    bool loadImageToRgbaFromMemory(const unsigned char* encoded, size_t size, std::vector<unsigned char>& outRgba, int& outW, int& outH)
+    {
+        if (!encoded || size == 0)
+        {
+            return false;
+        }
+        if (size > static_cast<size_t>(std::numeric_limits<int>::max()))
+        {
+            return false;
+        }
+
+        // stb_image 的 stbi_load_from_memory 覆盖 png/jpg/bmp/tga/gif 等常见 SVG 内嵌格式
+        int w = 0, h = 0, comp = 0;
+        stbi_uc* px = stbi_load_from_memory(encoded, static_cast<int>(size), &w, &h, &comp, 4);
+        if (px && w > 0 && h > 0)
+        {
+            outRgba.assign(px, px + static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+            stbi_image_free(px);
+            outW = w;
+            outH = h;
+            return true;
+        }
+        stbi_image_free(px);
+        return false;
     }
 
     float pixelsToUnit(int pixelSize, float dpi, UnitType targetUnit)

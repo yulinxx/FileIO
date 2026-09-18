@@ -39,6 +39,13 @@ namespace Fio
     /// @return 是否成功解码
     FILEIO_API bool loadImageToRgba(const char* strUtf8Path, std::vector<unsigned char>& outRgba, int& outW, int& outH);
 
+    /// 从内存中编码的位图字节（png/jpg/bmp/tga/gif 等，经 stb_image）解码为 RGBA8 像素数据。
+    /// 与 loadImageToRgba 的区别是本接口不落地临时文件，供 SVG 内嵌 base64 位图直接解码。
+    /// encoded 必须指向 size 字节的有效编码数据。
+    /// @return 是否成功解码（成功时 outW/outH 均 > 0）
+    FILEIO_API bool loadImageToRgbaFromMemory(
+        const unsigned char* encoded, size_t size, std::vector<unsigned char>& outRgba, int& outW, int& outH);
+
     FILEIO_API float pixelsToUnit(int pixelSize, float dpi, UnitType targetUnit = UnitType::Millimeter);
 
     FILEIO_API float inchToMm(float inch);

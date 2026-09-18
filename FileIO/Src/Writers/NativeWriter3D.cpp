@@ -57,7 +57,7 @@ namespace Fio
 
     WriteResult NativeWriter3D::writeDocument(const char* filePath, const SyDocument& doc)
     {
-        auto result = m_impl->serializer.saveToFile(filePath, doc, false);
+        auto result = m_impl->serializer.saveToFile(filePath, doc, false, FileFormat::Native3D);
         if (!result.success)
         {
             return WriteResult::fail(result.errorMessage);
