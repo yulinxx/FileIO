@@ -3,8 +3,7 @@
 #include "FileIO/FileIOAPI.h"
 #include "FileIO/FileFormat.h"
 
-#include <string>
-#include <vector>
+#include <memory>
 
 namespace Fio
 {
@@ -15,11 +14,15 @@ namespace Fio
      * UI 层 (FileDialogService 等) 只应通过本类获取过滤器，避免各处硬编码。
      *
      * 扩展名映射与 FileParserFactory / FileWriterFactory 保持一致。
+     *
+     * 实现细节通过 PIMPL 隐藏，公共头不含 STL 容器，跨编译器 ABI 安全。
      */
     class FILEIO_API FormatRegistry
     {
     public:
         static FormatRegistry& instance();
+
+        ~FormatRegistry();
 
         /// 根据文件路径（含扩展名）检测格式；无法识别时返回 FileFormat::Unknown
         FileFormat detectFormat(const char* filePath) const;
@@ -38,25 +41,11 @@ namespace Fio
 
     private:
         FormatRegistry();
-        ~FormatRegistry() = default;
 
         FormatRegistry(const FormatRegistry&) = delete;
         FormatRegistry& operator=(const FormatRegistry&) = delete;
 
-        struct Entry
-        {
-            FileFormat format = FileFormat::Unknown;
-            const char* label = "";
-            const char* const* extensions = nullptr;
-            size_t extCount = 0;
-            std::string importFilterStr;
-            std::string exportFilterStr;
-        };
-
-        void registerFormat(FileFormat format, const char* label, const char* const* extensions, size_t extCount);
-
-        const Entry* find(FileFormat format) const;
-
-        std::vector<Entry> m_entries;
+        struct Impl;
+        std::unique_ptr<Impl> m_impl;
     };
 }  // namespace Fio
