@@ -74,6 +74,7 @@ namespace Fio
 
         void processLine(const std::string& rawLine, int lineIdx)
         {
+            // 逐条去掉尾部分号后拼接，解决多行命令（含换行符）被 std::getline 拆散的问题
             std::string line = pltToUpper(pltTrim(rawLine));
             if (line.empty())
             {
@@ -83,7 +84,7 @@ namespace Fio
             size_t pos = 0;
             while (pos < line.size())
             {
-                while (pos < line.size() && (line[pos] == ';' || line[pos] == ' ' || line[pos] == '\t'))
+                while (pos < line.size() && (line[pos] == ';' || line[pos] == ' ' || line[pos] == '\t' || line[pos] == '\r' || line[pos] == '\n'))
                 {
                     ++pos;
                 }
@@ -225,6 +226,14 @@ namespace Fio
                     {
                         handlePW(params);
                     }
+                    else if (cmd == "EA")
+                    {
+                        handleEA(params);
+                    }
+                    else if (cmd == "ER")
+                    {
+                        handleER(params);
+                    }
                     else
                     {
                         m_warnings.push_back(
@@ -266,7 +275,7 @@ namespace Fio
         {
             return cmd == "IN" || cmd == "PU" || cmd == "PD" || cmd == "PA" || cmd == "PR" || cmd == "AA" ||
                 cmd == "AR" || cmd == "CI" || cmd == "SP" || cmd == "PT" || cmd == "SC" || cmd == "LT" || cmd == "LB" ||
-                cmd == "DI" || cmd == "VS" || cmd == "WU" || cmd == "PW";
+                cmd == "DI" || cmd == "VS" || cmd == "WU" || cmd == "PW" || cmd == "EA" || cmd == "ER";
         }
 
         static double getParam(const std::vector<std::string>& params, int i, double def = 0.0)
@@ -573,7 +582,10 @@ namespace Fio
                 double yMax = getParam(params, 3, 100.0);
                 if (xMax != xMin && yMax != yMin)
                 {
-                    m_scale = m_defaultScale;
+                    // SC 输入范围 [xMin,xMax] 映射到 [0,1]，取 X/Y 较小缩放保持纵横比
+                    double sx = 1.0 / (xMax - xMin);
+                    double sy = 1.0 / (yMax - yMin);
+                    m_scale = m_defaultScale * std::min(sx, sy);
                 }
             }
             else if (params.size() >= 2)
@@ -582,7 +594,7 @@ namespace Fio
                 double sy = getParam(params, 1, 1.0);
                 if (sx > 0 && sy > 0)
                 {
-                    m_scale = m_defaultScale;
+                    m_scale = m_defaultScale * std::min(sx, sy);
                 }
             }
         }
@@ -602,6 +614,54 @@ namespace Fio
         void handleWU(const std::vector<std::string>& /*params*/) {}
 
         void handlePW(const std::vector<std::string>& /*params*/) {}
+
+        void handleEA(const std::vector<std::string>& params)
+        {
+            if (params.size() < 2)
+            {
+                return;
+            }
+            double x = getParam(params, 0);
+            double y = getParam(params, 1);
+            Ut::Vec2d end(x, y);
+            if (m_penDown)
+            {
+                flushPolyline();
+                Ut::Vec2d p0 = m_currentPos;
+                Ut::Vec2d p1(end.x(), p0.y());
+                Ut::Vec2d p2 = end;
+                Ut::Vec2d p3(p0.x(), end.y());
+                emitLine(p0, p1);
+                emitLine(p1, p2);
+                emitLine(p2, p3);
+                emitLine(p3, p0);
+            }
+            m_currentPos = end;
+        }
+
+        void handleER(const std::vector<std::string>& params)
+        {
+            if (params.size() < 2)
+            {
+                return;
+            }
+            double dx = getParam(params, 0);
+            double dy = getParam(params, 1);
+            Ut::Vec2d end = m_currentPos + Ut::Vec2d(dx, dy);
+            if (m_penDown)
+            {
+                flushPolyline();
+                Ut::Vec2d p0 = m_currentPos;
+                Ut::Vec2d p1(end.x(), p0.y());
+                Ut::Vec2d p2 = end;
+                Ut::Vec2d p3(p0.x(), end.y());
+                emitLine(p0, p1);
+                emitLine(p1, p2);
+                emitLine(p2, p3);
+                emitLine(p3, p0);
+            }
+            m_currentPos = end;
+        }
     };
 
     inline const std::regex PltHpglInterpreter::m_regexCommaSpace{ "[,\\s]+" };

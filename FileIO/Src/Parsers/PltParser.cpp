@@ -136,6 +136,7 @@ namespace Fio
             PltHpglInterpreter interpreter(s_entities, s_warnings, s_extensionBlob);
 
             std::string line;
+            std::string pending;  // 跨行拼接缓冲：上一行末尾无分号时暂存
             int lineIdx = 0;
 
             while (std::getline(file, line))
@@ -147,7 +148,29 @@ namespace Fio
                 }
 
                 line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
-                interpreter.processLine(line, lineIdx);
+
+                // 跨行拼接：若缓冲非空则拼接；否则检查本行是否末尾无分号
+                if (!pending.empty())
+                {
+                    pending += line;
+                    // 检查拼接后是否末尾仍有未闭合命令（无分号结尾）
+                    if (!line.empty() && line.back() != ';')
+                    {
+                        continue;  // 继续读下一行
+                    }
+                    interpreter.processLine(pending, lineIdx);
+                    pending.clear();
+                }
+                else if (!line.empty() && line.back() != ';')
+                {
+                    // 本行末尾无分号：可能命令被截断，暂存等下一行
+                    pending = line;
+                    continue;
+                }
+                else
+                {
+                    interpreter.processLine(line, lineIdx);
+                }
                 ++lineIdx;
 
                 if (reportProgress && (lineIdx % kProgressStride == 0))
@@ -158,6 +181,12 @@ namespace Fio
                         : std::min(1.0f, static_cast<float>(static_cast<double>(pos) / static_cast<double>(totalBytes)));
                     onProgress(p, progressCtx);
                 }
+            }
+
+            // 处理最后剩余的未闭合行
+            if (!pending.empty())
+            {
+                interpreter.processLine(pending, lineIdx);
             }
 
             interpreter.finalize();
