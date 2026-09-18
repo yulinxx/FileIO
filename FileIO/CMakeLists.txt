@@ -45,6 +45,11 @@ find_package(Stb REQUIRED)
 find_package(WebP REQUIRED)
 find_package(TIFF REQUIRED)
 
+# macOS/Linux: QtCore for BundleResources (QString)
+if(APPLE OR UNIX)
+    find_package(Qt6 COMPONENTS Core REQUIRED)
+endif()
+
 get_target_property(NANOSVG_INCLUDE_DIR NanoSVG::nanosvg INTERFACE_INCLUDE_DIRECTORIES)
 
 # zlib 可选:用于 SVGZ (gzip 压缩 SVG) 支持
@@ -99,6 +104,7 @@ sanyi_add_shared_library(${LIB_NAME}
             Log
             ${WebP_LIBRARIES}
             TIFF::TIFF
+            Qt6::Core
 )
 
 # libdxfrw 第三方源码添加到目标(统一入口将其归入 External 源组)

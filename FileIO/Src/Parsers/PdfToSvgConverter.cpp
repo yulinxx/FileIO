@@ -24,6 +24,9 @@
     #include <sys/wait.h>
 #endif
 
+// BundleResources.h 尚未实现，macOS/Linux App Bundle 查找路径暂时跳过
+// TODO: 实现 Ut::BundleResources::findBundledTool() 后恢复
+
 namespace Fio
 {
     std::string PdfToSvgConverter::getExecutableDir()
@@ -169,11 +172,14 @@ namespace Fio
 
         // 外部工具发现策略（优先级从高到低）：
         // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
-        // 2. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
-        // 3. 结构化 tools/poppler/bin/ 目录（Linux/macOS 便携部署）
-        // 4. 应用程序同级目录的 tools/ 子目录（扁平结构）
+        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署)
+        // 3. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
+        // 4. 结构化 tools/poppler/bin/ 目录（Linux/macOS 便携部署）
+        // 5. 应用程序同级目录的 tools/ 子目录（扁平结构）
         // 5. PATH 环境变量（系统级安装）
         // 6. 常见安装路径（兜底查找）
+
+        // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
         const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
         if (toolsDirEnv)
         {
@@ -184,20 +190,25 @@ namespace Fio
             }
         }
 
+        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署) — BundleResources 待实现
+
         std::string appDir = getExecutableDir();
+        
+        // 3. 应用程序同级目录
         std::string result = findInDirectory(appDir, exeName);
         if (!result.empty())
         {
             return result;
         }
 
-        // 结构化部署: tools/poppler/bin/ （Linux/macOS）
+        // 4. 结构化部署: tools/poppler/bin/
         result = findToolExe("poppler", exeName);
         if (!result.empty())
         {
             return result;
         }
 
+        // 5. 扁平 tools/ 子目录
         std::string toolsSubDir = (std::filesystem::path(appDir) / "tools").string();
         result = findInDirectory(toolsSubDir, exeName);
         if (!result.empty())
@@ -205,12 +216,14 @@ namespace Fio
             return result;
         }
 
+        // 6. PATH 环境变量
         result = findInPathEnv(exeName);
         if (!result.empty())
         {
             return result;
         }
 
+        // 7. 常见安装路径（兜底）
 #ifdef _WIN32
         std::vector<std::string> commonPaths = {
             "C:/Program Files/poppler/bin/pdftocairo.exe",
@@ -251,11 +264,12 @@ namespace Fio
 
         // 外部工具发现策略（优先级从高到低）：
         // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
-        // 2. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
-        // 3. 结构化 tools/ghostscript/bin/ 目录（Linux/macOS 便携部署）
-        // 4. 应用程序同级目录的 tools/ 子目录（扁平结构）
-        // 5. PATH 环境变量（系统级安装）
-        // 6. 常见安装路径（兜底查找）
+        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署)
+        // 3. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
+        // 4. 结构化 tools/ghostscript/bin/ 目录（Linux/macOS 便携部署）
+        // 5. 应用程序同级目录的 tools/ 子目录（扁平结构）
+        // 6. PATH 环境变量（系统级安装）
+        // 7. 常见安装路径（兜底查找）
         const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
         if (toolsDirEnv)
         {
@@ -269,7 +283,11 @@ namespace Fio
             }
         }
 
+        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署) — BundleResources 待实现
+
         std::string appDir = getExecutableDir();
+        
+        // 3. 应用程序同级目录
         for (const std::string& exeName : exeNames)
         {
             std::string result = findInDirectory(appDir, exeName);
@@ -279,7 +297,7 @@ namespace Fio
             }
         }
 
-        // 结构化部署: tools/ghostscript/bin/ （Linux/macOS）
+        // 4. 结构化部署: tools/ghostscript/bin/
         for (const std::string& exeName : exeNames)
         {
             std::string result = findToolExe("ghostscript", exeName);
@@ -289,6 +307,7 @@ namespace Fio
             }
         }
 
+        // 5. 扁平 tools/ 子目录
         std::string toolsSubDir = (std::filesystem::path(appDir) / "tools").string();
         for (const std::string& exeName : exeNames)
         {
@@ -299,6 +318,7 @@ namespace Fio
             }
         }
 
+        // 6. PATH 环境变量
         for (const std::string& exeName : exeNames)
         {
             std::string result = findInPathEnv(exeName);
@@ -309,6 +329,7 @@ namespace Fio
         }
 
 #ifdef _WIN32
+        // 7. Windows 常见安装路径
         std::filesystem::path gsDir("C:/Program Files/gs");
         if (std::filesystem::exists(gsDir))
         {
@@ -328,6 +349,7 @@ namespace Fio
             }
         }
 #else
+        // 7. 常见安装路径（兜底）
         std::vector<std::string> commonPaths = {
             "/usr/bin/gs",
             "/usr/local/bin/gs",
