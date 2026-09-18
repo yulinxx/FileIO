@@ -154,3 +154,19 @@ namespace Fio
         return ParseResult::ok(collector.warnings);
     }
 }  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct NativeRegistrar {
+        NativeRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::Native, []() -> IFileParser* {
+                return new NativeParser(FileFormat::Native);
+            });
+            FileParserFactory::instance().registerParser(FileFormat::Native3D, []() -> IFileParser* {
+                return new NativeParser(FileFormat::Native3D);
+            });
+        }
+    } s_nativeRegistrar;
+}
+
+}  // namespace Fio

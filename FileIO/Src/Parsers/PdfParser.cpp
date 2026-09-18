@@ -29,3 +29,16 @@ namespace Fio
         return PdfToSvgConverter::isPdfFile(filePath);
     }
 }  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct PdfRegistrar {
+        PdfRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::PDF, []() -> IFileParser* {
+                return new PdfParser();
+            });
+        }
+    } s_pdfRegistrar;
+}
+
+}  // namespace Fio

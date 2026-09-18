@@ -126,3 +126,16 @@ namespace Fio
 #endif
     }
 }  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct StepRegistrar {
+        StepRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::STEP, []() -> IFileParser* {
+                return new StepParser();
+            });
+        }
+    } s_stepRegistrar;
+}
+
+}  // namespace Fio

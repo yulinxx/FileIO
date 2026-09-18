@@ -36,8 +36,6 @@ namespace Fio
         /// 遍历所有支持的导入扩展名（回调模式，委托给 FormatRegistry 唯一入口）
         void forEachSupportedExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const;
 
-        void initDefaults();
-
     private:
         FileParserFactory();
         ~FileParserFactory();

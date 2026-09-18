@@ -115,12 +115,13 @@ namespace Fio
             m_tempPath.clear();
         }
 
-        // [F7] 生成随机后缀（8 字符十六进制）
+        // [F7] 生成随机后缀（16 字符十六进制）
         static std::string generateRandomSuffix()
         {
-            static std::random_device rd;
-            static std::mt19937_64 gen(rd());
-            static std::uniform_int_distribution<uint64_t> dis;
+            // thread_local 保证多线程并发调用时各线程独立状态，无 data race
+            thread_local std::random_device rd;
+            thread_local std::mt19937_64 gen(rd());
+            thread_local std::uniform_int_distribution<uint64_t> dis;
 
             uint64_t val = dis(gen);
             char buf[17];

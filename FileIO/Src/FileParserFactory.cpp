@@ -1,17 +1,6 @@
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/IFileParser.h"
-#include "FileIO/Parsers/DxfParser.h"
-#include "FileIO/Parsers/PltParser.h"
-#include "FileIO/Parsers/SvgParser.h"
-#include "FileIO/Parsers/UgParser.h"
-#include "FileIO/Parsers/StepParser.h"
-#include "FileIO/Parsers/PdfParser.h"
-#include "FileIO/Parsers/AiParser.h"
-#include "FileIO/Parsers/NativeParser.h"
-#include "FileIO/Parsers/StlParser.h"
-#include "FileIO/Parsers/ObjParser.h"
 #include "FileIO/FormatRegistry.h"
-#include "Engine/SyEntity/SyEntity.h"
 #include "Log/SyLogger.h"
 
 #include <map>
@@ -54,8 +43,6 @@ namespace Fio
             return it->second();
         }
 
-        // 未注册的格式（Unknown / BMP / PNG 等位图格式没有解析器）：
-        // 调用方只会拿到 nullptr，不留日志就无从判断是"格式没注册"还是"创建失败"
         SY_WARNF("[FileParserFactory] No parser registered for format=%d (%zu format(s) registered)",
             static_cast<int>(format),
             m_impl->m_creators.size());
@@ -64,7 +51,6 @@ namespace Fio
 
     void FileParserFactory::destroyParser(IFileParser* parser) const
     {
-        // 允许传 nullptr（delete nullptr 是合法空操作），但要能看出调用方是否配对释放
         if (!parser)
         {
             SY_DEBUG("[FileParserFactory] destroyParser called with nullptr");
@@ -86,54 +72,5 @@ namespace Fio
     void FileParserFactory::forEachSupportedExtension(void (*visitor)(const char* ext, void* ctx), void* ctx) const
     {
         FormatRegistry::instance().forEachImportExtension(visitor, ctx);
-    }
-
-    void FileParserFactory::initDefaults()
-    {
-        registerParser(FileFormat::DXF, []() -> IFileParser* {
-            return new DxfParser();
-        });
-
-        registerParser(FileFormat::PLT, []() -> IFileParser* {
-            return new PltParser();
-        });
-
-        registerParser(FileFormat::SVG, []() -> IFileParser* {
-            return new SvgParser();
-        });
-
-        registerParser(FileFormat::UG, []() -> IFileParser* {
-            return new UgParser();
-        });
-
-        registerParser(FileFormat::STEP, []() -> IFileParser* {
-            return new StepParser();
-        });
-
-        registerParser(FileFormat::PDF, []() -> IFileParser* {
-            return new PdfParser();
-        });
-
-        registerParser(FileFormat::AI, []() -> IFileParser* {
-            return new AiParser();
-        });
-
-        registerParser(FileFormat::Native, []() -> IFileParser* {
-            return new NativeParser(FileFormat::Native);
-        });
-
-        registerParser(FileFormat::Native3D, []() -> IFileParser* {
-            return new NativeParser(FileFormat::Native3D);
-        });
-
-        registerParser(FileFormat::STL, []() -> IFileParser* {
-            return new StlParser();
-        });
-
-        // OBJ 此前没有解析器，FormatRegistry 里注册的 .obj 落到工厂就取不到实现，
-        // 上层只能绕过 FileIO 直接调 Engine3D。补齐后 3D 两种格式走同一条 IR 链路。
-        registerParser(FileFormat::OBJ, []() -> IFileParser* {
-            return new ObjParser();
-        });
     }
 }  // namespace Fio

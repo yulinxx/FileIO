@@ -4,7 +4,7 @@
 //
 // 职责:
 //   1. 统一填充 SyDocument 的元数据（版本、时间、环境信息等）
-//   2. 消除 NativeWriter / NativeWriter3D 之间的重复代码
+//   2. 消除 NativeWriter 之间的重复代码
 //   3. 提供可扩展的元数据注入点
 //
 // 设计原则:

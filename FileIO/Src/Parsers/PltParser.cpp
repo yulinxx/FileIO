@@ -218,3 +218,16 @@ namespace Fio
         return pub.publish("PLT");
     }
 }  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct PltRegistrar {
+        PltRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::PLT, []() -> IFileParser* {
+                return new PltParser();
+            });
+        }
+    } s_pltRegistrar;
+}
+
+}  // namespace Fio

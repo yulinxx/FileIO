@@ -366,3 +366,16 @@ namespace Fio
         return pub.publish("STL");
     }
 }  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct StlRegistrar {
+        StlRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::STL, []() -> IFileParser* {
+                return new StlParser();
+            });
+        }
+    } s_stlRegistrar;
+}
+
+}  // namespace Fio

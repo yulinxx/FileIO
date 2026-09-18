@@ -8,7 +8,7 @@
 //   - FileFormat::Native3D → 魔数 "SXPB", 软件名 "SanYi CAD 3D"
 //
 // 设计说明:
-//   统一 NativeWriter / NativeWriter3D 的序列化逻辑，消除代码重复。
+//   统一 NativeWriter 的序列化逻辑，消除代码重复。
 //   FileWriterFactory 对两种格式分别注册同一个 writer 类（不同构造参数）。
 //   ILegacyWriter::write() 接口保留兼容性，新代码优先使用 writeDocument()。
 

@@ -1,5 +1,5 @@
 #include "FileIO/Parsers/DxfParser.h"
-#include "FileIO/FileIOUtils.h"
+#include "FileIOUtils.h"
 
 #include "IrProjector.h"
 #include "IrTransform.h"
@@ -1896,4 +1896,17 @@ namespace Fio
             return ParseResult::fail(std::string("Unknown exception during DXF parsing"), warnings);
         }
     }
+}  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct DxfRegistrar {
+        DxfRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::DXF, []() -> IFileParser* {
+                return new DxfParser();
+            });
+        }
+    } s_dxfRegistrar;
+}
+
 }  // namespace Fio

@@ -1,6 +1,6 @@
 #include "FileIO/Parsers/PdfToSvgConverter.h"
 
-#include "FileIO/FileIOUtils.h"
+#include "FileIOUtils.h"
 
 #include <fstream>
 #include <filesystem>

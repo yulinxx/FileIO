@@ -328,3 +328,16 @@ namespace Fio
         return pub.publish("UG/IGES");
     }
 }  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct UgRegistrar {
+        UgRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::UG, []() -> IFileParser* {
+                return new UgParser();
+            });
+        }
+    } s_ugRegistrar;
+}
+
+}  // namespace Fio

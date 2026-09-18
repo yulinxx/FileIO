@@ -61,7 +61,7 @@ namespace Fio
 
     FileIOManager::FileIOManager()
     {
-        FileParserFactory::instance().initDefaults();
+        // 解析器通过各 .cpp 末尾的静态初始化器自注册，无需显式 initDefaults()
         FileWriterFactory::instance().initDefaults();
     }
 

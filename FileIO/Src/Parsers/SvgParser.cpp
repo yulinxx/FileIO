@@ -1,5 +1,5 @@
 #include "FileIO/Parsers/SvgParser.h"
-#include "FileIO/FileIOUtils.h"
+#include "FileIOUtils.h"
 #include "FileIO/ImageUtils.h"
 #include "IrProjector.h"
 
@@ -1709,4 +1709,17 @@ namespace Fio
         visitor("svg", ctx);
         visitor("svgz", ctx);
     }
+}  // namespace Fio
+#include "FileIO/FileParserFactory.h"
+namespace Fio {
+namespace {
+    static struct SvgRegistrar {
+        SvgRegistrar() {
+            FileParserFactory::instance().registerParser(FileFormat::SVG, []() -> IFileParser* {
+                return new SvgParser();
+            });
+        }
+    } s_svgRegistrar;
+}
+
 }  // namespace Fio

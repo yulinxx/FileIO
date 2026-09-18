@@ -17,7 +17,7 @@ namespace Fio
     ///
     /// 这里必须带 FILEIO_API：FileIO 的单元测试（FileIORegressionTests）直接构造本类
     /// 调用 parseToIR/parse，测试可执行文件链接的是 FileIO.dll，符号不导出会 LNK2001。
-    /// 与 StlParser / NativeParser / NativeParser3D 的处理保持一致。
+    /// 与 StlParser / NativeParser 的处理保持一致。
     class FILEIO_API UgParser : public IFileParser, public ILegacyParser
     {
     public:

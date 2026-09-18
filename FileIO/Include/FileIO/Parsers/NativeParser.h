@@ -6,7 +6,7 @@
 // 通过构造时传入的 FileFormat 区分 2D (.sy) 和 3D (.syx) 行为。
 //
 // 设计说明:
-//   统一 NativeParser / NativeParser3D 的反序列化逻辑，消除代码重复。
+//   统一 NativeParser 的反序列化逻辑，消除代码重复。
 //   FileParserFactory 对两种格式分别注册同一个 parser 类（不同构造参数）。
 //   ILegacyParser::parse() 接口保留兼容性，新代码优先使用 parseDocument()。
 
