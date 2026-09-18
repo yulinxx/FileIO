@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FileIO/IFileParser.h"
-#include "FileIOInternal.h"
+#include "FileIO/ILegacyTypes.h"
 
 namespace Fio
 {

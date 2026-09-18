@@ -6,6 +6,7 @@
 
 #include "Log/SyLogger.h"
 
+#include <cstring>
 #include <filesystem>
 #include <chrono>
 
@@ -30,6 +31,14 @@ namespace Fio
 
         /// 设置是否将纯填充色块也导入为轮廓线（传递给内部 SvgParser）
         void setImportFillAsOutline(bool enable) { m_importFillAsOutline = enable; }
+
+        void setOption(const char* key, const char* value) override
+        {
+            if (std::strcmp(key, "importFillAsOutline") == 0)
+            {
+                m_importFillAsOutline = (std::strcmp(value, "true") == 0);
+            }
+        }
 
         /// 模板方法：封装完整的 PDF→SVG→解析 管道，子类不可重写
         // 输出中立 IR，跨 DLL 安全（委托给 SvgParser::parseToIR）

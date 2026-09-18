@@ -2,8 +2,6 @@
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/FileWriterFactory.h"
 #include "FileIO/FormatRegistry.h"
-#include "FileIO/Parsers/SvgParser.h"
-#include "FileIO/Parsers/PdfBasedParser.h"
 #include "FileIO/IFileParser.h"
 #include "FileIO/IFileWriter.h"
 #include "FileIOInternal.h"
@@ -301,14 +299,8 @@ namespace Fio
         }
 
         // SVG 导入开关：是否把纯填充色块也导入为轮廓线
-        if (auto* svgParser = dynamic_cast<SvgParser*>(parser))
-        {
-            svgParser->setImportFillAsOutline(m_svgImportFillAsOutline);
-        }
-        else if (auto* pdfParser = dynamic_cast<PdfBasedParser*>(parser))
-        {
-            pdfParser->setImportFillAsOutline(m_svgImportFillAsOutline);
-        }
+        // 通过 setOption 统一下发，解析器按需覆写处理，无需 Facade 知道具体类型
+        parser->setOption("importFillAsOutline", m_svgImportFillAsOutline ? "true" : "false");
 
         FioParseResult result;
         try

@@ -46,5 +46,15 @@ namespace Fio
         /// [0,1] 调用 onProgress（onProgress 可能为空，需判空）。
         virtual FioParseResult parseToIRWithProgress(
             const char* filePath, ParseProgressCallback onProgress, void* progressCtx);
+
+        /// 解析器选项设置（key-value 字符串对）。
+        ///
+        /// 默认实现为空操作（no-op），解析器按需覆写处理各自支持的选项。
+        /// Facade 在创建解析器后、调用 parseToIR 之前统一调用此方法，
+        /// 避免对具体解析器类型做 dynamic_cast。
+        ///
+        /// 已知选项：
+        ///   "importFillAsOutline" — "true"/"false"，是否把纯填充色块导入为轮廓线
+        virtual void setOption(const char* /*key*/, const char* /*value*/) {}
     };
 }  // namespace Fio

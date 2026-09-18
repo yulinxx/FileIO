@@ -14,7 +14,7 @@
 
 #include "FileIO/IFileWriter.h"
 #include "FileIO/SyDocument.h"
-#include "FileIOInternal.h"
+#include "FileIO/ILegacyTypes.h"
 
 namespace Fio
 {

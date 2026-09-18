@@ -2,7 +2,7 @@
 
 #include "FileIO/IFileParser.h"
 #include "FileIO/SyDocument.h"
-#include "FileIOInternal.h"
+#include "FileIO/ILegacyTypes.h"
 
 namespace Fio
 {

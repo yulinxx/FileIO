@@ -2,6 +2,8 @@
 
 #include "FileIO/IFileParser.h"
 
+#include <cstring>
+
 namespace Fio
 {
     /// SVG 解析器 — 仅实现 IR 路径（parseToIR），不保留旧 parse 路径
@@ -38,6 +40,14 @@ namespace Fio
         bool importFillAsOutline() const
         {
             return m_importFillAsOutline;
+        }
+
+        void setOption(const char* key, const char* value) override
+        {
+            if (std::strcmp(key, "importFillAsOutline") == 0)
+            {
+                m_importFillAsOutline = (std::strcmp(value, "true") == 0);
+            }
         }
 
     private:

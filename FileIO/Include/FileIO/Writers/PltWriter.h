@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FileIO/IFileWriter.h"
-#include "FileIOInternal.h"
+#include "FileIO/ILegacyTypes.h"
 
 namespace Fio
 {
