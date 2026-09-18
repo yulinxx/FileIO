@@ -24,8 +24,10 @@
     #include <sys/wait.h>
 #endif
 
-// BundleResources.h 尚未实现，macOS/Linux App Bundle 查找路径暂时跳过
-// TODO: 实现 Ut::BundleResources::findBundledTool() 后恢复
+#if defined(__APPLE__) || defined(__linux__)
+    #include "BundleResources.h"
+    #include <QString>
+#endif
 
 namespace Fio
 {
@@ -190,7 +192,18 @@ namespace Fio
             }
         }
 
-        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署) — BundleResources 待实现
+#if defined(__APPLE__) || defined(__linux__)
+        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署)
+        QString bundled = Ut::BundleResources::findBundledTool(QString::fromStdString(exeName));
+        if (!bundled.isEmpty())
+        {
+            std::string bundledStd = bundled.toStdString();
+            if (std::filesystem::exists(bundledStd))
+            {
+                return bundledStd;
+            }
+        }
+#endif
 
         std::string appDir = getExecutableDir();
         
@@ -283,7 +296,21 @@ namespace Fio
             }
         }
 
-        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署) — BundleResources 待实现
+#if defined(__APPLE__) || defined(__linux__)
+        // 2. App Bundle 内 Resources/bin/ (macOS 打包部署)
+        for (const std::string& exeName : exeNames)
+        {
+            QString bundled = Ut::BundleResources::findBundledTool(QString::fromStdString(exeName));
+            if (!bundled.isEmpty())
+            {
+                std::string bundledStd = bundled.toStdString();
+                if (std::filesystem::exists(bundledStd))
+                {
+                    return bundledStd;
+                }
+            }
+        }
+#endif
 
         std::string appDir = getExecutableDir();
         
