@@ -1,3 +1,7 @@
+/**
+ * @file ObjParser.cpp
+ * @brief OBJ 格式解析器实现
+ */
 #include "FileIO/Parsers/ObjParser.h"
 
 #include "IrProjector.h"

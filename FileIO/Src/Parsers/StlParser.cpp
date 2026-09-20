@@ -1,3 +1,7 @@
+/**
+ * @file StlParser.cpp
+ * @brief STL 格式解析器实现
+ */
 #include "FileIO/Parsers/StlParser.h"
 
 #include "IrProjector.h"

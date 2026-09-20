@@ -1,3 +1,7 @@
+/**
+ * @file UgParser.cpp
+ * @brief UG/NX 格式解析器实现
+ */
 #include "FileIO/Parsers/UgParser.h"
 #include "IrProjector.h"
 

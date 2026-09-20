@@ -1,3 +1,7 @@
+/**
+ * @file DxfParser.cpp
+ * @brief DXF 格式解析器实现
+ */
 #include "FileIO/Parsers/DxfParser.h"
 #include "FileIOUtils.h"
 

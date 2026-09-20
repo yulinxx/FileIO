@@ -1,3 +1,7 @@
+/**
+ * @file SvgParser.cpp
+ * @brief SVG 格式解析器实现
+ */
 #include "FileIO/Parsers/SvgParser.h"
 #include "FileIOUtils.h"
 #include "FileIO/ImageUtils.h"
