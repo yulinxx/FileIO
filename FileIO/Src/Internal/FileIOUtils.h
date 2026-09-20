@@ -89,13 +89,13 @@ namespace Fio
             std::filesystem::path fsPath = std::filesystem::u8path(originalPath);
             std::string ext = fsPath.extension().string();
 
-            // [F7-P1 修复] 使用随机后缀替代确定性哈希，防止 TOCTOU 竞争和预创建文件投毒。
+            // 使用随机后缀替代确定性哈希，防止 TOCTOU 竞争和预创建文件投毒。
             // 旧代码用 FNV 哈希生成固定文件名，多个进程处理同一文件会产生冲突。
             std::string randomSuffix = generateRandomSuffix();
             std::filesystem::path tempPath =
                 std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + randomSuffix + ext);
 
-            // [F7-P1 修复] 使用 exclusive create 模式，失败则重试（避免竞争条件）。
+            // 使用 exclusive create 模式，失败则重试（避免竞争条件）。
             constexpr int MAX_RETRIES = 10;
             for (int attempt = 0; attempt < MAX_RETRIES; ++attempt)
             {

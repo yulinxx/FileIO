@@ -131,7 +131,7 @@ namespace Fio
             // STEP import
         }
 
-        // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
+        // 移除操作开始前的"成功"回调，仅在操作完成后触发。
 
         auto& factory = FileParserFactory::instance();
         if (!factory.hasParser(format))
@@ -271,7 +271,7 @@ namespace Fio
 
         // Import to IR entry point
 
-        // [F9-P1 修复] 移除操作开始前的"成功"回调。旧代码在解析前就报 success=true，
+        // 移除操作开始前的"成功"回调。旧代码在解析前就报 success=true，
         // 导致调用方无法区分"操作开始"和"操作完成成功"。回调仅在操作完成后触发。
 
         auto& factory = FileParserFactory::instance();
@@ -401,7 +401,7 @@ namespace Fio
             return false;
         }
 
-        // [F9-P1 修复] 移除操作开始前的"成功"回调，仅在操作完成后触发。
+        // 移除操作开始前的"成功"回调，仅在操作完成后触发。
 
         auto& factory = FileWriterFactory::instance();
         if (!factory.hasWriter(format))

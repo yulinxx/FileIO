@@ -109,7 +109,7 @@ namespace Fio
         }
 
         // ---- 1. 读取文件到内存 ----
-        // [F8-P1 修复] 使用 u8path 处理 Windows 下中文/空格路径。
+        // 使用 u8path 处理 Windows 下中文/空格路径。
         // 旧代码直接传 char* 给 ifstream，Windows 下按 ANSI codepage 解码导致中文路径失败。
         std::ifstream file(std::filesystem::u8path(filePath), std::ios::binary);
         if (!file.is_open())

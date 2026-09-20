@@ -15,7 +15,7 @@
 
 namespace
 {
-    // [F8-P1 修复] Windows 下 fopen 不支持 UTF-8 路径，需要转换为宽字符路径。
+    // Windows 下 fopen 不支持 UTF-8 路径，需要转换为宽字符路径。
     // 此辅助函数在所有平台上接受 UTF-8 路径并正确打开文件。
     FILE* fopenUtf8(const char* utf8Path, const char* mode)
     {

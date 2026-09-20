@@ -1456,7 +1456,7 @@ namespace Fio
                 Ut::Vec2d c2(pts[i * 2 + 4], -pts[i * 2 + 5]);
                 Ut::Vec2d p1(pts[i * 2 + 6], -pts[i * 2 + 7]);
 
-                // [F2-P0 修复] NaN/Inf 坐标会导致后续 static_cast<int>(NaN) 产生 UB，
+                // NaN/Inf 坐标会导致后续 static_cast<int>(NaN) 产生 UB，
                 // 以及越界数组索引。此处对所有坐标做 finite 校验，非法点跳过并告警。
                 if (!std::isfinite(p0.x()) || !std::isfinite(p0.y()) || !std::isfinite(c1.x()) ||
                     !std::isfinite(c1.y()) || !std::isfinite(c2.x()) || !std::isfinite(c2.y()) ||
