@@ -8,7 +8,7 @@
 namespace Fio
 {
     /**
-     * @brief 文件格式注册表（P1-11 收敛后的唯一入口）
+     * @brief 文件格式注册表
      *
      * 统一管理各 FileFormat 的扩展名、描述以及导入/导出对话框过滤器字符串。
      * UI 层 (FileDialogService 等) 只应通过本类获取过滤器，避免各处硬编码。
