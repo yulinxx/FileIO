@@ -357,10 +357,11 @@ namespace Fio
     }
 
     SerializeResult SySerializer::saveToFile(
-        const char* filePath, const SyDocument& doc, bool encrypt, SerializeWarningCallback warningCb, void* warningCtx)
+        const char* filePath, const SyDocument& doc, bool encrypt, SerializeWarningCallback warningCb, void* warningCtx,
+        SerializeProgressCallback progressCb, void* progressCtx)
     {
         // 原有接口默认使用 2D 格式（保持向后兼容）
-        return saveToFile(filePath, doc, encrypt, FileFormat::Native, warningCb, warningCtx);
+        return saveToFile(filePath, doc, encrypt, FileFormat::Native, warningCb, warningCtx, progressCb, progressCtx);
     }
 
     SerializeResult SySerializer::saveToFile(const char* filePath,
@@ -368,12 +369,24 @@ namespace Fio
         bool encrypt,
         FileFormat fmt,
         SerializeWarningCallback /*warningCb*/,
-        void* /*warningCtx*/)
+        void* /*warningCtx*/,
+        SerializeProgressCallback progressCb,
+        void* progressCtx)
     {
         if (!filePath || !*filePath)
         {
             return SerializeResult::fail("Empty file path");
         }
+
+        // 辅助 lambda：发射进度
+        auto emitProgress = [progressCb, progressCtx](float p, const char* stage) {
+            if (progressCb)
+            {
+                progressCb(p, stage, progressCtx);
+            }
+        };
+
+        emitProgress(0.0f, "serializing");
 
         // 根据目标格式选择魔数
         const char* magic = (fmt == FileFormat::Native3D) ? SyFileConst::MAGIC_SYX : SyFileConst::MAGIC_SY;
@@ -383,6 +396,8 @@ namespace Fio
         {
             return SerializeResult::fail("Failed to serialize document to protobuf");
         }
+
+        emitProgress(0.5f, "encrypting");
 
         std::vector<uint8_t> finalData = std::move(protoData);
         uint32_t flags = 0;
@@ -403,6 +418,8 @@ namespace Fio
             m_impl->m_cryptoProvider->freeCryptoData(encResult.data);
             flags |= SyFileConst::FLAG_ENCRYPTED;
         }
+
+        emitProgress(0.7f, "checksum");
 
         const uint32_t crc = computeCrc32(finalData.data(), finalData.size());
 
@@ -433,6 +450,8 @@ namespace Fio
         footer[2] = static_cast<uint8_t>((crc >> 16) & 0xFF);
         footer[3] = static_cast<uint8_t>((crc >> 24) & 0xFF);
 
+        emitProgress(0.8f, "writing");
+
         std::ofstream out(std::filesystem::u8path(filePath), std::ios::binary | std::ios::trunc);
         if (!out)
         {
@@ -451,6 +470,7 @@ namespace Fio
             return SerializeResult::fail(std::string("Failed to write file: ").append(filePath).c_str());
         }
 
+        emitProgress(1.0f, "done");
         return SerializeResult::ok();
     }
 
@@ -535,8 +555,8 @@ namespace Fio
                     .c_str());
         }
 
-        std::vector<uint8_t> data(dataPtr, dataPtr + dataLen);
-
+        // 优化: 非加密文件直接使用 fileBuffer 中的 payload，避免冗余拷贝
+        // 加密文件需要解密后的独立缓冲区
         if (flags & SyFileConst::FLAG_ENCRYPTED)
         {
             if (!m_impl->m_cryptoProvider)
@@ -544,6 +564,8 @@ namespace Fio
                 return SerializeResult::fail("File is encrypted but no crypto provider set");
             }
 
+            // 加密文件: 复制 payload 后解密
+            std::vector<uint8_t> data(dataPtr, dataPtr + dataLen);
             auto decResult = m_impl->m_cryptoProvider->decrypt(data.data(), data.size());
             if (!decResult.success)
             {
@@ -551,11 +573,19 @@ namespace Fio
             }
             data.assign(decResult.data, decResult.data + decResult.dataSize);
             m_impl->m_cryptoProvider->freeCryptoData(decResult.data);
-        }
 
-        if (!deserializeFromProto(data.data(), data.size(), doc))
+            if (!deserializeFromProto(data.data(), data.size(), doc))
+            {
+                return SerializeResult::fail("Failed to parse protobuf data");
+            }
+        }
+        else
         {
-            return SerializeResult::fail("Failed to parse protobuf data");
+            // 非加密文件: 直接解析 fileBuffer 中的 payload，零拷贝
+            if (!deserializeFromProto(dataPtr, dataLen, doc))
+            {
+                return SerializeResult::fail("Failed to parse protobuf data");
+            }
         }
 
         emitWarnings(doc, warningCb, warningCtx);

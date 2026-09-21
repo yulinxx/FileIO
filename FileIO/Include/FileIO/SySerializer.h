@@ -58,6 +58,12 @@ namespace Fio
     /// 警告回调（C 函数指针 + void* ctx，不使用 std::function）
     typedef void (*SerializeWarningCallback)(const char* msg, void* ctx);
 
+    /// 进度回调（C 函数指针 + void* ctx）
+    /// @param progress 进度值 0.0 ~ 1.0
+    /// @param stage    阶段名称（如 "serializing", "writing"）
+    /// @param ctx      用户上下文指针
+    typedef void (*SerializeProgressCallback)(float progress, const char* stage, void* ctx);
+
     ///////////////////////////////////////////////////////////////////////
     // ---------------------------- 文件格式常量 ----------------------------
     namespace SyFileConst
@@ -114,7 +120,9 @@ namespace Fio
             const SyDocument& doc,
             bool encrypt = false,
             SerializeWarningCallback warningCb = nullptr,
-            void* warningCtx = nullptr);
+            void* warningCtx = nullptr,
+            SerializeProgressCallback progressCb = nullptr,
+            void* progressCtx = nullptr);
 
         /// 将文档保存到 .sy/.syx 文件（格式感知版本）
         /// @param filePath 文件路径（UTF-8）
@@ -126,7 +134,9 @@ namespace Fio
             bool encrypt,
             FileFormat fmt,
             SerializeWarningCallback warningCb = nullptr,
-            void* warningCtx = nullptr);
+            void* warningCtx = nullptr,
+            SerializeProgressCallback progressCb = nullptr,
+            void* progressCtx = nullptr);
 
         /// 从 .sy 文件加载文档
         /// @param filePath 文件路径（UTF-8）

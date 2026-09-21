@@ -289,7 +289,12 @@ namespace Fio
             data->set_width(img->nWidth);
             data->set_height(img->nHeight);
             data->set_pixel_format(static_cast<int32_t>(img->ePixelFormat));
-            data->set_pixel_data(img->pixelData(), img->pixelDataSize());
+            // 优化: 使用 string_view 风格设置像素数据，避免额外复制
+            // protobuf-lite 的 set_pixel_data(const char*, size_t) 直接使用指针+长度
+            if (img->pixelData() && img->pixelDataSize() > 0)
+            {
+                data->set_pixel_data(reinterpret_cast<const char*>(img->pixelData()), img->pixelDataSize());
+            }
             toProtoVec2(img->topLeft, data->mutable_top_left());
             toProtoVec2(img->topRight, data->mutable_top_right());
             toProtoVec2(img->bottomLeft, data->mutable_bottom_left());
@@ -355,9 +360,14 @@ namespace Fio
             if (protoEntity.has_line_data())
             {
                 const auto& ld = protoEntity.line_data();
-                for (int j = 0; j < ld.points_size(); ++j)
+                const int pointCount = ld.points_size();
+                if (pointCount > 0)
                 {
-                    line->addPoint(fromProtoVec2(ld.points(j)));
+                    line->reservePoints(static_cast<size_t>(pointCount));
+                    for (int j = 0; j < pointCount; ++j)
+                    {
+                        line->addPoint(fromProtoVec2(ld.points(j)));
+                    }
                 }
             }
             result = std::move(line);
@@ -371,9 +381,14 @@ namespace Fio
             {
                 const auto& pd = protoEntity.polygon_data();
                 auto& verts = poly->verticesMutable();
-                for (int j = 0; j < pd.vertices_size(); ++j)
+                const int vertCount = pd.vertices_size();
+                if (vertCount > 0)
                 {
-                    verts.push_back(fromProtoVec2(pd.vertices(j)));
+                    verts.reserve(static_cast<size_t>(vertCount));
+                    for (int j = 0; j < vertCount; ++j)
+                    {
+                        verts.push_back(fromProtoVec2(pd.vertices(j)));
+                    }
                 }
                 poly->nSides = pd.sides();
                 poly->dCircumRadius = pd.circum_radius();
@@ -451,17 +466,34 @@ namespace Fio
             {
                 const auto& sd = protoEntity.spline_data();
                 spl->nDegree = sd.degree();
-                for (int j = 0; j < sd.knots_size(); ++j)
+
+                const int knotCount = sd.knots_size();
+                const int weightCount = sd.weights_size();
+                const int cpCount = sd.control_points_size();
+
+                if (knotCount > 0)
                 {
-                    spl->addKnot(sd.knots(j));
+                    spl->reserveKnots(static_cast<size_t>(knotCount));
+                    for (int j = 0; j < knotCount; ++j)
+                    {
+                        spl->addKnot(sd.knots(j));
+                    }
                 }
-                for (int j = 0; j < sd.weights_size(); ++j)
+                if (weightCount > 0)
                 {
-                    spl->addWeight(sd.weights(j));
+                    spl->reserveWeights(static_cast<size_t>(weightCount));
+                    for (int j = 0; j < weightCount; ++j)
+                    {
+                        spl->addWeight(sd.weights(j));
+                    }
                 }
-                for (int j = 0; j < sd.control_points_size(); ++j)
+                if (cpCount > 0)
                 {
-                    spl->addControlPoint(fromProtoVec2(sd.control_points(j)));
+                    spl->reserveControlPoints(static_cast<size_t>(cpCount));
+                    for (int j = 0; j < cpCount; ++j)
+                    {
+                        spl->addControlPoint(fromProtoVec2(sd.control_points(j)));
+                    }
                 }
             }
             result = std::move(spl);

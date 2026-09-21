@@ -3,7 +3,7 @@
 // NativeWriter —— .sy / .syx 统一写入器
 //
 // 基于 SySerializer 实现 Protobuf 二进制序列化。
-// 通过构造时传入的 FileFormat 区分 2D (.sy) 和 3D (.syx) 行为：
+// 通过构造时传入的 FileFormat 区分 2D (.sy) 和 3D (.sx) 行为：
 //   - FileFormat::Native  → 魔数 "SYPB", 软件名 "SanYi CAD 2D"
 //   - FileFormat::Native3D → 魔数 "SXPB", 软件名 "SanYi CAD 3D"
 //
@@ -18,6 +18,8 @@
 
 namespace Fio
 {
+    // 前向声明（定义在 SySerializer.h）
+    typedef void (*SerializeProgressCallback)(float progress, const char* stage, void* ctx);
     class FILEIO_API NativeWriter : public IFileWriter, public ILegacyWriter
     {
     public:
@@ -25,6 +27,9 @@ namespace Fio
         /// @param fmt 目标格式：FileFormat::Native (2D) 或 FileFormat::Native3D (3D)
         explicit NativeWriter(FileFormat fmt = FileFormat::Native);
         ~NativeWriter() override;
+
+        /// 设置进度回调
+        void setProgressCallback(SerializeProgressCallback cb, void* ctx);
 
         // ---- IFileWriter 接口 ----
         FileFormat format() const override;

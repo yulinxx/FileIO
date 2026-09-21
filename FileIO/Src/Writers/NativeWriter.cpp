@@ -29,6 +29,10 @@ namespace Fio
         /// 序列化器实例
         SySerializer serializer;
 
+        /// 进度回调
+        SerializeProgressCallback progressCb{ nullptr };
+        void* progressCtx{ nullptr };
+
         /// 根据目标格式返回对应的软件名称
         const char* softwareName() const
         {
@@ -49,6 +53,12 @@ namespace Fio
     }
 
     NativeWriter::~NativeWriter() = default;
+
+    void NativeWriter::setProgressCallback(SerializeProgressCallback cb, void* ctx)
+    {
+        m_impl->progressCb = cb;
+        m_impl->progressCtx = ctx;
+    }
 
     // ============================================================
     // IFileWriter 接口
@@ -124,7 +134,8 @@ namespace Fio
         SY_DEBUGF(
             "[NativeWriter] writeDocument(): path=%s, format=%d", filePath, static_cast<int>(m_impl->targetFormat));
 
-        auto result = m_impl->serializer.saveToFile(filePath, doc, false, m_impl->targetFormat);
+        auto result = m_impl->serializer.saveToFile(
+            filePath, doc, false, m_impl->targetFormat, nullptr, nullptr, m_impl->progressCb, m_impl->progressCtx);
         if (!result.success)
         {
             SY_ERRORF("[NativeWriter] writeDocument() failed: %s", result.errorMessage);
