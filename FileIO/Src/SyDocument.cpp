@@ -315,6 +315,60 @@ namespace Fio
         }
     }
 
+    // ---- 群组 ----
+
+    size_t SyDocument::groupCount() const
+    {
+        return m_data ? m_data->groups.size() : 0;
+    }
+
+    bool SyDocument::getGroupAt(size_t index, SyGroupInfo& out) const
+    {
+        if (!m_data || index >= m_data->groups.size())
+        {
+            return false;
+        }
+
+        const auto& g = m_data->groups[index];
+        out.id = g.id;
+        std::strncpy(out.name, g.name.c_str(), sizeof(out.name) - 1);
+        out.name[sizeof(out.name) - 1] = '\0';
+        out.parentGroupId = g.parentGroupId;
+        return true;
+    }
+
+    // ---- 图元-图层/群组映射 ----
+
+    uint32_t SyDocument::entityLayerId(uint64_t entityId) const
+    {
+        if (!m_data)
+        {
+            return 0;
+        }
+        auto it = m_data->entityLayerMap.find(entityId);
+        return it != m_data->entityLayerMap.end() ? it->second : 0;
+    }
+
+    uint64_t SyDocument::entityGroupId(uint64_t entityId) const
+    {
+        // 从群组的 entityIds 反向查找
+        if (!m_data)
+        {
+            return 0;
+        }
+        for (const auto& group : m_data->groups)
+        {
+            for (uint64_t eid : group.entityIds)
+            {
+                if (eid == entityId)
+                {
+                    return group.id;
+                }
+            }
+        }
+        return 0;
+    }
+
     // ---- 硬件 ----
 
     void SyDocument::getHardware(SyHardwareInfo& out) const

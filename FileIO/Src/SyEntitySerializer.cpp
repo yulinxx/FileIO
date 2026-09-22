@@ -341,6 +341,23 @@ namespace Fio
         default:
             break;
         }
+
+        // 写入包围盒缓存（加载加速用）。
+        // 两个跳过条件：
+        //   1. 类型特有数据未写入 —— SMARTLINE/NURBS 等未在上方 switch 中持久化，
+        //      几何已丢失，写包围盒无意义；
+        //   2. MESH 是 3D 图元，2D 包围盒不参与 2D 空间索引。
+        if (out->type_specific_case() != sanyi::proto::EntityData::TYPE_SPECIFIC_NOT_SET &&
+            entity.eType != Eg::EType::MESH)
+        {
+            const Ut::BBox2d box = entity.getBbox();
+            if (box.isValid())
+            {
+                auto* bboxData = out->mutable_cached_bbox();
+                toProtoVec2(box.minPt, bboxData->mutable_min_pt());
+                toProtoVec2(box.maxPt, bboxData->mutable_max_pt());
+            }
+        }
     }
 
     std::unique_ptr<Eg::SyEntity> SyEntitySerializer::deserializeEntity(const sanyi::proto::EntityData& protoEntity)
@@ -608,6 +625,15 @@ namespace Fio
             result->bClosed = protoEntity.closed();
             result->bCCW = protoEntity.ccw();
             result->setName(protoEntity.name().c_str());
+
+            // 回填包围盒缓存，跳过 computeBBox()。
+            // 必须放在最后：上方各类型分支构造几何时会 setModified() 失效缓存，
+            // 先回填会被冲掉。字段缺失（旧文件）时走现算路径。
+            if (protoEntity.has_cached_bbox())
+            {
+                const auto& bboxData = protoEntity.cached_bbox();
+                result->seedBBoxCache(Ut::BBox2d(fromProtoVec2(bboxData.min_pt()), fromProtoVec2(bboxData.max_pt())));
+            }
         }
 
         return result;

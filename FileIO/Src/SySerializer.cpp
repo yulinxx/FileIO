@@ -9,12 +9,16 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <future>
 #include <sstream>
 #include <filesystem>
 #include <mutex>
 
 namespace Fio
 {
+    // 显式前向声明，确保 ISyCryptoProvider 在此作用域内可见
+    class ISyCryptoProvider;
+
     namespace
     {
         // std::call_once 保证线程安全的一次性初始化（C++11 起）
@@ -302,24 +306,25 @@ namespace Fio
         }
     }  // namespace
 
-    struct SySerializer::Impl
+    // SySerializer 的 PIMPL 实现
+    struct SySerializer::SySerializerImpl
     {
     public:
-        Impl() = default;
+        SySerializerImpl() = default;
 
-        ~Impl()
+        ~SySerializerImpl()
         {
             delete m_cryptoProvider;
         }
 
-        Impl(const Impl&) = delete;
-        Impl& operator=(const Impl&) = delete;
+        SySerializerImpl(const SySerializerImpl&) = delete;
+        SySerializerImpl& operator=(const SySerializerImpl&) = delete;
 
         ISyCryptoProvider* m_cryptoProvider = nullptr;
     };
 
     SySerializer::SySerializer()
-        : m_impl(new Impl())
+        : m_impl(new SySerializerImpl())
     {
     }
 

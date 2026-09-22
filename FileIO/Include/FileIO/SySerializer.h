@@ -174,7 +174,7 @@ namespace Fio
         static bool isValidSyxFile(const uint8_t* header, size_t headerSize);
 
     private:
-        struct Impl;
-        Impl* m_impl;
+        struct SySerializerImpl;
+        SySerializerImpl* m_impl;
     };
 }  // namespace Fio

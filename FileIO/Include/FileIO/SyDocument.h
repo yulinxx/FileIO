@@ -49,6 +49,14 @@ namespace Fio
         double workAreaHeight = 0.0;     // 工作区高度 (mm)
     };
 
+    /// 群组信息视图（POD，固定长度缓冲区，跨 DLL 安全）
+    struct FILEIO_API SyGroupInfo
+    {
+        uint64_t id = 0;                    // 群组 ID
+        char name[256] = {};                // 群组名称
+        uint64_t parentGroupId = 0;         // 父群组 ID（0 = 顶层）
+    };
+
     ////////////////////////////////////////////////////////////////////
     // ---------------------------- 文档 ----------------------------
 
@@ -106,6 +114,12 @@ namespace Fio
         void addLayer(const SyLayerInfo& layer);
         void clearLayers();
 
+        // ---- 群组 ----
+
+        size_t groupCount() const;
+        /// 拷贝第 index 个群组到 out；越界返回 false
+        bool getGroupAt(size_t index, SyGroupInfo& out) const;
+
         // ---- 图元 ----
 
         size_t entityCount() const;
@@ -120,6 +134,13 @@ namespace Fio
         void addBorrowedEntity(const Eg::SyEntity* entity);
 
         void clearEntities();
+
+        // ---- 图元-图层/群组映射 ----
+
+        /// 获取图元的图层 ID（反序列化时填充），不存在返回 0
+        uint32_t entityLayerId(uint64_t entityId) const;
+        /// 获取图元的群组 ID（反序列化时填充），不存在返回 0
+        uint64_t entityGroupId(uint64_t entityId) const;
 
         // ---- 硬件 ----
 

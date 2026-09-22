@@ -257,6 +257,12 @@ message GroupData {
 
 // ---------------------------- 图元通用结构 ----------------------------
 
+// 轴对齐包围盒（图元包围盒缓存的持久化载体）
+message BBoxData {
+    Vec2d min_pt = 1;  // 左下角
+    Vec2d max_pt = 2;  // 右上角
+}
+
 // 所有图元使用此消息，通过 oneof 区分具体类型
 message EntityData {
     // === 通用属性 ===
@@ -289,6 +295,17 @@ message EntityData {
         ImageData      image_data      = 24;
         MeshData       mesh_data       = 25;
     }
+
+    // === 加载加速数据（可选） ===
+    // 包围盒缓存：写入方为保存时的真实包围盒；读取方据此跳过 computeBBox()
+    // （Bezier/Spline/NURBS 等曲线图元的包围盒需离散化，批量加载时开销显著）。
+    //
+    // 兼容性说明：
+    //   - 旧版本软件读新文件：protobuf 未知字段自动忽略，行为退化为"现场计算"，无影响。
+    //   - 新版本软件读旧文件：字段缺失，has_cached_bbox() 为 false，同样现场计算。
+    //   - 数据正确性：.sy 的 CRC32 覆盖整个 payload，校验失败即拒绝加载，
+    //     因此通过校验的文件其 cached_bbox 必然与几何数据来自同一次写入。
+    optional BBoxData cached_bbox = 26;
 }
 
 // ---------------------------- 文档根消息 ----------------------------
