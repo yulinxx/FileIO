@@ -86,7 +86,13 @@ namespace Fio
             return FioParseResult{};
         }
 
-        // 二进制格式快速检测：读取头部 4KB，若非打印字符占比过高则拒绝
+        // 二进制格式快速检测：读取头部 4KB。
+        // HPGL/PLT 是纯 ASCII 文本格式；判据分两级：
+        //  1. 出现 '\0'（null 字节）是二进制的强信号，直接判定为二进制；
+        //  2. ASCII 控制字符（< 0x20 且非 \t\n\r）占比 > 15% 判定为二进制。
+        //     UTF-8 多字节字符的字节都 >= 0x80，不会被计为控制字符，
+        //     因此含中文/日文的合法文件不会被误判。
+        //     阈值从 10% 提高到 15%，避免含少量控制字符的合法文本被拒。
         {
             std::vector<char> headerBuf(4096);
             file.read(headerBuf.data(), static_cast<std::streamsize>(headerBuf.size()));
@@ -99,19 +105,31 @@ namespace Fio
             }
 
             int nonPrintable = 0;
+            bool hasNullByte = false;
             for (std::streamsize i = 0; i < bytesRead; ++i)
             {
                 unsigned char c = static_cast<unsigned char>(headerBuf[i]);
+                if (c == 0)
+                {
+                    hasNullByte = true;
+                    break;
+                }
                 if (c < 32 && c != '\t' && c != '\n' && c != '\r')
                 {
                     nonPrintable++;
                 }
             }
-            bool likelyBinary = (bytesRead > 256 && nonPrintable > bytesRead / 10);
+
+            bool likelyBinary = hasNullByte || (bytesRead > 256 && nonPrintable > bytesRead * 15 / 100);
 
             if (likelyBinary)
             {
-                SY_ERRORF("[PltParser] parseToIR: binary DMPL not supported: %s", filePath);
+                SY_ERRORF("[PltParser] parseToIR: binary content detected (nullByte=%d, nonPrintable=%d/%ld), "
+                          "binary DMPL not supported: %s",
+                    hasNullByte ? 1 : 0,
+                    nonPrintable,
+                    static_cast<long>(bytesRead),
+                    filePath);
                 return FioParseResult{};
             }
 

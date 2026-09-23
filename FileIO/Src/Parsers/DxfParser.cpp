@@ -357,6 +357,7 @@ namespace Fio
             }
 
             auto syLine = std::make_unique<Eg::SyLine>();
+            int skippedVerts = 0;
             for (const auto& vert : data.vertlist)
             {
                 if (!vert)
@@ -368,11 +369,17 @@ namespace Fio
 
                 if (!isFinite2(p))
                 {
-                    warnSkip("LWPOLYLINE", "non-finite vertex");
-                    return;
+                    ++skippedVerts;
+                    continue;
                 }
 
                 syLine->addPoint(p);
+            }
+
+            if (skippedVerts > 0)
+            {
+                m_warnings.push_back(makeWarning("LWPOLYLINE",
+                    (std::string("skipped ") + std::to_string(skippedVerts) + " non-finite vertex(es)").c_str()));
             }
 
             if (syLine->pointRef().size() < 2)
@@ -400,6 +407,7 @@ namespace Fio
             sySpline->setKnotVector(data->knotslist);
             sySpline->setWeightVector(data->weightlist);
 
+            int skippedCtrlPts = 0;
             for (const auto& cp : data->controllist)
             {
                 if (!cp)
@@ -410,11 +418,17 @@ namespace Fio
                 Ut::Vec2d p(cp->x, cp->y);
                 if (!isFinite2(p))
                 {
-                    warnSkip("SPLINE", "non-finite control point");
-                    return;
+                    ++skippedCtrlPts;
+                    continue;
                 }
 
                 sySpline->addControlPoint(p);
+            }
+
+            if (skippedCtrlPts > 0)
+            {
+                m_warnings.push_back(makeWarning("SPLINE",
+                    (std::string("skipped ") + std::to_string(skippedCtrlPts) + " non-finite control point(s)").c_str()));
             }
 
             if (sySpline->controlPointCount() == 0)
@@ -656,6 +670,7 @@ namespace Fio
             }
 
             auto syLine = std::make_unique<Eg::SyLine>();
+            int skippedVerts = 0;
             for (const auto& vert : polyline.vertlist)
             {
                 if (!vert)
@@ -666,11 +681,17 @@ namespace Fio
                 Ut::Vec2d p(vert->basePoint.x, vert->basePoint.y);
                 if (!isFinite2(p))
                 {
-                    warnSkip("POLYLINE", "non-finite vertex");
-                    return;
+                    ++skippedVerts;
+                    continue;
                 }
 
                 syLine->addPoint(p);
+            }
+
+            if (skippedVerts > 0)
+            {
+                m_warnings.push_back(makeWarning("POLYLINE",
+                    (std::string("skipped ") + std::to_string(skippedVerts) + " non-finite vertex(es)").c_str()));
             }
 
             if (syLine->pointRef().size() < 2)
@@ -1157,6 +1178,7 @@ namespace Fio
 
             std::vector<double> verts;
             verts.reserve(data.vertlist.size() * 2);
+            int skippedVerts = 0;
             for (size_t i = 0; i < data.vertlist.size(); ++i)
             {
                 const auto& vert = data.vertlist[i];
@@ -1167,8 +1189,8 @@ namespace Fio
                 Ut::Vec2d p(vert->x, vert->y);
                 if (!isFinite2(p))
                 {
-                    warnSkip("LWPOLYLINE", "non-finite vertex");
-                    return;
+                    ++skippedVerts;
+                    continue;
                 }
                 verts.push_back(p.x());
                 verts.push_back(p.y());
@@ -1186,6 +1208,12 @@ namespace Fio
                         appendBulgeArcPoints(verts, vert->x, vert->y, nv->x, nv->y, vert->bulge);
                     }
                 }
+            }
+
+            if (skippedVerts > 0)
+            {
+                m_warnings.push_back(makeWarning("LWPOLYLINE",
+                    (std::string("skipped ") + std::to_string(skippedVerts) + " non-finite vertex(es)").c_str()));
             }
 
             // flags 位 0 = 闭合。闭合与否早先没读，闭合轮廓会缺最后一段。
@@ -1210,6 +1238,7 @@ namespace Fio
 
             std::vector<double> verts;
             verts.reserve(polyline.vertlist.size() * 2);
+            int skippedVerts = 0;
             for (size_t i = 0; i < polyline.vertlist.size(); ++i)
             {
                 const auto& vert = polyline.vertlist[i];
@@ -1220,8 +1249,8 @@ namespace Fio
                 Ut::Vec2d p(vert->basePoint.x, vert->basePoint.y);
                 if (!isFinite2(p))
                 {
-                    warnSkip("POLYLINE", "non-finite vertex");
-                    return;
+                    ++skippedVerts;
+                    continue;
                 }
                 verts.push_back(p.x());
                 verts.push_back(p.y());
@@ -1239,6 +1268,12 @@ namespace Fio
                             verts, vert->basePoint.x, vert->basePoint.y, nv->basePoint.x, nv->basePoint.y, vert->bulge);
                     }
                 }
+            }
+
+            if (skippedVerts > 0)
+            {
+                m_warnings.push_back(makeWarning("POLYLINE",
+                    (std::string("skipped ") + std::to_string(skippedVerts) + " non-finite vertex(es)").c_str()));
             }
 
             emitPolylineVerts(verts, (polyline.flags & 1) != 0, polyline, polyline.extPoint, "POLYLINE");
@@ -1259,6 +1294,7 @@ namespace Fio
                 // 精确还原需要做插值反解控制点，属于后续能力，先保证形状与数量不丢。
                 std::vector<double> verts;
                 verts.reserve(data->fitlist.size() * 2);
+                int skippedFitPts = 0;
                 for (const auto& fp : data->fitlist)
                 {
                     if (!fp)
@@ -1268,11 +1304,17 @@ namespace Fio
                     Ut::Vec2d p(fp->x, fp->y);
                     if (!isFinite2(p))
                     {
-                        warnSkip("SPLINE", "non-finite fit point");
-                        return;
+                        ++skippedFitPts;
+                        continue;
                     }
                     verts.push_back(p.x());
                     verts.push_back(p.y());
+                }
+
+                if (skippedFitPts > 0)
+                {
+                    m_warnings.push_back(makeWarning("SPLINE",
+                        (std::string("skipped ") + std::to_string(skippedFitPts) + " non-finite fit point(s)").c_str()));
                 }
 
                 if (verts.size() < 4)
@@ -1292,6 +1334,7 @@ namespace Fio
             uint32_t cpCount = 0;
             std::vector<double> cpCoords;
 
+            int skippedCtrlPts = 0;
             for (const auto& cp : data->controllist)
             {
                 if (!cp)
@@ -1301,12 +1344,18 @@ namespace Fio
                 Ut::Vec2d p(cp->x, cp->y);
                 if (!isFinite2(p))
                 {
-                    warnSkip("SPLINE", "non-finite control point");
-                    return;
+                    ++skippedCtrlPts;
+                    continue;
                 }
                 cpCoords.push_back(p.x());
                 cpCoords.push_back(p.y());
                 cpCount++;
+            }
+
+            if (skippedCtrlPts > 0)
+            {
+                m_warnings.push_back(makeWarning("SPLINE",
+                    (std::string("skipped ") + std::to_string(skippedCtrlPts) + " non-finite control point(s)").c_str()));
             }
 
             if (cpCount == 0)
@@ -1640,6 +1689,13 @@ namespace Fio
         {
             if (m_expandedCount >= kMaxExpandedEntities)
             {
+                if (!m_entityLimitWarned)
+                {
+                    m_entityLimitWarned = true;
+                    warnSkip("INSERT", "expanded entity limit reached, remaining block instances skipped");
+                    SY_WARNF("[DxfParser] Expanded entity limit %zu reached, skipping remaining block instances",
+                        kMaxExpandedEntities);
+                }
                 return;
             }
 
@@ -1707,6 +1763,7 @@ namespace Fio
         uint64_t m_nextSourceId = 1;  // 1-based：0 在 IR 里是「无」的哨兵
         size_t m_instanceCount = 0;
         size_t m_expandedCount = 0;
+        bool m_entityLimitWarned = false;
     };
 
     // libdxfrw 的 ASCII 读取器用 std::getline 按行切分，无法识别多字节编码（如 GBK/ANSI_936）

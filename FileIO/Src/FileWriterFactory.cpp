@@ -17,6 +17,7 @@ namespace Fio
     public:
         std::map<FileFormat, CreatorFunc> m_creators;
         std::map<FileFormat, std::string> m_formatToExt;
+        bool m_initialized = false;
     };
 
     FileWriterFactory::FileWriterFactory()
@@ -78,6 +79,14 @@ namespace Fio
 
     void FileWriterFactory::initDefaults()
     {
+        // 幂等守卫：FileIOManager 每次构造都会调用本方法，
+        // 单例只注册一次即可，避免重复 map 插入开销
+        if (m_impl->m_initialized)
+        {
+            return;
+        }
+        m_impl->m_initialized = true;
+
         // DXF 格式
         registerWriter(
             FileFormat::DXF,
