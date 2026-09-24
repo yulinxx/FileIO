@@ -143,7 +143,6 @@ if(ZLIB_FOUND)
 endif()
 
 # --- 单元测试 ---
-option(BUILD_FILEIO_TESTS "Build FileIO unit tests" ON)
 
 if(BUILD_FILEIO_TESTS)
     enable_testing()

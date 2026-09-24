@@ -44,7 +44,7 @@ project(SanYiFileIO
 # MSVC 的 /W4 等选项必须在 project() 之后才能正确判定编译器
 sanyi_setup_compiler_options()
 
-option(BUILD_FILEIO_TESTS "Build FileIO unit tests" ON)
+# 测试开关由 Config.cmake 统一配置（BUILD_FILEIO_TESTS）
 
 # --- 兄弟 DLL ---------------------------------------------------------------
 # 独立构建时这些 target 都不存在，需要按依赖顺序逐个拉进本次构建。
@@ -54,13 +54,10 @@ option(BUILD_FILEIO_TESTS "Build FileIO unit tests" ON)
 # INTERFACE 包含目录，会退化成「把 target 名当裸库名传给链接器」——configure 阶段
 # 不报错，编译阶段才以 "cannot open include file" 的形式暴露。
 if(NOT TARGET FileIO)
-    # 兄弟模块的测试目标在独立构建 FileIO 时一律关闭，避免连带编译大量无关用例。
-    # 用 CACHE ... FORCE 是因为这些 option() 定义在各自子目录里，普通 set 会被覆盖。
-    set(BUILD_UTILITY_TESTS  OFF CACHE BOOL "" FORCE)
-    set(BUILD_LOG_TESTS      OFF CACHE BOOL "" FORCE)
+    # 兄弟模块的示例目标在独立构建 FileIO 时关闭，避免连带编译无关内容。
+    # 注意：测试开关（BUILD_*_TESTS）由 Config.cmake 统一配置，此处不得再改写 ——
+    # 需要「只编库、不编测试」时，直接把 Config.cmake 里对应开关改为 OFF。
     set(BUILD_LOG_EXAMPLE    OFF CACHE BOOL "" FORCE)
-    set(BUILD_ENGINE2D_TESTS OFF CACHE BOOL "" FORCE)
-    set(BUILD_ENGINE3D_TESTS OFF CACHE BOOL "" FORCE)
 
     # 按需拉入一个兄弟模块：target 已存在则跳过，源码目录缺失则直接失败。
     # FileIO 对这几个模块是硬依赖（编译期就要它们的头），拿不到没有降级空间，
@@ -87,14 +84,10 @@ if(NOT TARGET FileIO)
 endif()
 
 if(BUILD_FILEIO_TESTS)
+    # sanyi_find_gtest() 在找不到 GTest 时会把 Config.cmake 里的全部测试开关统一
+    # 降级为 OFF，因此不会再出现「提示说 tests disabled、内层 find_package 却 REQUIRED
+    # 失败」的不一致；没装 GTest 的环境仍可只编库。
     sanyi_find_gtest()
-    # sanyi_find_gtest() 找不到 GTest 时只打印提示、不改开关，而内层 FileIO/CMakeLists.txt
-    # 用的是 find_package(GTest REQUIRED)，会让 configure 直接失败——提示说 tests disabled、
-    # 实际却编不过。这里补上真正的关闭动作，保证没装 GTest 的环境仍然可以只编库。
-    if(NOT TARGET GTest::gtest)
-        message(STATUS "[FileIO] GTest not found, disabling FileIO tests (library build is unaffected)")
-        set(BUILD_FILEIO_TESTS OFF CACHE BOOL "Build FileIO unit tests" FORCE)
-    endif()
 endif()
 
 # 测试子目录由 FileIO/CMakeLists.txt 在 BUILD_FILEIO_TESTS 为真时自行 add_subdirectory(Test)，
