@@ -10,14 +10,17 @@ out/
 bin/
 lib/
 cmake-build-*/
+*.dir/
 
 # ---- CMake 中间文件 ----
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
+*_version.rc
 install_manifest.txt
 compile_commands.json
 CMakeUserPresets.json
+CTestTestfile.cmake
 
 # ---- Ninja 中间文件 ----
 *.ninja
