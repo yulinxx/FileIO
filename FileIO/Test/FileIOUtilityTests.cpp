@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "FileIO/FileIOUtils.h"
 #include "FileIO/ImageUtils.h"
+#include "FileIOUtils.h"
 
 #include <string>
 #include <fstream>
