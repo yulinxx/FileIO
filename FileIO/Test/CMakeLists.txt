@@ -57,7 +57,7 @@ if(WIN32)
     )
 endif()
 
-gtest_discover_tests(FileIOTests)
+gtest_discover_tests(FileIOTests DISCOVERY_TIMEOUT 120)
 
 set_property(TARGET FileIOTests PROPERTY FOLDER "Tests")
 
