@@ -7,6 +7,7 @@
 #include "Log/SyLogger.h"
 
 #include <cstring>
+#include <cstdio>
 #include <filesystem>
 #include <chrono>
 
@@ -99,6 +100,12 @@ namespace Fio
             SvgParser svgParser;
             svgParser.setImportFillAsOutline(m_importFillAsOutline);
             FioParseResult result = svgParser.parseToIR(tempSvg.c_str());
+
+            // SvgParser 统一发布 sourceFormat="SVG"（中间产物格式）；这里改回真实来源格式，
+            // 否则 AI/PDF 导入日志里显示的都是 SVG，无法区分。
+            // 说明：PDF→SVG 经 pdftocairo 转换会压平可选内容组（Illustrator 图层），
+            // AI 图层无法在本工具链还原，只能保留图元本身。
+            std::snprintf(result.sourceFormat, sizeof(result.sourceFormat), "%s", fmtNameBuf);
 
             auto elapsed =
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();

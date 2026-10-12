@@ -21,6 +21,8 @@
 #include <filesystem>
 #include <system_error>
 #include <vector>
+#include <functional>
+#include <string>
 
 namespace Fio
 {
@@ -148,7 +150,32 @@ namespace Fio
 
         try
         {
-            PltHpglInterpreter interpreter(pub.entities(), pub.warnings(), pub.blob());
+            // 按笔号（SP n）建图层：笔号是 PLT 唯一的工艺分层维度。
+            // 图层名 "Pen n"，颜色取固定调色板（HPGL 文件本身不含笔色，仅笔号）；
+            // 超过 kMaxLayers 时 addLayer 返回 0，图元落到未分配图层。
+            static const uint32_t penPalette[] = {
+                0xFF000000u,  // Pen 1 黑
+                0xFFE00000u,  // Pen 2 红
+                0xFF00A050u,  // Pen 3 绿
+                0xFF0050D9u,  // Pen 4 蓝
+                0xFFED6A00u,  // Pen 5 橙
+                0xFF8A2BE2u,  // Pen 6 紫
+                0xFFBFA57Du,  // Pen 7 棕
+                0xFF5C7A8Cu,  // Pen 8 灰蓝
+            };
+            constexpr size_t kPenPaletteSize = sizeof(penPalette) / sizeof(penPalette[0]);
+
+            std::function<uint32_t(int)> layerResolver = [&pub](int pen) {
+                if (pen < 1)
+                {
+                    pen = 1;
+                }
+                const std::string name = "Pen " + std::to_string(pen);
+                const uint32_t color = penPalette[static_cast<size_t>(pen - 1) % kPenPaletteSize];
+                return pub.addLayer(name, color, true);
+            };
+
+            PltHpglInterpreter interpreter(pub.entities(), pub.warnings(), pub.blob(), std::move(layerResolver));
 
             std::string line;
             std::string pending;  // 跨行拼接缓冲：上一行末尾无分号时暂存

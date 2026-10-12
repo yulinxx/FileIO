@@ -79,7 +79,7 @@ TEST(DxfBlockTest, InsertAppliesBasePointScaleAndRotation)
     removeFile(path);
 }
 
-TEST(DxfBlockTest, InsertArrayProducesOneGroupPerCell)
+TEST(DxfBlockTest, InsertArrayProducesSingleGroup)
 {
     // 2 列 x 3 行，列距 20、行距 30
     const std::string path = writeDxf("sanyi_dxf_block_array.dxf",
@@ -90,7 +90,14 @@ TEST(DxfBlockTest, InsertArrayProducesOneGroupPerCell)
     Fio::DxfParser parser;
     const Fio::FioParseResult r = parser.parseToIR(path.c_str());
     EXPECT_EQ(r.entityCount, 6u);
-    EXPECT_EQ(r.groupCount, 6u);
+    // 一次 INSERT 引用（整个阵列）= 一个群组，而不是每格一个同名群组
+    EXPECT_EQ(r.groupCount, 1u);
+
+    // 所有单元格图元都归到同一个群组
+    for (uint32_t i = 0; i < r.entityCount; ++i)
+    {
+        EXPECT_EQ(r.entities[i].groupSourceId, r.groups[0].sourceId);
+    }
 
     // 每个单元格的起点应落在 (col*20, row*30)
     std::vector<std::pair<double, double>> starts;

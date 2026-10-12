@@ -394,6 +394,41 @@ namespace Fio
             break;
         }
 
+        case EntityType::SmartLine:
+        {
+            // 复合曲线：基点在线 x1/y1；段记录按 kSmartSegStride 定长排布写进扩展块，
+            // 每段 [标签][p0.x][p0.y][p1.x][p1.y][p2.x][p2.y][p3.x][p3.y]，坐标都是绝对坐标。
+            // 换算只乘坐标（下标 1..8），标签（下标 0）与坐标无关，保持不变。
+            constexpr std::size_t kStrideBytes = kSmartSegStride * sizeof(double);
+            const std::size_t end =
+                static_cast<std::size_t>(info.extensionDataOffset) + static_cast<std::size_t>(info.extensionDataSize);
+            if (srcBlob == nullptr || end > srcBlobSize || (info.extensionDataSize % kStrideBytes) != 0)
+            {
+                warnings.emplace_back("SmartLine extension data out of range, entity dropped");
+                return false;
+            }
+            const auto* raw = reinterpret_cast<const double*>(srcBlob + info.extensionDataOffset);
+            std::vector<double> vals(raw, raw + info.extensionDataSize / sizeof(double));
+            for (std::size_t i = 0; i + 1 < vals.size(); i += kSmartSegStride)
+            {
+                for (std::size_t k = 1; k < kSmartSegStride; k += 2)
+                {
+                    xf.applyPoint(vals[i + k], vals[i + k + 1]);
+                }
+            }
+            const std::size_t bytes = vals.size() * sizeof(double);
+            const uint32_t offset = pub.appendBlob(vals.data(), bytes);
+            if (offset == IrPublisher::kInvalidOffset)
+            {
+                warnings.emplace_back("Extension blob full, SmartLine dropped");
+                return false;
+            }
+            info.extensionDataOffset = offset;
+            info.extensionDataSize = static_cast<uint32_t>(bytes);
+            xf.applyPoint(info.line.x1, info.line.y1);
+            break;
+        }
+
         case EntityType::Image:
         {
             // 位图像素本身不重采样：只把左上角锚点变换过去，尺寸仍按像素解释。
@@ -473,7 +508,6 @@ namespace Fio
             break;
         }
 
-        case EntityType::SmartLine:
         case EntityType::Unknown:
             warnings.emplace_back("Entity type cannot be transformed, entity dropped");
             SY_WARNF("[IrTransform] Cannot transform entity type %d, dropped", static_cast<int>(info.type));

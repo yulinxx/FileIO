@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <regex>
+#include <functional>
 #include "Ut/Def.h"
 
 #define _USE_MATH_DEFINES
@@ -56,9 +57,12 @@ namespace Fio
     class PltHpglInterpreter
     {
     public:
+        /// @param layerResolver 按笔号返回图层 sourceId（0 表示不按笔分层，图元落到未分配图层）。
+        /// SP n 切换当前笔，笔落/抬笔期间产出的图元归到该笔所在图层。
         PltHpglInterpreter(std::vector<EntityInfo>& outEntities,
             std::vector<std::string>& warnings,
-            std::vector<uint8_t>& extensionBlob)
+            std::vector<uint8_t>& extensionBlob,
+            std::function<uint32_t(int)> layerResolver = nullptr)
             : m_penDown(false)
             , m_currentPos(0.0, 0.0)
             , m_lastPos(0.0, 0.0)
@@ -69,6 +73,7 @@ namespace Fio
             , m_outEntities(outEntities)
             , m_warnings(warnings)
             , m_extensionBlob(extensionBlob)
+            , m_layerResolver(std::move(layerResolver))
         {
         }
 
@@ -265,9 +270,11 @@ namespace Fio
         std::vector<EntityInfo>& m_outEntities;
         std::vector<std::string>& m_warnings;
         std::vector<uint8_t>& m_extensionBlob;
-
-        /// 笔落期间累积的折线顶点（HPGL 坐标，未缩放）
+        std::function<uint32_t(int)> m_layerResolver;
+        // 笔落期间累积的折线顶点（HPGL 坐标，未缩放）
         std::vector<Ut::Vec2d> m_polylinePoints;
+        // 当前折线段开始绘制时的笔号（SP 可能在 flush 之前切换，归段而非归 flush 时刻）
+        int m_polylinePen = 1;
 
         static const std::regex m_regexCommaSpace;
 
@@ -294,6 +301,22 @@ namespace Fio
             return def;
         }
 
+        // 当前笔号对应的图层 sourceId（未设置 resolver 时为 0）
+        uint32_t currentPenLayerId() const
+        {
+            return m_layerResolver ? m_layerResolver(m_currentPen) : 0;
+        }
+
+        // 折线段开始（列表为空时的首个顶点）时记下当时的笔号，
+        // 归段到起笔时刻，避免 SP 在 flush 之前切换导致整段误归新笔。
+        void captureSegmentPen()
+        {
+            if (m_polylinePoints.empty())
+            {
+                m_polylinePen = m_currentPen;
+            }
+        }
+
         // 输出 Line 类型 EntityInfo（两点确定线段）
         void emitLine(const Ut::Vec2d& from, const Ut::Vec2d& to)
         {
@@ -304,6 +327,7 @@ namespace Fio
             info.type = EntityType::Line;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.visible = true;
+            info.layerSourceId = currentPenLayerId();
             info.line.x1 = p1.x();
             info.line.y1 = p1.y();
             info.line.x2 = p2.x();
@@ -321,6 +345,7 @@ namespace Fio
             info.type = EntityType::Arc;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.visible = true;
+            info.layerSourceId = currentPenLayerId();
             info.arc.cx = scaledCenter.x();
             info.arc.cy = scaledCenter.y();
             info.arc.r = scaledRadius;
@@ -339,6 +364,7 @@ namespace Fio
             info.type = EntityType::Circle;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.visible = true;
+            info.layerSourceId = currentPenLayerId();
             info.circle.cx = scaledCenter.x();
             info.circle.cy = scaledCenter.y();
             info.circle.r = scaledRadius;
@@ -360,6 +386,7 @@ namespace Fio
                 info.type = EntityType::Point;
                 info.sourceId = static_cast<uint64_t>(m_outEntities.size());
                 info.visible = true;
+                info.layerSourceId = m_layerResolver ? m_layerResolver(m_polylinePen) : 0;
                 Ut::Vec2d p = m_polylinePoints[0] * m_scale;
                 info.line.x1 = p.x();
                 info.line.y1 = p.y();
@@ -373,6 +400,7 @@ namespace Fio
             info.type = EntityType::Polyline;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.visible = true;
+            info.layerSourceId = m_layerResolver ? m_layerResolver(m_polylinePen) : 0;
             info.vertexCount = static_cast<uint32_t>(m_polylinePoints.size());
 
             // 写入 extensionBlob：Point2D 数组（每个16字节）
@@ -412,6 +440,7 @@ namespace Fio
             m_currentPos = Ut::Vec2d(0.0, 0.0);
             m_lastPos = m_currentPos;
             m_currentPen = 1;
+            m_polylinePen = 1;
             m_scale = m_defaultScale;
         }
 
@@ -430,7 +459,8 @@ namespace Fio
         void handlePD(const std::vector<std::string>& params)
         {
             m_penDown = true;
-            // 笔落瞬间：当前位是折线起点
+            // 笔落瞬间：当前位是折线起点，记下起笔时的笔号
+            captureSegmentPen();
             m_polylinePoints.push_back(m_currentPos);
 
             for (size_t i = 0; i + 1 < params.size(); i += 2)
@@ -451,6 +481,7 @@ namespace Fio
 
                 if (m_penDown)
                 {
+                    captureSegmentPen();
                     m_polylinePoints.push_back(m_currentPos);
                 }
             }
@@ -466,6 +497,7 @@ namespace Fio
 
                 if (m_penDown)
                 {
+                    captureSegmentPen();
                     m_polylinePoints.push_back(m_currentPos);
                 }
             }

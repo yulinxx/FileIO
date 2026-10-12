@@ -31,6 +31,8 @@
 #include <array>
 #include <numeric>
 #include <fstream>
+#include <functional>
+#include <cstdint>
 
 #ifdef FILEIO_HAS_ZLIB
     #include <zlib.h>
@@ -786,7 +788,8 @@ namespace Fio
             bool importFillAsOutline,
             std::vector<uint8_t>& outBlob,
             ParseProgressCallback onProgress = nullptr,
-            void* progressCtx = nullptr)
+            void* progressCtx = nullptr,
+            std::function<uint64_t(const std::string&, uint64_t)> addGroup = nullptr)
             : m_outEntities(outEntities)
             , m_outLayers(outLayers)
             , m_warnings(warnings)
@@ -795,6 +798,7 @@ namespace Fio
             , m_onProgress(onProgress)
             , m_progressCtx(progressCtx)
             , m_outBlob(outBlob)
+            , m_addGroup(std::move(addGroup))
         {
         }
 
@@ -847,6 +851,9 @@ namespace Fio
 
             // Parse SVG from memory (null-terminated string)
             svgData.push_back('\0');
+
+            // 预扫描 <g> 层级（nanosvg 会把群组层级压平，这里先建好 id→群组 映射）
+            scanGroupHierarchy(svgData.data());
 
             NSVGimage* rawImage = nsvgParse(svgData.data(), "px", 96.0f);
             if (!rawImage)
@@ -930,12 +937,17 @@ namespace Fio
                 // 原始 id 降级写入 EntityInfo::name，源对象仍可追溯。
                 uint32_t layerSourceId = getOrCreateLayer(shapeColor);
 
+                // <g> 群组归属：shape->id 可能是元素自身 id，也可能是 nanosvg 继承自最近
+                // 带 id 的祖先 <g> 的 id；两者都已在预扫描里登记为所在群组，直接查即可。
+                const uint64_t groupSourceId = lookupGroupById(shape->id);
+
                 // 一条 <path> 里可能有多个子路径（M ... M ...），nanosvg 把每个子路径拆成
                 // 一个 NSVGpath。语义上「整条子路径 = 一个复合曲线图元」：选中就是整条，
                 // 不再是选中其中一段贝塞尔。
                 for (NSVGpath* svgPath = shape->paths; svgPath != nullptr; svgPath = svgPath->next)
                 {
-                    convertPathToCompositeEntity(svgPath, shapeColor, layerSourceId, shape->id, shape->strokeWidth);
+                    convertPathToCompositeEntity(
+                        svgPath, shapeColor, layerSourceId, shape->id, shape->strokeWidth, groupSourceId);
                 }
             }
 
@@ -975,6 +987,17 @@ namespace Fio
         /// 复合曲线的段几何统一写在这里（EntityInfo 只记偏移与长度）
         std::vector<uint8_t>& m_outBlob;
 
+        /// 群组注册回调：按 (名称, 父群组 id) 建群组，返回新群组 sourceId。
+        /// 由 SvgParser::parseToIRImpl 注入 pub.addGroup；为空则不建群组。
+        std::function<uint64_t(const std::string&, uint64_t)> m_addGroup;
+
+        /// 预扫描结果：nanosvg 会赋给图元的 id（自身 id 优先，否则最近带 id 的 <g> 的 id）
+        /// → 其所在群组 sourceId。emit 阶段按 shape->id 回填 groupSourceId。
+        std::unordered_map<std::string, uint64_t> m_elementToGroup;
+
+        /// 匿名 <g>（无 id/label）的兜底命名序号
+        std::size_t m_anonGroupCounter = 0;
+
         /// 单条 path 的段缓冲，逐路径复用容量，避免每条路径各分配一次
         std::vector<double> m_segBuf;
 
@@ -988,6 +1011,209 @@ namespace Fio
 
         /// <image> 因解码失败/无内嵌数据而被跳过的次数（解析结束时统一汇总告警一次）
         int m_imageSkipped = 0;
+
+        // ========================================================================
+        // <g> 群组层级预扫描
+        // ========================================================================
+
+        /// 查询某 id 对应的群组 sourceId；未登记返回 0（不属于任何群组）。
+        uint64_t lookupGroupById(std::string_view id) const
+        {
+            if (id.empty())
+            {
+                return 0;
+            }
+            const auto it = m_elementToGroup.find(std::string(id));
+            return it == m_elementToGroup.end() ? 0u : it->second;
+        }
+
+        /// 从 [begin, end) 里取标签的本地名（剥掉 'svg:' 之类命名空间前缀），全小写化。
+        static std::string tagLocalName(const char* begin, const char* end)
+        {
+            const char* q = begin;
+            while (q < end && (std::isalnum(static_cast<unsigned char>(*q)) || *q == '_' || *q == '-' || *q == ':'))
+            {
+                ++q;
+            }
+            const char* colon = static_cast<const char*>(std::memchr(begin, ':', static_cast<size_t>(q - begin)));
+            const char* nameBegin = colon ? colon + 1 : begin;
+            std::string name(nameBegin, static_cast<size_t>(q - nameBegin));
+            std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            return name;
+        }
+
+        /// 预扫描 <g> 层级。nanosvg 会把「最近一个带 id 的祖先 <g>」的 id 继承给无 id 的子图元
+        /// （nsvg__pushAttr/parseAttribs 语义），本函数按同样规则算出每个图元的 id 与所在群组。
+        ///
+        /// 只对「有 id 可对应」的图元登记群组归属；匿名元素且祖先全无 id 时保持无群组，
+        /// 绝不靠顺序猜测（顺序法在遇到 defs/不可见元素/use 时会静默错配，比不分组更糟）。
+        void scanGroupHierarchy(const char* data)
+        {
+            if (data == nullptr || m_addGroup == nullptr)
+            {
+                return;
+            }
+
+            struct GFrame
+            {
+                uint64_t groupId;
+                std::string inheritedId;
+            };
+
+            std::vector<GFrame> gStack;
+            uint64_t curGroup = 0;
+            std::string curId;
+            int defsDepth = 0;
+
+            const char* p = data;
+            while (*p)
+            {
+                const char* lt = std::strchr(p, '<');
+                if (lt == nullptr)
+                {
+                    break;
+                }
+                if (std::strncmp(lt, "<!--", 4) == 0)
+                {
+                    const char* e = std::strstr(lt + 4, "-->");
+                    p = e ? e + 3 : lt + 4;
+                    continue;
+                }
+                if (std::strncmp(lt, "<![CDATA[", 9) == 0)
+                {
+                    const char* e = std::strstr(lt + 9, "]]>");
+                    p = e ? e + 3 : lt + 9;
+                    continue;
+                }
+                if (lt[1] == '!' || lt[1] == '?')
+                {
+                    const char* e = std::strchr(lt + 2, '>');
+                    p = e ? e + 1 : lt + 2;
+                    continue;
+                }
+
+                const char* gt = std::strchr(lt, '>');
+                if (gt == nullptr)
+                {
+                    break;
+                }
+
+                // 关闭标签
+                if (lt[1] == '/')
+                {
+                    if (defsDepth > 0)
+                    {
+                        if (tagLocalName(lt + 2, gt) == "defs")
+                        {
+                            --defsDepth;
+                        }
+                        p = gt + 1;
+                        continue;
+                    }
+                    if (!gStack.empty() && tagLocalName(lt + 2, gt) == "g")
+                    {
+                        curGroup = gStack.back().groupId;
+                        curId = gStack.back().inheritedId;
+                        gStack.pop_back();
+                    }
+                    p = gt + 1;
+                    continue;
+                }
+
+                const std::string name = tagLocalName(lt + 1, gt);
+
+                // 自闭合判定：'>' 前最近的非空白字符是 '/'
+                bool selfClosed = false;
+                {
+                    const char* c = gt;
+                    while (c > lt + 1 && std::isspace(static_cast<unsigned char>(c[-1])))
+                    {
+                        --c;
+                    }
+                    selfClosed = (c > lt + 1 && c[-1] == '/');
+                }
+
+                // 属性（body 含元素名，extractTagAttrs 会跳过它）
+                const std::string_view body(lt + 1, static_cast<size_t>(gt - (lt + 1)));
+                std::vector<std::pair<std::string_view, std::string_view>> attrs;
+                extractTagAttrs(body, attrs);
+
+                if (defsDepth > 0)
+                {
+                    if (!selfClosed && name == "defs")
+                    {
+                        ++defsDepth;
+                    }
+                    p = gt + 1;
+                    continue;
+                }
+                if (name == "defs")
+                {
+                    if (!selfClosed)
+                    {
+                        ++defsDepth;
+                    }
+                    p = gt + 1;
+                    continue;
+                }
+                if (name == "g")
+                {
+                    if (selfClosed)
+                    {
+                        p = gt + 1;
+                        continue;  // 空群组，无子元素
+                    }
+                    const std::string_view idSv = attrValue(attrs, "id");
+                    std::string_view labelSv = attrValue(attrs, "inkscape:label");
+                    if (labelSv.empty())
+                    {
+                        labelSv = attrValue(attrs, "label");
+                    }
+                    std::string gname;
+                    if (!labelSv.empty())
+                    {
+                        gname.assign(labelSv);
+                    }
+                    else if (!idSv.empty())
+                    {
+                        gname.assign(idSv);
+                    }
+                    else
+                    {
+                        gname = "Group " + std::to_string(++m_anonGroupCounter);
+                    }
+
+                    const uint64_t newGroup = m_addGroup(gname, curGroup);
+                    gStack.push_back({ curGroup, curId });
+                    curGroup = newGroup;
+                    if (!idSv.empty())
+                    {
+                        curId.assign(idSv);
+                    }
+                    p = gt + 1;
+                    continue;
+                }
+
+                // 图元/文本/图像：登记「nanosvg 将赋予的 id」→ 所在群组
+                {
+                    const std::string_view idSv = attrValue(attrs, "id");
+                    if (!idSv.empty())
+                    {
+                        if (curGroup != 0)
+                        {
+                            m_elementToGroup[std::string(idSv)] = curGroup;
+                        }
+                    }
+                    else if (!curId.empty() && curGroup != 0)
+                    {
+                        m_elementToGroup[curId] = curGroup;
+                    }
+                }
+                p = gt + 1;
+            }
+        }
 
         // ========================================================================
         // <text> / <image> 抽取（nanosvg 不解析这两个元素）
@@ -1237,6 +1463,7 @@ namespace Fio
             info.type = EntityType::Text;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.visible = true;
+            info.groupSourceId = lookupGroupById(attrValue(attrs, "id"));
             info.color = packSvgColor(effColor);
             info.colorPolicy = static_cast<uint8_t>(EntityColorPolicy::ByLayer);
             info.text.x = x;
@@ -1320,12 +1547,13 @@ namespace Fio
 
             const double ix = attrHas(attrs, "x") ? firstNumber(attrValue(attrs, "x"), 0.0) : 0.0;
             const double iy = attrHas(attrs, "y") ? firstNumber(attrValue(attrs, "y"), 0.0) : 0.0;
-            addImageEntity(ix, iy, rgba, w, h);
+            addImageEntity(ix, iy, rgba, w, h, lookupGroupById(attrValue(attrs, "id")));
             return nextP;
         }
 
         /// 把解码后的 RGBA 位图构造成一个 EntityInfo（EntityType::Image）。
-        void addImageEntity(double x, double y, const std::vector<unsigned char>& rgba, int w, int h)
+        void addImageEntity(double x, double y, const std::vector<unsigned char>& rgba, int w, int h,
+            uint64_t groupSourceId = 0)
         {
             const size_t bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 4;
             if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
@@ -1338,6 +1566,7 @@ namespace Fio
             info.type = EntityType::Image;
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.visible = true;
+            info.groupSourceId = groupSourceId;
             info.imageWidth = w;
             info.imageHeight = h;
             // 锚点取 SVG 的 (x,y)，Y 翻转；世界尺寸由转换层按「1 像素 = 1 单位」展开
@@ -1430,7 +1659,8 @@ namespace Fio
         ///   - ≥2 段 → EntityType::SmartLine（复合曲线），几何写进扩展数据块；
         ///   - 单段 → 直接产出 Line 或 Bezier，不套复合曲线容器（少一层间接）。
         void convertPathToCompositeEntity(
-            NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId, const char* sourceName, float strokeWidth)
+            NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId, const char* sourceName,
+            float strokeWidth, uint64_t groupSourceId)
         {
             if (!svgPath || svgPath->npts < 4)
             {
@@ -1489,6 +1719,7 @@ namespace Fio
             EntityInfo info{};
             info.sourceId = static_cast<uint64_t>(m_outEntities.size());
             info.layerSourceId = layerSourceId;
+            info.groupSourceId = groupSourceId;
             info.visible = true;
             info.color = packSvgColor(shapeColor);
             // 保留 stroke-width：渲染现阶段未实现线宽，先记录属性供后续使用/导出
@@ -1656,8 +1887,9 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(
-                pub.entities(), pub.layers(), pub.warnings(), m_importFillAsOutline, pub.blob(), onProgress, progressCtx);
+            NsvgInterpreter interpreter(pub.entities(), pub.layers(), pub.warnings(), m_importFillAsOutline, pub.blob(),
+                onProgress, progressCtx,
+                [&pub](const std::string& name, uint64_t parent) { return pub.addGroup(name, parent); });
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {

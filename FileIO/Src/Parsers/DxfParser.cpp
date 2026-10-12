@@ -1662,6 +1662,11 @@ namespace Fio
                 warnSkip("INSERT", "array count clamped");
             }
 
+            // 一次 INSERT 引用 = 一个群组（阵列 colcount×rowcount 视为同一个引用，
+            // 全部单元格的图元归到这一个群组，而不是每格一个同名群组——后者会让
+            // 3×3 阵列直接产生 9 个 "Block:name" 顶层群组，既无意义又逼近群组上限）。
+            const uint64_t refGroupId = m_pub.addGroup("Block:" + def.name, parentGroupId);
+
             for (int row = 0; row < rows; ++row)
             {
                 for (int col = 0; col < cols; ++col)
@@ -1679,13 +1684,13 @@ namespace Fio
                                               .then(IrXform::translate(ref.x + ox, ref.y + oy));
 
                     // 嵌套时插入点写在父块坐标系里，因此本层变换要先做、再叠父层变换
-                    instantiateBlock(def, ref, local.then(parentXf), parentGroupId, depth);
+                    instantiateBlock(def, ref, local.then(parentXf), refGroupId, depth);
                 }
             }
         }
 
         void instantiateBlock(
-            const BlockDef& def, const InsertRef& ref, const IrXform& xf, uint64_t parentGroupId, int depth)
+            const BlockDef& def, const InsertRef& ref, const IrXform& xf, uint64_t refGroupId, int depth)
         {
             if (m_expandedCount >= kMaxExpandedEntities)
             {
@@ -1699,8 +1704,6 @@ namespace Fio
                 return;
             }
 
-            // 一次引用 = 一个群组。名字带上块名，导入后在群组面板里可辨识来源。
-            const uint64_t groupId = m_pub.addGroup("Block:" + def.name, parentGroupId);
             ++m_instanceCount;
 
             for (const BlockEntity& be : def.entities)
@@ -1720,7 +1723,7 @@ namespace Fio
                 }
 
                 copy.sourceId = m_nextSourceId++;
-                copy.groupSourceId = groupId;
+                copy.groupSourceId = refGroupId;
                 // 块内图层 "0" / 颜色 BYBLOCK 的图元随引用方走，这是块能"套用样式"的关键规则
                 if (be.layerFromInsert && ref.layerSourceId != 0u)
                 {
@@ -1739,7 +1742,7 @@ namespace Fio
 
             for (const InsertRef& nested : def.inserts)
             {
-                expandInsert(nested, xf, groupId, depth + 1);
+                expandInsert(nested, xf, refGroupId, depth + 1);
             }
         }
 
