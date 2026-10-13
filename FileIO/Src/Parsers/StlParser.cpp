@@ -16,6 +16,7 @@
 #include <vector>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <filesystem>
 
 namespace Fio

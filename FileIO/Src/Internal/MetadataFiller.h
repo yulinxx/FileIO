@@ -139,7 +139,9 @@ namespace Fio
                             val++, len--;
                         if (len > 0 && val[len - 1] == '"')
                             val[--len] = '\0';
-                        strncpy(name, val, sizeof(name) - 1);
+                        const size_t nameLen = len < sizeof(name) - 1 ? len : sizeof(name) - 1;
+                        std::memcpy(name, val, nameLen);
+                        name[nameLen] = '\0';
                     }
                     else if (strncmp(line, "VERSION=", 8) == 0)
                     {
@@ -151,7 +153,9 @@ namespace Fio
                             val++, len--;
                         if (len > 0 && val[len - 1] == '"')
                             val[--len] = '\0';
-                        strncpy(version, val, sizeof(version) - 1);
+                        const size_t verLen = len < sizeof(version) - 1 ? len : sizeof(version) - 1;
+                        std::memcpy(version, val, verLen);
+                        version[verLen] = '\0';
                     }
                 }
                 fclose(f);
