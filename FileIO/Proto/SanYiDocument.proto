@@ -214,6 +214,8 @@ message BarCodeData {
 message QRCodeData {
     string data         = 1;   // 二维码内容
     double module_size  = 2;   // 模块尺寸
+    optional int32 ecc          = 3;  // 纠错等级 0=L 1=M 2=Q 3=H（缺省读端回落 M）
+    optional int32 border_size  = 4;  // 静区宽度（模块数，缺省读端回落 4）
 }
 
 message ImageData {

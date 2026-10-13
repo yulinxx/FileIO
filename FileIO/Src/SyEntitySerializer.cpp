@@ -279,6 +279,8 @@ namespace Fio
             auto* data = out->mutable_qrcode_data();
             data->set_data(qr->data());
             data->set_module_size(qr->dModuleSize);
+            data->set_ecc(static_cast<int32_t>(qr->ecc()));
+            data->set_border_size(qr->borderSize());
             break;
         }
 
@@ -554,8 +556,19 @@ namespace Fio
             auto qr = std::make_unique<Eg::SyQRCode>();
             if (protoEntity.has_qrcode_data())
             {
-                qr->setData(protoEntity.qrcode_data().data().c_str());
-                qr->dModuleSize = protoEntity.qrcode_data().module_size();
+                const auto& qrd = protoEntity.qrcode_data();
+                qr->setData(qrd.data().c_str());
+                qr->dModuleSize = qrd.module_size();
+                // 旧文件无 ecc/border 字段：回落实体默认（M / 4），保持向后兼容
+                if (qrd.has_ecc())
+                {
+                    const int ecc = qrd.ecc();
+                    qr->setEcc(ecc >= 0 && ecc <= 3 ? static_cast<Eg::QrEcc>(ecc) : Eg::QrEcc::Medium);
+                }
+                if (qrd.has_border_size())
+                {
+                    qr->setBorderSize(qrd.border_size());
+                }
             }
             result = std::move(qr);
             break;
