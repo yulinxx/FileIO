@@ -3,21 +3,21 @@ cmake_minimum_required(VERSION 4.3)
 # ============================================================================
 # FileIO —— 独立构建入口
 # ============================================================================
-# 集成进 CAD 主工程时走的是仓库根 CMakeLists.txt 的 add_subdirectory(FileIO/FileIO)，
-# 本文件只服务于「把 FileIO 单独拉出来开发 / 跑测试」这一场景。
+# 集成构建：根 CMakeLists.txt → add_subdirectory(FileIO/FileIO)（内层）。
+# 独立构建：本文件提供 project() 与环境配置，把 FileIO 单独拉出来开发 / 跑测试。
 #
 # 三条设计约束同时成立：
 #
 #   1) 复用仓库统一配置，不自己手搓一套，避免与主工程漂移：
 #        ../Config.cmake               —— vcpkg / Qt 路径、MSVC 运行库、模块开关
-#        ../CMake/StandaloneInit.cmake —— 工具链、C++17、输出目录、编译选项、GTest 查找
-#      与 Utility / Log / Network / GeoModelCore / Nesting / UI 的独立入口保持同一套写法。
+#        ../CMake/StandaloneInit.cmake —— SANYI_ROOT、编译选项、GTest 查找、兄弟模块拉入
+#      与 Utility / Log / License / Nesting 的独立入口保持同一套写法。
 #
-#   2) 可脱离主程序单独编译：需要的兄弟 DLL 由本工程按需 add_subdirectory 拉进来构建，
-#      Main / UI / Renderx 一概不参与。
+#   2) 可脱离主程序单独编译：需要的兄弟 DLL 由 sanyi_add_sibling() 按依赖顺序
+#      逐个拉进来构建，Main / UI / Renderx 一概不参与。
 #
-#   3) 兄弟 DLL 的测试目标默认关闭：独立构建 FileIO 时只关心 FileIO 自己的测试，
-#      不该顺带编出 Engine2D / Engine3D 的整套测试。
+#   3) 兄弟 DLL 的测试目标在独立构建时关闭（sanyi_only_own_tests）：只关心
+#      FileIO 自己的测试，不顺带编出 Engine2D / Engine3D 的整套测试。
 #
 # 当前依赖闭包（自下而上）：
 #     Utility / Log ──> EngineCommon ──> Engine2D ──> Engine3D ──> FileIO
@@ -30,9 +30,10 @@ cmake_minimum_required(VERSION 4.3)
 #   cmake --build FileIO/build --config Release
 #   ctest --test-dir FileIO/build -C Release
 #   cmake -S FileIO -B FileIO/build -DBUILD_FILEIO_TESTS=OFF   # 只编库、不编测试
+#   cmake -S FileIO -B FileIO/build -DBUILD_FILEIO_EXAMPLE=OFF # 不编示例
 # ============================================================================
 
-include(../Config.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../Config.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/../CMake/StandaloneInit.cmake)
 
 project(SanYiFileIO
@@ -44,62 +45,43 @@ project(SanYiFileIO
 # MSVC 的 /W4 等选项必须在 project() 之后才能正确判定编译器
 sanyi_setup_compiler_options()
 
-# 测试开关由 Config.cmake 统一配置（BUILD_FILEIO_TESTS）
+# 示例目标仅存在于独立构建（内层不负责 Example）
+option(BUILD_FILEIO_EXAMPLE "Build FileIO usage example" ON)
 
-# --- 兄弟 DLL ---------------------------------------------------------------
-# 独立构建时这些 target 都不存在，需要按依赖顺序逐个拉进本次构建。
-# 集成进主工程时它们已由根 CMakeLists.txt 创建，NOT TARGET 守卫会整体跳过。
-#
-# 注意顺序：被依赖者必须先 add_subdirectory，否则 target_link_libraries 拿不到
-# INTERFACE 包含目录，会退化成「把 target 名当裸库名传给链接器」——configure 阶段
-# 不报错，编译阶段才以 "cannot open include file" 的形式暴露。
-if(NOT TARGET FileIO)
-    # 兄弟模块的示例目标在独立构建 FileIO 时关闭，避免连带编译无关内容。
-    # 注意：测试开关（BUILD_*_TESTS）由 Config.cmake 统一配置，此处不得再改写 ——
-    # 需要「只编库、不编测试」时，直接把 Config.cmake 里对应开关改为 OFF。
-    set(BUILD_LOG_EXAMPLE    OFF CACHE BOOL "" FORCE)
-
-    # 按需拉入一个兄弟模块：target 已存在则跳过，源码目录缺失则直接失败。
-    # FileIO 对这几个模块是硬依赖（编译期就要它们的头），拿不到没有降级空间，
-    # 所以这里用 FATAL_ERROR 而不是 WARNING。
-    macro(_fileio_add_sibling _tgt _mod_dir)
-        if(NOT TARGET ${_tgt})
-            if(EXISTS "${_mod_dir}/CMakeLists.txt")
-                message(STATUS "[FileIO] Sibling module ${_tgt}: building from ${_mod_dir}")
-                add_subdirectory("${_mod_dir}" "${CMAKE_BINARY_DIR}/${_tgt}")
-            else()
-                message(FATAL_ERROR
-                    "[FileIO] Required sibling module ${_tgt} was not found at ${_mod_dir}. "
-                    "FileIO cannot be built standalone without it.")
-            endif()
-        endif()
-    endmacro()
-
-    # 严格按依赖顺序：Utility / Log 是叶子，Engine2D 依赖 EngineCommon，Engine3D 依赖 Engine2D。
-    _fileio_add_sibling(Utility      "${SANYI_UTILITY_DIR}")
-    _fileio_add_sibling(Log          "${SANYI_LOG_DIR}")
-    _fileio_add_sibling(EngineCommon "${SANYI_ENGINE_COMMON_DIR}")
-    _fileio_add_sibling(Engine2D     "${SANYI_ENGINE_2D_DIR}")
-    _fileio_add_sibling(Engine3D     "${SANYI_ENGINE_3D_DIR}")
-endif()
-
+# --- 测试与兄弟模块 ---------------------------------------------------------
+# 先关兄弟测试、再探测 GTest（缺失时把测试开关统一降级为 OFF），
+# 两步都必须发生在拉入兄弟模块之前，否则兄弟内层的 find_package(GTest REQUIRED)
+# 会在降级前硬失败。
+sanyi_only_own_tests(BUILD_FILEIO_TESTS)
 if(BUILD_FILEIO_TESTS)
-    # sanyi_find_gtest() 在找不到 GTest 时会把 Config.cmake 里的全部测试开关统一
-    # 降级为 OFF，因此不会再出现「提示说 tests disabled、内层 find_package 却 REQUIRED
-    # 失败」的不一致；没装 GTest 的环境仍可只编库。
     sanyi_find_gtest()
 endif()
 
-# 测试子目录由 FileIO/CMakeLists.txt 在 BUILD_FILEIO_TESTS 为真时自行 add_subdirectory(Test)，
-# 这里不再重复添加 —— 两处添加同一目录会导致 target 重定义。
+# 严格按依赖顺序：Utility / Log 是叶子，Engine2D 依赖 EngineCommon，Engine3D 依赖 Engine2D。
+# 硬依赖，缺了没有降级空间 —— sanyi_add_sibling 默认 FATAL_ERROR。
+sanyi_add_sibling(Utility      "${SANYI_UTILITY_DIR}")
+sanyi_add_sibling(Log          "${SANYI_LOG_DIR}")
+sanyi_add_sibling(EngineCommon "${SANYI_ENGINE_COMMON_DIR}")
+sanyi_add_sibling(Engine2D     "${SANYI_ENGINE_2D_DIR}")
+sanyi_add_sibling(Engine3D     "${SANYI_ENGINE_3D_DIR}")
+
+# 内层：创建 FileIO DLL、挂载测试（BUILD_FILEIO_TESTS 时）、输出状态。
+# 测试子目录只由内层挂载，这里不再重复添加 —— 两处添加同一目录会导致 target 重定义。
 add_subdirectory(FileIO)
 
+# --- 示例（独立构建专属） ---------------------------------------------------
+if(BUILD_FILEIO_EXAMPLE)
+    add_subdirectory(Example)
+endif()
+
+# --- 独立构建摘要 -----------------------------------------------------------
 message(STATUS "")
 message(STATUS "========================================")
 message(STATUS "  [Standalone: ${PROJECT_NAME}]")
 message(STATUS "========================================")
-message(STATUS "  Version:     ${PROJECT_VERSION}")
-message(STATUS "  Build Tests: ${BUILD_FILEIO_TESTS}")
-message(STATUS "  Output:      ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+message(STATUS "  Version:        ${PROJECT_VERSION}")
+message(STATUS "  Build Tests:    ${BUILD_FILEIO_TESTS}")
+message(STATUS "  Build Example:  ${BUILD_FILEIO_EXAMPLE}")
+message(STATUS "  Output:         ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "========================================")
 message(STATUS "")

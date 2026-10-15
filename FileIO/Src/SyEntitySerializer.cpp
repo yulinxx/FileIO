@@ -140,9 +140,9 @@ namespace Fio
             out->set_layer_id(static_cast<uint32_t>(entity.layer()->getId()));
         }
 
-        toProtoVec2(entity.basePoint, out->mutable_base_point());
-        out->set_closed(entity.bClosed);
-        out->set_ccw(entity.bCCW);
+        toProtoVec2(static_cast<const Eg::SyEntity2D&>(entity).basePoint, out->mutable_base_point());
+        out->set_closed(static_cast<const Eg::SyEntity2D&>(entity).bClosed);
+        out->set_ccw(static_cast<const Eg::SyEntity2D&>(entity).bCCW);
         out->set_name(entity.name());
 
         switch (entity.eType)
@@ -634,9 +634,9 @@ namespace Fio
         if (result)
         {
             result->id = static_cast<Eg::EntityId>(protoEntity.id());
-            result->basePoint = fromProtoVec2(protoEntity.base_point());
-            result->bClosed = protoEntity.closed();
-            result->bCCW = protoEntity.ccw();
+            static_cast<Eg::SyEntity2D&>(*result).basePoint = fromProtoVec2(protoEntity.base_point());
+            static_cast<Eg::SyEntity2D&>(*result).bClosed = protoEntity.closed();
+            static_cast<Eg::SyEntity2D&>(*result).bCCW = protoEntity.ccw();
             result->setName(protoEntity.name().c_str());
 
             // 回填包围盒缓存，跳过 computeBBox()。

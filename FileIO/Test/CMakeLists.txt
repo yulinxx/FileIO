@@ -57,7 +57,9 @@ if(WIN32)
     )
 endif()
 
-gtest_discover_tests(FileIOTests DISCOVERY_TIMEOUT 120)
+# PRE_TEST：FileIOTests 经 Log 间接依赖 Qt DLL；即便已拷运行库，推迟到
+# ctest 运行时发现也与 UI/PythonHost 保持一致，避免构建环境 PATH 差异。
+gtest_discover_tests(FileIOTests DISCOVERY_MODE PRE_TEST DISCOVERY_TIMEOUT 120)
 
 set_property(TARGET FileIOTests PROPERTY FOLDER "Tests")
 

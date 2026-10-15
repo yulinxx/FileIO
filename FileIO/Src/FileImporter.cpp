@@ -41,8 +41,8 @@ namespace Fio
             out.name = src->name();
             out.visible = src->visible();
             out.locked = src->locked();
-            out.closed = src->bClosed;
-            out.ccw = src->bCCW;
+            out.closed = static_cast<const Eg::SyEntity2D*>(src)->bClosed;
+            out.ccw = static_cast<const Eg::SyEntity2D*>(src)->bCCW;
 
             if (auto* line = dynamic_cast<const Eg::SyLine*>(src))
             {
