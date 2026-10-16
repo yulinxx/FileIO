@@ -113,6 +113,10 @@ sanyi_add_shared_library(${LIB_NAME}
 )
 
 # libdxfrw 第三方源码添加到目标(统一入口将其归入 External 源组)
+# SKIP_UNITY_BUILD_INCLUSION：libdxfrw 多个 .cpp 各自在匿名命名空间定义了
+# 同名辅助结构/函数（如 OperationErrorMapping / toUpperCase / readDxfIntInRange），
+# Unity Build 把它们并进同一翻译单元会重定义报错。第三方源码单独成 TU。
+set_source_files_properties(${LIB_DXFRW_SOURCES} PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 target_sources(${LIB_NAME} PRIVATE ${LIB_DXFRW_SOURCES})
 
 protobuf_generate(
