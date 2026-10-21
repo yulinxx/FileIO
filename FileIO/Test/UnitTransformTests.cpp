@@ -87,8 +87,7 @@ TEST(UnitTransformTest, ScalesDxfEntitiesUniformly)
     ents += "0\nLWPOLYLINE\n8\n0\n90\n3\n70\n1\n";
     ents += "10\n0.0\n20\n0.0\n10\n10.0\n20\n0.0\n10\n10.0\n20\n10.0\n";
 
-    const std::string path = writeDxf(
-        "sanyi_scale_inch.dxf", "9\n$INSUNITS\n70\n1\n", "", ents);
+    const std::string path = writeDxf("sanyi_scale_inch.dxf", "9\n$INSUNITS\n70\n1\n", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -149,13 +148,11 @@ TEST(UnitTransformTest, ScalesSvgSmartLineSegments)
 {
     // 一条多段路径（M→L→L→Z）= 3 段三次贝塞尔，SvgParser 会识别成 SmartLine。
     // nanosvg 线段: p0=(2,2) p1=(6,2)；SVG Y 向下，导入时翻转成 p0=(2,-2) p1=(6,-2)。
-    const char* kSvg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
-        "<path d=\"M2,2 L6,2 L6,6 Z\"/>\n"
-        "</svg>\n";
+    const char* kSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+                       "<path d=\"M2,2 L6,2 L6,6 Z\"/>\n"
+                       "</svg>\n";
 
-    const std::filesystem::path tempFile =
-        std::filesystem::temp_directory_path() / "sanyi_scale_svg.svg";
+    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_scale_svg.svg";
     {
         std::ofstream out(tempFile, std::ios::binary);
         ASSERT_TRUE(out.is_open());

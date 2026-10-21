@@ -20,6 +20,7 @@ namespace Fio
 {
     // 前向声明（定义在 SySerializer.h）
     typedef void (*SerializeProgressCallback)(float progress, const char* stage, void* ctx);
+
     class FILEIO_API NativeWriter : public IFileWriter, public ILegacyWriter
     {
     public:

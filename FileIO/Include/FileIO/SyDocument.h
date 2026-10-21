@@ -52,9 +52,9 @@ namespace Fio
     /// 群组信息视图（POD，固定长度缓冲区，跨 DLL 安全）
     struct FILEIO_API SyGroupInfo
     {
-        uint64_t id = 0;                    // 群组 ID
-        char name[256] = {};                // 群组名称
-        uint64_t parentGroupId = 0;         // 父群组 ID（0 = 顶层）
+        uint64_t id = 0;             // 群组 ID
+        char name[256] = {};         // 群组名称
+        uint64_t parentGroupId = 0;  // 父群组 ID（0 = 顶层）
     };
 
     ////////////////////////////////////////////////////////////////////

@@ -361,9 +361,13 @@ namespace Fio
         return m_impl && m_impl->m_cryptoProvider != nullptr;
     }
 
-    SerializeResult SySerializer::saveToFile(
-        const char* filePath, const SyDocument& doc, bool encrypt, SerializeWarningCallback warningCb, void* warningCtx,
-        SerializeProgressCallback progressCb, void* progressCtx)
+    SerializeResult SySerializer::saveToFile(const char* filePath,
+        const SyDocument& doc,
+        bool encrypt,
+        SerializeWarningCallback warningCb,
+        void* warningCtx,
+        SerializeProgressCallback progressCb,
+        void* progressCtx)
     {
         // 原有接口默认使用 2D 格式（保持向后兼容）
         return saveToFile(filePath, doc, encrypt, FileFormat::Native, warningCb, warningCtx, progressCb, progressCtx);

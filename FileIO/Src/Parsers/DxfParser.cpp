@@ -1961,16 +1961,21 @@ namespace Fio
         }
     }
 }  // namespace Fio
-#include "FileIO/FileParserFactory.h"
-namespace Fio {
-namespace {
-    static struct DxfRegistrar {
-        DxfRegistrar() {
-            FileParserFactory::instance().registerParser(FileFormat::DXF, []() -> IFileParser* {
-                return new DxfParser();
-            });
-        }
-    } s_dxfRegistrar;
-}
 
+#include "FileIO/FileParserFactory.h"
+
+namespace Fio
+{
+    namespace
+    {
+        static struct DxfRegistrar
+        {
+            DxfRegistrar()
+            {
+                FileParserFactory::instance().registerParser(FileFormat::DXF, []() -> IFileParser* {
+                    return new DxfParser();
+                });
+            }
+        } s_dxfRegistrar;
+    }  // namespace
 }  // namespace Fio

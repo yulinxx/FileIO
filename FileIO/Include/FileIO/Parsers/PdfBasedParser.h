@@ -31,7 +31,10 @@ namespace Fio
         ~PdfBasedParser() override = default;
 
         /// 设置是否将纯填充色块也导入为轮廓线（传递给内部 SvgParser）
-        void setImportFillAsOutline(bool enable) { m_importFillAsOutline = enable; }
+        void setImportFillAsOutline(bool enable)
+        {
+            m_importFillAsOutline = enable;
+        }
 
         void setOption(const char* key, const char* value) override
         {

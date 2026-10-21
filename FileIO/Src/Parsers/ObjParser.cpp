@@ -441,16 +441,21 @@ namespace Fio
         return IrProjector::project(data, "OBJ");
     }
 }  // namespace Fio
-#include "FileIO/FileParserFactory.h"
-namespace Fio {
-namespace {
-    static struct ObjRegistrar {
-        ObjRegistrar() {
-            FileParserFactory::instance().registerParser(FileFormat::OBJ, []() -> IFileParser* {
-                return new ObjParser();
-            });
-        }
-    } s_objRegistrar;
-}
 
+#include "FileIO/FileParserFactory.h"
+
+namespace Fio
+{
+    namespace
+    {
+        static struct ObjRegistrar
+        {
+            ObjRegistrar()
+            {
+                FileParserFactory::instance().registerParser(FileFormat::OBJ, []() -> IFileParser* {
+                    return new ObjParser();
+                });
+            }
+        } s_objRegistrar;
+    }  // namespace
 }  // namespace Fio

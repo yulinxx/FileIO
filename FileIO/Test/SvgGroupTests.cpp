@@ -33,13 +33,12 @@ namespace
 TEST(SvgGroupTest, GroupWithIdAssignsChildren)
 {
     const auto path = std::filesystem::temp_directory_path() / "sanyi_svg_group.svg";
-    const char* kSvg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
-        "<g id=\"layerA\" fill=\"none\" stroke=\"#000000\">\n"
-        "  <path d=\"M10,10 L90,10 L90,90\"/>\n"
-        "  <path d=\"M20,20 L80,20 L80,80\"/>\n"
-        "</g>\n"
-        "</svg>\n";
+    const char* kSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+                       "<g id=\"layerA\" fill=\"none\" stroke=\"#000000\">\n"
+                       "  <path d=\"M10,10 L90,10 L90,90\"/>\n"
+                       "  <path d=\"M20,20 L80,20 L80,80\"/>\n"
+                       "</g>\n"
+                       "</svg>\n";
     writeSvg(path, kSvg);
 
     Fio::FileIOManager mgr;
@@ -62,15 +61,14 @@ TEST(SvgGroupTest, GroupWithIdAssignsChildren)
 TEST(SvgGroupTest, NestedGroupsBuildHierarchy)
 {
     const auto path = std::filesystem::temp_directory_path() / "sanyi_svg_nested.svg";
-    const char* kSvg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
-        "<g id=\"outer\" fill=\"none\" stroke=\"#000000\">\n"
-        "  <g id=\"inner\">\n"
-        "    <path d=\"M10,10 L90,10 L90,90\"/>\n"
-        "  </g>\n"
-        "  <path d=\"M20,20 L80,20 L80,80\"/>\n"
-        "</g>\n"
-        "</svg>\n";
+    const char* kSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+                       "<g id=\"outer\" fill=\"none\" stroke=\"#000000\">\n"
+                       "  <g id=\"inner\">\n"
+                       "    <path d=\"M10,10 L90,10 L90,90\"/>\n"
+                       "  </g>\n"
+                       "  <path d=\"M20,20 L80,20 L80,80\"/>\n"
+                       "</g>\n"
+                       "</svg>\n";
     writeSvg(path, kSvg);
 
     Fio::FileIOManager mgr;
@@ -104,13 +102,12 @@ TEST(SvgGroupTest, NestedGroupsBuildHierarchy)
 TEST(SvgGroupTest, InkscapeLabelUsedAsGroupName)
 {
     const auto path = std::filesystem::temp_directory_path() / "sanyi_svg_label.svg";
-    const char* kSvg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" "
-        "xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" viewBox=\"0 0 100 100\">\n"
-        "<g id=\"g123\" inkscape:label=\"Cut Layer\" fill=\"none\" stroke=\"#000000\">\n"
-        "  <path d=\"M10,10 L90,10 L90,90\"/>\n"
-        "</g>\n"
-        "</svg>\n";
+    const char* kSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+                       "xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" viewBox=\"0 0 100 100\">\n"
+                       "<g id=\"g123\" inkscape:label=\"Cut Layer\" fill=\"none\" stroke=\"#000000\">\n"
+                       "  <path d=\"M10,10 L90,10 L90,90\"/>\n"
+                       "</g>\n"
+                       "</svg>\n";
     writeSvg(path, kSvg);
 
     Fio::FileIOManager mgr;
@@ -127,15 +124,14 @@ TEST(SvgGroupTest, InkscapeLabelUsedAsGroupName)
 TEST(SvgGroupTest, DefsGroupsAreIgnored)
 {
     const auto path = std::filesystem::temp_directory_path() / "sanyi_svg_defs.svg";
-    const char* kSvg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
-        "<defs>\n"
-        "  <g id=\"defLayer\">\n"
-        "    <path d=\"M1,1 L2,1 L2,2\"/>\n"
-        "  </g>\n"
-        "</defs>\n"
-        "<path fill=\"none\" stroke=\"#000000\" d=\"M10,10 L90,10 L90,90\"/>\n"
-        "</svg>\n";
+    const char* kSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+                       "<defs>\n"
+                       "  <g id=\"defLayer\">\n"
+                       "    <path d=\"M1,1 L2,1 L2,2\"/>\n"
+                       "  </g>\n"
+                       "</defs>\n"
+                       "<path fill=\"none\" stroke=\"#000000\" d=\"M10,10 L90,10 L90,90\"/>\n"
+                       "</svg>\n";
     writeSvg(path, kSvg);
 
     Fio::FileIOManager mgr;
@@ -153,12 +149,11 @@ TEST(SvgGroupTest, DefsGroupsAreIgnored)
 TEST(SvgGroupTest, ElementOwnIdInsideGroupMapsToGroup)
 {
     const auto path = std::filesystem::temp_directory_path() / "sanyi_svg_ownid.svg";
-    const char* kSvg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
-        "<g id=\"layerA\" fill=\"none\" stroke=\"#000000\">\n"
-        "  <path id=\"p1\" d=\"M10,10 L90,10 L90,90\"/>\n"
-        "</g>\n"
-        "</svg>\n";
+    const char* kSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+                       "<g id=\"layerA\" fill=\"none\" stroke=\"#000000\">\n"
+                       "  <path id=\"p1\" d=\"M10,10 L90,10 L90,90\"/>\n"
+                       "</g>\n"
+                       "</svg>\n";
     writeSvg(path, kSvg);
 
     Fio::FileIOManager mgr;

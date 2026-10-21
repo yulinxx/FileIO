@@ -89,7 +89,8 @@ namespace Fio
             size_t pos = 0;
             while (pos < line.size())
             {
-                while (pos < line.size() && (line[pos] == ';' || line[pos] == ' ' || line[pos] == '\t' || line[pos] == '\r' || line[pos] == '\n'))
+                while (pos < line.size() &&
+                    (line[pos] == ';' || line[pos] == ' ' || line[pos] == '\t' || line[pos] == '\r' || line[pos] == '\n'))
                 {
                     ++pos;
                 }
@@ -525,9 +526,10 @@ namespace Fio
             if (m_penDown)
             {
                 flushPolyline();
-                emitArc(Ut::Vec2d(cx, cy), radius,
-                        std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx),
-                        std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx) + arcAngle * M_PI / 180.0);
+                emitArc(Ut::Vec2d(cx, cy),
+                    radius,
+                    std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx),
+                    std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx) + arcAngle * M_PI / 180.0);
             }
 
             double endAng = std::atan2(m_currentPos.y() - cy, m_currentPos.x() - cx) + arcAngle * M_PI / 180.0;
@@ -556,9 +558,7 @@ namespace Fio
             if (m_penDown)
             {
                 flushPolyline();
-                emitArc(center, radius,
-                        std::atan2(-ry, -rx),
-                        std::atan2(-ry, -rx) + arcAngle * M_PI / 180.0);
+                emitArc(center, radius, std::atan2(-ry, -rx), std::atan2(-ry, -rx) + arcAngle * M_PI / 180.0);
             }
 
             double endAng = std::atan2(-ry, -rx) + arcAngle * M_PI / 180.0;

@@ -206,7 +206,7 @@ namespace Fio
 #endif
 
         std::string appDir = getExecutableDir();
-        
+
         // 3. 应用程序同级目录
         std::string result = findInDirectory(appDir, exeName);
         if (!result.empty())
@@ -313,7 +313,7 @@ namespace Fio
 #endif
 
         std::string appDir = getExecutableDir();
-        
+
         // 3. 应用程序同级目录
         for (const std::string& exeName : exeNames)
         {

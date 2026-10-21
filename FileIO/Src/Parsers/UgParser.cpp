@@ -324,24 +324,28 @@ namespace Fio
             return FioParseResult{};
         }
 
-        SY_INFOF(
-            "[UgParser] parseToIR END: %u entities, %u warnings: %s",
+        SY_INFOF("[UgParser] parseToIR END: %u entities, %u warnings: %s",
             static_cast<uint32_t>(pub.entities().size()),
             static_cast<uint32_t>(pub.warnings().size()),
             filePath);
         return pub.publish("UG/IGES");
     }
 }  // namespace Fio
-#include "FileIO/FileParserFactory.h"
-namespace Fio {
-namespace {
-    static struct UgRegistrar {
-        UgRegistrar() {
-            FileParserFactory::instance().registerParser(FileFormat::UG, []() -> IFileParser* {
-                return new UgParser();
-            });
-        }
-    } s_ugRegistrar;
-}
 
+#include "FileIO/FileParserFactory.h"
+
+namespace Fio
+{
+    namespace
+    {
+        static struct UgRegistrar
+        {
+            UgRegistrar()
+            {
+                FileParserFactory::instance().registerParser(FileFormat::UG, []() -> IFileParser* {
+                    return new UgParser();
+                });
+            }
+        } s_ugRegistrar;
+    }  // namespace
 }  // namespace Fio

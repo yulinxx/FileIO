@@ -95,7 +95,8 @@ namespace Fio
         return s_instance;
     }
 
-    FormatRegistry::FormatRegistry() : m_impl(std::make_unique<Impl>())
+    FormatRegistry::FormatRegistry()
+        : m_impl(std::make_unique<Impl>())
     {
         m_impl->registerFormat(FileFormat::DXF, "DXF Files", kDxfExts, 1);
         m_impl->registerFormat(FileFormat::PLT, "PLT/HPGL Files", kPltExts, 2);

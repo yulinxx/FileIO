@@ -185,7 +185,8 @@ namespace Fio
             {
                 if (pub.entities().size() >= static_cast<size_t>(MAX_ENTITIES))
                 {
-                    pub.warnings().push_back("Entity limit (" + std::to_string(MAX_ENTITIES) + ") reached, stopping parse.");
+                    pub.warnings().push_back(
+                        "Entity limit (" + std::to_string(MAX_ENTITIES) + ") reached, stopping parse.");
                     break;
                 }
 
@@ -255,24 +256,28 @@ namespace Fio
             return FioParseResult{};
         }
 
-        SY_INFOF(
-            "[PltParser] parseToIR END: %u entities, %u warnings: %s",
+        SY_INFOF("[PltParser] parseToIR END: %u entities, %u warnings: %s",
             static_cast<uint32_t>(pub.entities().size()),
             static_cast<uint32_t>(pub.warnings().size()),
             filePath);
         return pub.publish("PLT");
     }
 }  // namespace Fio
-#include "FileIO/FileParserFactory.h"
-namespace Fio {
-namespace {
-    static struct PltRegistrar {
-        PltRegistrar() {
-            FileParserFactory::instance().registerParser(FileFormat::PLT, []() -> IFileParser* {
-                return new PltParser();
-            });
-        }
-    } s_pltRegistrar;
-}
 
+#include "FileIO/FileParserFactory.h"
+
+namespace Fio
+{
+    namespace
+    {
+        static struct PltRegistrar
+        {
+            PltRegistrar()
+            {
+                FileParserFactory::instance().registerParser(FileFormat::PLT, []() -> IFileParser* {
+                    return new PltParser();
+                });
+            }
+        } s_pltRegistrar;
+    }  // namespace
 }  // namespace Fio

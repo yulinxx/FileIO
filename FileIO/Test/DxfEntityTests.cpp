@@ -129,7 +129,6 @@ TEST(DxfEntityTest, NegativeBulgeMirrorsArcToTheOtherSide)
     removeFile(path);
 }
 
-
 TEST(DxfEntityTest, NegativeExtrusionMirrorsCircleCenter)
 {
     // 挤出方向 (0,0,-1) 是 AutoCAD 里镜像过的图元；按 OCS→WCS 换算后 X 取反。

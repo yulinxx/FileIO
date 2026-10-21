@@ -27,7 +27,6 @@ namespace Eg
 
 namespace Fio
 {
-
     /// DXF 图层定义信息（旧版内部 API）
     struct DxfLayerInfo
     {
@@ -40,7 +39,6 @@ namespace Fio
         uint32_t color{ 0xFF000000 };
         bool visible{ true };  // 是否可见
     };
-
 
     /// 旧版解析结果结构体（仅 DLL 内部使用）
     struct ParseResult
@@ -109,5 +107,4 @@ namespace Fio
         virtual ~ILegacyWriter() = default;
         virtual WriteResult write(const char* filePath, const VecSyEntityPtr& entities) = 0;
     };
-
 }  // namespace Fio

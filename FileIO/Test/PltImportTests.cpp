@@ -36,11 +36,10 @@ TEST(PltImportTest, PensCreateLayers)
     const auto path = std::filesystem::temp_directory_path() / "sanyi_plt_pens.plt";
 
     // 两笔两段折线：Pen1 一段，Pen2 一段
-    const char* kHpgl =
-        "IN;SP1;\n"
-        "PU;PA100,100;PD;PA400,100;PA400,400;\n"
-        "SP2;\n"
-        "PU;PA600,100;PD;PA900,100;PA900,400;\n";
+    const char* kHpgl = "IN;SP1;\n"
+                        "PU;PA100,100;PD;PA400,100;PA400,400;\n"
+                        "SP2;\n"
+                        "PU;PA600,100;PD;PA900,100;PA900,400;\n";
 
     writeTempFile(path.string().c_str(), kHpgl);
 
@@ -75,9 +74,8 @@ TEST(PltImportTest, SinglePenAllOneLayer)
 {
     const auto path = std::filesystem::temp_directory_path() / "sanyi_plt_single.plt";
 
-    const char* kHpgl =
-        "IN;SP3;\n"
-        "PU;PA0,0;PD;PA100,0;PA100,100;\n";
+    const char* kHpgl = "IN;SP3;\n"
+                        "PU;PA0,0;PD;PA100,0;PA100,100;\n";
 
     writeTempFile(path.string().c_str(), kHpgl);
 

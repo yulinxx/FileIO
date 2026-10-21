@@ -189,7 +189,8 @@ namespace Fio
         return decodeTiffToRgba(strUtf8Path, outRgba, outW, outH);
     }
 
-    bool loadImageToRgbaFromMemory(const unsigned char* encoded, size_t size, std::vector<unsigned char>& outRgba, int& outW, int& outH)
+    bool loadImageToRgbaFromMemory(
+        const unsigned char* encoded, size_t size, std::vector<unsigned char>& outRgba, int& outW, int& outH)
     {
         if (!encoded || size == 0)
         {

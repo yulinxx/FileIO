@@ -484,8 +484,8 @@ namespace Fio
         // <text> / <image> 元素辅助工具（nanosvg 不解析这两个元素，需自行抽取）
         // ========================================================================
 
-        std::string_view attrValue(const std::vector<std::pair<std::string_view, std::string_view>>& attrs,
-            const std::string_view key)
+        std::string_view attrValue(
+            const std::vector<std::pair<std::string_view, std::string_view>>& attrs, const std::string_view key)
         {
             for (const auto& kv : attrs)
             {
@@ -497,8 +497,7 @@ namespace Fio
             return {};
         }
 
-        bool attrHas(const std::vector<std::pair<std::string_view, std::string_view>>& attrs,
-            const std::string_view key)
+        bool attrHas(const std::vector<std::pair<std::string_view, std::string_view>>& attrs, const std::string_view key)
         {
             for (const auto& kv : attrs)
             {
@@ -1336,8 +1335,7 @@ namespace Fio
         }
 
         /// 把 <text> 构造成一个 EntityInfo（EntityType::Text）。
-        void addTextEntity(
-            const std::vector<std::pair<std::string_view, std::string_view>>& attrs, std::string content)
+        void addTextEntity(const std::vector<std::pair<std::string_view, std::string_view>>& attrs, std::string content)
         {
             // 规整文本：去首尾空白、压缩连续空白为单个空格
             {
@@ -1552,8 +1550,8 @@ namespace Fio
         }
 
         /// 把解码后的 RGBA 位图构造成一个 EntityInfo（EntityType::Image）。
-        void addImageEntity(double x, double y, const std::vector<unsigned char>& rgba, int w, int h,
-            uint64_t groupSourceId = 0)
+        void addImageEntity(
+            double x, double y, const std::vector<unsigned char>& rgba, int w, int h, uint64_t groupSourceId = 0)
         {
             const size_t bytes = static_cast<size_t>(w) * static_cast<size_t>(h) * 4;
             if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
@@ -1658,9 +1656,12 @@ namespace Fio
         /// observer 通知，是导入慢的主要放大器。现在的规则：
         ///   - ≥2 段 → EntityType::SmartLine（复合曲线），几何写进扩展数据块；
         ///   - 单段 → 直接产出 Line 或 Bezier，不套复合曲线容器（少一层间接）。
-        void convertPathToCompositeEntity(
-            NSVGpath* svgPath, const Ut::Vec3f& shapeColor, uint32_t layerSourceId, const char* sourceName,
-            float strokeWidth, uint64_t groupSourceId)
+        void convertPathToCompositeEntity(NSVGpath* svgPath,
+            const Ut::Vec3f& shapeColor,
+            uint32_t layerSourceId,
+            const char* sourceName,
+            float strokeWidth,
+            uint64_t groupSourceId)
         {
             if (!svgPath || svgPath->npts < 4)
             {
@@ -1887,14 +1888,21 @@ namespace Fio
 
         try
         {
-            NsvgInterpreter interpreter(pub.entities(), pub.layers(), pub.warnings(), m_importFillAsOutline, pub.blob(),
-                onProgress, progressCtx,
-                [&pub](const std::string& name, uint64_t parent) { return pub.addGroup(name, parent); });
+            NsvgInterpreter interpreter(pub.entities(),
+                pub.layers(),
+                pub.warnings(),
+                m_importFillAsOutline,
+                pub.blob(),
+                onProgress,
+                progressCtx,
+                [&pub](const std::string& name, uint64_t parent) {
+                    return pub.addGroup(name, parent);
+                });
             interpreter.parseFile(filePath);
             if (!interpreter.succeeded())
             {
-                const std::string message =
-                    pub.warnings().empty() ? std::string("Failed to parse SVG file: ") + filePath : pub.warnings().back();
+                const std::string message = pub.warnings().empty() ? std::string("Failed to parse SVG file: ") + filePath
+                                                                   : pub.warnings().back();
                 SY_ERRORF("[SvgParser] parseToIR: %s", message.c_str());
                 return FioParseResult{};
             }
@@ -1946,16 +1954,21 @@ namespace Fio
         visitor("svgz", ctx);
     }
 }  // namespace Fio
-#include "FileIO/FileParserFactory.h"
-namespace Fio {
-namespace {
-    static struct SvgRegistrar {
-        SvgRegistrar() {
-            FileParserFactory::instance().registerParser(FileFormat::SVG, []() -> IFileParser* {
-                return new SvgParser();
-            });
-        }
-    } s_svgRegistrar;
-}
 
+#include "FileIO/FileParserFactory.h"
+
+namespace Fio
+{
+    namespace
+    {
+        static struct SvgRegistrar
+        {
+            SvgRegistrar()
+            {
+                FileParserFactory::instance().registerParser(FileFormat::SVG, []() -> IFileParser* {
+                    return new SvgParser();
+                });
+            }
+        } s_svgRegistrar;
+    }  // namespace
 }  // namespace Fio

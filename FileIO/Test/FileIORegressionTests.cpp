@@ -28,7 +28,6 @@
 #include <filesystem>
 #include <fstream>
 
-
 // ==================== 文件格式检测 ====================
 
 TEST(FileIORegressionTest, DetectFormat_DxfExtension)
@@ -461,10 +460,8 @@ namespace
     {
         std::string content;
         content += igesLine(std::string(72, ' '), 'S', 1) + "\n";
-        content += igesLine("1H,,1H;,8HSANYI,32HMINIMAL_IGES_TEST,,,,2Hmm,1,0.01,13H20260816.01,2.0,2,2Hmm",
-                       'G',
-                       1)
-            + "\n";
+        content +=
+            igesLine("1H,,1H;,8HSANYI,32HMINIMAL_IGES_TEST,,,,2Hmm,1,0.01,13H20260816.01,2.0,2,2Hmm", 'G', 1) + "\n";
         // 目录段：每图元 2 行；第一行 1-8列类型、9-16列参数数据指针(行号)
         content += igesLine("     110       1", 'D', 1) + "\n";
         content += igesLine("     110       0", 'D', 2) + "\n";
@@ -536,19 +533,17 @@ TEST(FileIORegressionTest, IgesParser_LineArcPoint)
 // 用例同时校验 class 样式确实被内联成了元素属性（fill / stroke 颜色可见）。
 TEST(FileIORegressionTest, SvgParser_SelfClosingClassTagDoesNotHang)
 {
-    const char* kSvg =
-        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
-        "<style type=\"text/css\">\n"
-        "\t.icon{fill:#E60012;}\n"
-        "\t.box{fill:none;stroke:#040000;stroke-width:0.5;}\n"
-        "</style>\n"
-        "<path class=\"icon\" d=\"M10,10 L90,10 L90,90 Z\"/>\n"
-        "<path class=\"box\" d=\"M5,5 L25,5 L25,25 Z\"/>\n"
-        "</svg>\n";
+    const char* kSvg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                       "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">\n"
+                       "<style type=\"text/css\">\n"
+                       "\t.icon{fill:#E60012;}\n"
+                       "\t.box{fill:none;stroke:#040000;stroke-width:0.5;}\n"
+                       "</style>\n"
+                       "<path class=\"icon\" d=\"M10,10 L90,10 L90,90 Z\"/>\n"
+                       "<path class=\"box\" d=\"M5,5 L25,5 L25,25 Z\"/>\n"
+                       "</svg>\n";
 
-    const std::filesystem::path tempFile =
-        std::filesystem::temp_directory_path() / "sanyi_svg_selfclose_test.svg";
+    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_svg_selfclose_test.svg";
     {
         std::ofstream out(tempFile, std::ios::binary);
         ASSERT_TRUE(out.is_open());

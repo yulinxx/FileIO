@@ -49,16 +49,21 @@ namespace Fio
         return {};  // 检查通过
     }
 }  // namespace Fio
-#include "FileIO/FileParserFactory.h"
-namespace Fio {
-namespace {
-    static struct AiRegistrar {
-        AiRegistrar() {
-            FileParserFactory::instance().registerParser(FileFormat::AI, []() -> IFileParser* {
-                return new AiParser();
-            });
-        }
-    } s_aiRegistrar;
-}
 
+#include "FileIO/FileParserFactory.h"
+
+namespace Fio
+{
+    namespace
+    {
+        static struct AiRegistrar
+        {
+            AiRegistrar()
+            {
+                FileParserFactory::instance().registerParser(FileFormat::AI, []() -> IFileParser* {
+                    return new AiParser();
+                });
+            }
+        } s_aiRegistrar;
+    }  // namespace
 }  // namespace Fio
