@@ -267,3 +267,95 @@ TEST(DxfEntityTest, UnsupportedEntityLeavesWarningInsteadOfSilentDrop)
     EXPECT_GE(r.warningCount, 1u);
     removeFile(path);
 }
+// ==================== 控制点式 SPLINE ====================
+
+TEST(DxfEntityTest, ControlPointSplineBecomesNurbs)
+{
+    // 控制点式样条（组码 72/73 给节点数与控制点数，控制点用 10/20）：
+    // 与拟合点式（11/21）不同，这条路径要保留 NURBS 的次数/节点/权重。
+    // 控制点必须是「次数+1」个：3 阶至少 4 个控制点（节点数 = 控制点数 + 次数 + 1 = 8）。
+    std::string ents;
+    ents += "0\nSPLINE\n8\n0\n70\n0\n71\n3\n72\n8\n73\n4\n";
+    ents += "40\n0.0\n40\n0.0\n40\n0.0\n40\n0.0\n40\n1.0\n40\n1.0\n40\n1.0\n40\n1.0\n";
+    ents += "10\n0.0\n20\n0.0\n";
+    ents += "10\n5.0\n20\n10.0\n";
+    ents += "10\n10.0\n20\n0.0\n";
+    ents += "10\n15.0\n20\n10.0\n";
+
+    const std::string path = writeDxf("sanyi_dxf_spline_ctrl.dxf", "", ents);
+    ASSERT_FALSE(path.empty());
+
+    Fio::DxfParser parser;
+    const Fio::FioParseResult r = parser.parseToIR(path.c_str());
+    ASSERT_EQ(r.entityCount, 1u);
+    EXPECT_EQ(r.entities[0].type, Fio::EntityType::Nurbs);
+    EXPECT_EQ(r.entities[0].nurbsDegree, 3);
+    EXPECT_EQ(r.entities[0].nurbsCtrlPtCount, 4u);
+    EXPECT_EQ(r.entities[0].nurbsKnotCount, 8u);
+
+    // 扩展数据布局：[控制点 x,y*N][节点][权重] —— 4 个控制点(8) + 8 个节点 = 16 个 double
+    const std::vector<double> v = readVerts(r, r.entities[0]);
+    ASSERT_EQ(v.size(), 16u);
+    EXPECT_NEAR(v[0], 0.0, 1e-9);
+    EXPECT_NEAR(v[1], 0.0, 1e-9);
+    EXPECT_NEAR(v[2], 5.0, 1e-9);
+    EXPECT_NEAR(v[3], 10.0, 1e-9);
+    EXPECT_NEAR(v[4], 10.0, 1e-9);
+    EXPECT_NEAR(v[5], 0.0, 1e-9);
+    EXPECT_NEAR(v[6], 15.0, 1e-9);
+    EXPECT_NEAR(v[7], 10.0, 1e-9);
+    // 节点向量：4 个 0 + 4 个 1
+    for (size_t i = 0; i < 4; ++i)
+    {
+        EXPECT_NEAR(v[8 + i], 0.0, 1e-9);
+    }
+    for (size_t i = 0; i < 4; ++i)
+    {
+        EXPECT_NEAR(v[12 + i], 1.0, 1e-9);
+    }
+    removeFile(path);
+}
+
+TEST(DxfEntityTest, DegenerateSplineIsSkippedButRestOfFileSurvives)
+{
+    // 控制点数 < 次数+1 的退化样条：结构非法，libdxfrw 会拒收。
+    // 要求：只丢这一条实体，后面的图元照常导入，并且留下 warning。
+    // （早先是整段 ENTITIES 中止 —— 一条坏样条 = 整张图读不出来，且无任何提示。）
+    std::string ents;
+    ents += "0\nSPLINE\n8\n0\n70\n0\n71\n3\n72\n7\n73\n3\n";
+    ents += "40\n0.0\n40\n0.0\n40\n0.0\n40\n0.5\n40\n1.0\n40\n1.0\n40\n1.0\n";
+    ents += "10\n0.0\n20\n0.0\n";
+    ents += "10\n5.0\n20\n10.0\n";
+    ents += "10\n10.0\n20\n0.0\n";
+    ents += "0\nLINE\n8\n0\n10\n0.0\n20\n0.0\n30\n0.0\n11\n10.0\n21\n0.0\n31\n0.0\n";
+
+    const std::string path = writeDxf("sanyi_dxf_spline_degenerate.dxf", "", ents);
+    ASSERT_FALSE(path.empty());
+
+    Fio::DxfParser parser;
+    const Fio::FioParseResult r = parser.parseToIR(path.c_str());
+    ASSERT_EQ(r.entityCount, 1u);
+    EXPECT_EQ(r.entities[0].type, Fio::EntityType::Line);
+    EXPECT_GE(r.warningCount, 1u);
+    removeFile(path);
+}
+
+TEST(DxfEntityTest, EntitiesOnlyDxfWithoutHeaderIsParsed)
+{
+    // 只有 ENTITIES 段、没有 HEADER/TABLES/BLOCKS 的极简 DXF：
+    // 现场导出的图纸里这类文件很常见，不能因为少了表格段就整份读不出图元。
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "sanyi_dxf_entities_only.dxf";
+    {
+        std::ofstream out(path, std::ios::binary);
+        ASSERT_TRUE(out.good());
+        out << "0\nSECTION\n2\nENTITIES\n";
+        out << "0\nLINE\n8\n0\n10\n0.0\n20\n0.0\n30\n0.0\n11\n10.0\n21\n0.0\n31\n0.0\n";
+        out << "0\nENDSEC\n0\nEOF\n";
+    }
+
+    Fio::DxfParser parser;
+    const Fio::FioParseResult r = parser.parseToIR(path.string().c_str());
+    EXPECT_EQ(r.entityCount, 1u);
+    removeFile(path.string());
+}

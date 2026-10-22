@@ -5,14 +5,17 @@
 #include "FileIO/SyCryptoProvider.h"
 #include "SanYiDocument.pb.h"
 #include "Engine/Layer/SyLayer.h"
+#include "Log/SyLogger.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <fstream>
 #include <future>
 #include <sstream>
 #include <filesystem>
 #include <mutex>
+#include <system_error>
 
 namespace Fio
 {
@@ -96,6 +99,9 @@ namespace Fio
                 meta->set_computer_username(docData.metadata.computerUsername);
                 meta->set_os_version(docData.metadata.osVersion);
 
+                // === 长度单位（v2）===
+                meta->set_units(docData.metadata.units);
+
                 toProtoProperties(docData.metadata.customProperties, protoDoc, meta->mutable_custom_properties());
             }
 
@@ -114,7 +120,58 @@ namespace Fio
                 l->set_layer_type(layer.layerType);
                 l->set_fill(layer.fill);
                 l->set_fill_color(layer.fillColor);
+                // v2：加工语义。output 用 optional —— 字段缺失（v1 文件）时读端
+                // 必须回退为 true，否则打开旧文件后「开始加工」什么都不发生。
+                l->set_output(layer.output);
+                l->set_default_process_id(layer.defaultProcessId);
                 toProtoProperties(layer.customProperties, protoDoc, l->mutable_custom_properties());
+            }
+
+            // === v2：工艺（加工参数的一等载体）===
+            if (!docData.processes.empty())
+            {
+                protoDoc.mutable_processes()->Reserve(static_cast<int>(docData.processes.size()));
+            }
+            for (const auto& p : docData.processes)
+            {
+                auto* pp = protoDoc.add_processes();
+                pp->set_id(p.id);
+                pp->set_name(p.name);
+                pp->set_order(p.order);
+                pp->set_output(p.output);
+
+                auto* params = pp->mutable_params();
+                params->set_name(p.name);
+                params->set_enabled(p.paramsEnabled);
+                params->set_power_percent(p.powerPercent);
+                params->set_speed_mm_per_sec(p.speedMmPerSec);
+                params->set_frequency_hz(p.frequencyHz);
+                params->set_pulse_width_us(p.pulseWidthUs);
+                params->set_waveform_index(p.waveformIndex);
+                params->set_passes(p.passes);
+                params->set_fill_enabled(p.fillEnabled);
+                params->set_fill_interval_mm(p.fillIntervalMm);
+                params->set_fill_angle_deg(p.fillAngleDeg);
+                params->set_fill_mode(p.fillMode);
+                params->set_kerf_mm(p.kerfMm);
+                params->set_rapid_speed_mm_per_sec(p.rapidSpeedMmPerSec);
+
+                for (uint32_t layerId : p.targetLayerIds)
+                {
+                    pp->add_target_layer_ids(layerId);
+                }
+                for (uint64_t entityId : p.targetEntityIds)
+                {
+                    pp->add_target_entity_ids(entityId);
+                }
+                toProtoProperties(p.customProperties, protoDoc, pp->mutable_custom_properties());
+            }
+
+            // === v2：工程级设置 ===
+            {
+                auto* ps = protoDoc.mutable_project_settings();
+                ps->set_machine_profile_ref(docData.machineProfileRef);
+                ps->set_default_process_id(docData.defaultProcessId);
             }
 
             // 预先 Reserve，避免 add_entities() 反复扩容搬移整个 repeated message 数组。
@@ -217,6 +274,7 @@ namespace Fio
                 docData.metadata.serialNumber = meta.serial_number();
                 docData.metadata.computerUsername = meta.computer_username();
                 docData.metadata.osVersion = meta.os_version();
+                docData.metadata.units = meta.units();
                 docData.metadata.customProperties = fromProtoProperties(meta.custom_properties());
             }
 
@@ -233,7 +291,62 @@ namespace Fio
                 layer.fill = l.fill();
                 layer.fillColor = l.fill_color();
                 layer.customProperties = fromProtoProperties(l.custom_properties());
+                // v2：加工语义。output 是 optional —— v1 文件里没有这个字段，
+                // proto3 的 has_output() 为 false。**必须回退为 true**：
+                // 若按 proto3 默认 false 处理，打开旧文件后所有图层都不参与加工，
+                // 表现是「点开始加工什么都没发生」，且没有任何报错。
+                layer.output = l.has_output() ? l.output() : true;
+                layer.defaultProcessId = l.default_process_id();
                 docData.layers.push_back(std::move(layer));
+            }
+
+            // === v2：工艺 ===
+            for (int i = 0; i < protoDoc.processes_size(); ++i)
+            {
+                const auto& pd = protoDoc.processes(i);
+                ProcessInfo p;
+                p.id = pd.id();
+                p.name = pd.name();
+                p.order = pd.order();
+                p.output = pd.output();
+
+                if (pd.has_params())
+                {
+                    const auto& pp = pd.params();
+                    p.paramsEnabled = pp.enabled();
+                    p.powerPercent = pp.power_percent();
+                    p.speedMmPerSec = pp.speed_mm_per_sec();
+                    p.frequencyHz = pp.frequency_hz();
+                    p.pulseWidthUs = pp.pulse_width_us();
+                    p.waveformIndex = pp.waveform_index();
+                    p.passes = pp.passes();
+                    p.fillEnabled = pp.fill_enabled();
+                    p.fillIntervalMm = pp.fill_interval_mm();
+                    p.fillAngleDeg = pp.fill_angle_deg();
+                    p.fillMode = pp.fill_mode();
+                    p.kerfMm = pp.kerf_mm();
+                    p.rapidSpeedMmPerSec = pp.rapid_speed_mm_per_sec();
+                }
+
+                for (int j = 0; j < pd.target_layer_ids_size(); ++j)
+                {
+                    p.targetLayerIds.push_back(pd.target_layer_ids(j));
+                }
+                for (int j = 0; j < pd.target_entity_ids_size(); ++j)
+                {
+                    p.targetEntityIds.push_back(pd.target_entity_ids(j));
+                }
+                p.customProperties = fromProtoProperties(pd.custom_properties());
+
+                docData.processes.push_back(std::move(p));
+            }
+
+            // === v2：工程级设置 ===
+            if (protoDoc.has_project_settings())
+            {
+                const auto& ps = protoDoc.project_settings();
+                docData.machineProfileRef = ps.machine_profile_ref();
+                docData.defaultProcessId = ps.default_process_id();
             }
 
             for (int i = 0; i < protoDoc.entities_size(); ++i)
@@ -461,22 +574,73 @@ namespace Fio
 
         emitProgress(0.8f, "writing");
 
-        std::ofstream out(std::filesystem::u8path(filePath), std::ios::binary | std::ios::trunc);
-        if (!out)
+        // 原子写：先写同目录临时文件，刷盘成功后再 rename 覆盖目标。
+        //
+        // 旧实现直接用 trunc 打开目标文件，写到一半崩溃 / 断电 / 磁盘满就会把用户
+        // 原有文档清空且没有备份 —— 这种损坏不可恢复，代价远高于多一次 rename。
+        const std::filesystem::path targetPath = std::filesystem::u8path(filePath);
+        std::filesystem::path tempPath = targetPath;
         {
-            return SerializeResult::fail(std::string("Cannot open file for writing: ").append(filePath).c_str());
+            // 同目录：跨卷 rename 会退化成「拷贝 + 删除」，失去原子性
+            static std::atomic<unsigned long long> s_tempSeq{ 0 };
+            tempPath += ".tmp" + std::to_string(s_tempSeq.fetch_add(1, std::memory_order_relaxed));
         }
 
-        out.write(reinterpret_cast<const char*>(header), sizeof(header));
-        if (!finalData.empty())
-        {
-            out.write(reinterpret_cast<const char*>(finalData.data()), static_cast<std::streamsize>(finalData.size()));
-        }
-        out.write(reinterpret_cast<const char*>(footer), sizeof(footer));
+        auto discardTemp = [&tempPath]() {
+            std::error_code ignored;
+            std::filesystem::remove(tempPath, ignored);
+        };
 
-        if (!out.good())
         {
-            return SerializeResult::fail(std::string("Failed to write file: ").append(filePath).c_str());
+            std::ofstream out(tempPath, std::ios::binary | std::ios::trunc);
+            if (!out)
+            {
+                return SerializeResult::fail(std::string("Cannot open file for writing: ").append(filePath).c_str());
+            }
+
+            out.write(reinterpret_cast<const char*>(header), sizeof(header));
+            if (!finalData.empty())
+            {
+                out.write(
+                    reinterpret_cast<const char*>(finalData.data()), static_cast<std::streamsize>(finalData.size()));
+            }
+            out.write(reinterpret_cast<const char*>(footer), sizeof(footer));
+
+            if (!out.good())
+            {
+                out.close();
+                discardTemp();
+                return SerializeResult::fail(std::string("Failed to write file: ").append(filePath).c_str());
+            }
+
+            // flush / close 必须显式检查：它们失败时目标文件还不能被替换，
+            // 否则rename 会把一份截断的临时文件当成成功结果。
+            out.flush();
+            if (!out.good())
+            {
+                out.close();
+                discardTemp();
+                return SerializeResult::fail(std::string("Failed to flush file: ").append(filePath).c_str());
+            }
+            out.close();
+            if (out.fail())
+            {
+                discardTemp();
+                return SerializeResult::fail(std::string("Failed to close file: ").append(filePath).c_str());
+            }
+        }
+
+        std::error_code renameError;
+        std::filesystem::rename(tempPath, targetPath, renameError);
+        if (renameError)
+        {
+            discardTemp();
+            return SerializeResult::fail(std::string("Failed to replace target file: ")
+                    .append(filePath)
+                    .append(" (")
+                    .append(renameError.message())
+                    .append(")")
+                    .c_str());
         }
 
         emitProgress(1.0f, "done");
@@ -513,20 +677,34 @@ namespace Fio
         }
 
         bool headerValid = false;
+        bool is3DContainer = false;
         uint32_t version = 0;
         uint32_t flags = 0;
         uint32_t dataLen = 0;
 
-        if (fileBuffer.size() >= SyFileConst::HEADER_SIZE &&
-            std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SY, 4) == 0)
+        // 两种魔数都要认。保存侧按目标格式写 SYPB（2D）/ SXPB（3D，含 2D+3D 混合文档），
+        // 而旧实现只接受 SYPB —— 结果是所有 SXPB 文件保存后再也打不开。
+        if (fileBuffer.size() >= SyFileConst::HEADER_SIZE)
         {
-            headerValid = true;
-            version = static_cast<uint32_t>(fileBuffer[4]) | (static_cast<uint32_t>(fileBuffer[5]) << 8) |
-                (static_cast<uint32_t>(fileBuffer[6]) << 16) | (static_cast<uint32_t>(fileBuffer[7]) << 24);
-            flags = static_cast<uint32_t>(fileBuffer[8]) | (static_cast<uint32_t>(fileBuffer[9]) << 8) |
-                (static_cast<uint32_t>(fileBuffer[10]) << 16) | (static_cast<uint32_t>(fileBuffer[11]) << 24);
-            dataLen = static_cast<uint32_t>(fileBuffer[12]) | (static_cast<uint32_t>(fileBuffer[13]) << 8) |
-                (static_cast<uint32_t>(fileBuffer[14]) << 16) | (static_cast<uint32_t>(fileBuffer[15]) << 24);
+            if (std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SY, 4) == 0)
+            {
+                headerValid = true;
+            }
+            else if (std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SYX, 4) == 0)
+            {
+                headerValid = true;
+                is3DContainer = true;
+            }
+
+            if (headerValid)
+            {
+                version = static_cast<uint32_t>(fileBuffer[4]) | (static_cast<uint32_t>(fileBuffer[5]) << 8) |
+                    (static_cast<uint32_t>(fileBuffer[6]) << 16) | (static_cast<uint32_t>(fileBuffer[7]) << 24);
+                flags = static_cast<uint32_t>(fileBuffer[8]) | (static_cast<uint32_t>(fileBuffer[9]) << 8) |
+                    (static_cast<uint32_t>(fileBuffer[10]) << 16) | (static_cast<uint32_t>(fileBuffer[11]) << 24);
+                dataLen = static_cast<uint32_t>(fileBuffer[12]) | (static_cast<uint32_t>(fileBuffer[13]) << 8) |
+                    (static_cast<uint32_t>(fileBuffer[14]) << 16) | (static_cast<uint32_t>(fileBuffer[15]) << 24);
+            }
         }
 
         if (!headerValid)
@@ -540,7 +718,17 @@ namespace Fio
                 std::to_string(SyFileConst::FILE_VERSION) + ", got " + std::to_string(version));
         }
 
-        if (dataLen + SyFileConst::HEADER_SIZE + SyFileConst::FOOTER_SIZE > fileSize)
+        if (is3DContainer)
+        {
+            SY_DEBUGF("[SySerializer] loadFromFile: 3D container (SXPB), path=%s", filePath);
+        }
+
+        // 必须用 64 位相加：dataLen 是 uint32_t，`dataLen + HEADER + FOOTER` 在 32 位域内
+        // 会回绕 —— 构造 dataLen=0xFFFFFFFF 的文件头即可通过此检查，随后 CRC 计算
+        // 按 4GB 长度越界读取缓冲区。
+        const uint64_t totalNeeded =
+            static_cast<uint64_t>(dataLen) + SyFileConst::HEADER_SIZE + SyFileConst::FOOTER_SIZE;
+        if (totalNeeded > static_cast<uint64_t>(fileSize))
         {
             return SerializeResult::fail("Corrupted file: data size exceeds file size");
         }
