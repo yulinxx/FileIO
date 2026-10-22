@@ -65,6 +65,19 @@ namespace Fio
     };
 
     /// 图层信息（POD，固定长度缓冲区，跨 DLL 安全）
+    ///
+    /// ⚠️ 这是**冻结的跨 DLL 契约**：`FioParseResult::layers` 是指向 FileIO.dll
+    /// 内部内存的裸指针，消费方（Engine3D / Main）按**自己编译时的 sizeof**
+    /// 解释这个数组。改字段 = 改 sizeof = 消费方按旧步长遍历新数组，
+    /// 读到的是错位字段（表现为「图层名对不上」「sourceId 乱跳」）。
+    /// 因此：**只加不改不删不改顺序**，且每次改动必须同步更新
+    /// `FioTypesTest.IrLayerInfoSize` 的断言。
+    ///
+    /// 另：这里**刻意不放**加工语义（是否输出、默认工艺）——
+    /// DXF / SVG / PLT 这些外来格式根本没有这个概念，
+    /// 只有原生 .sy 格式有。把它塞进通用导入 IR 是为一两种格式的便利
+    /// 污染所有格式的公共契约。原生格式的加工语义走
+    /// `Fio::SyLayerInfo`（函数边界传递，不受裸指针 ABI 约束）。
     struct IrLayerInfo
     {
         uint32_t sourceId = 0;

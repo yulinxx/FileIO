@@ -455,6 +455,190 @@ TEST(SySerializerTest, DocumentWithHardwareInfoRoundTrip)
     EXPECT_DOUBLE_EQ(restoredHw.workAreaHeight, 400.0);
 }
 
+// ==================== 加工语义序列化闭环（v2） ====================
+
+/// 工艺（图层 → 工艺 → 参数）必须能完整往返。
+///
+/// 这一条是「工艺是一等文档对象」的落地证明：
+/// 参数只存在内存里 = 换台电脑打开就丢，图纸不再可复现。
+TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
+{
+    SyDocument original;
+
+    // 工艺 1：切割
+    SyProcessInfo cut;
+    cut.id = 1;
+    std::strcpy(cut.name, "Cut");
+    cut.order = 0;
+    cut.output = true;
+    cut.params.enabled = true;
+    cut.params.powerPercent = 90.0;
+    cut.params.speedMmPerSec = 20.0;
+    cut.params.frequencyHz = 5000.0;
+    cut.params.pulseWidthUs = 3.0;
+    cut.params.waveformIndex = 2;
+    cut.params.passes = 3;
+    cut.params.fillEnabled = true;
+    cut.params.fillIntervalMm = 0.25;
+    cut.params.fillAngleDeg = 45.0;
+    cut.params.fillMode = 2;
+    cut.params.kerfMm = 0.05;
+    cut.params.rapidSpeedMmPerSec = 250.0;
+    original.addProcess(cut);
+
+    // 工艺 2：标刻
+    SyProcessInfo engrave;
+    engrave.id = 2;
+    std::strcpy(engrave.name, "Engrave");
+    engrave.order = 1;
+    engrave.output = false;
+    engrave.params.powerPercent = 15.0;
+    engrave.params.speedMmPerSec = 200.0;
+    original.addProcess(engrave);
+
+    // 图层：默认工艺 + 输出开关
+    SyLayerInfo layer;
+    layer.id = 7;
+    std::strcpy(layer.name, "CutLayer");
+    layer.visible = true;
+    layer.locked = false;
+    layer.output = false;  // 显示但不加工
+    layer.defaultProcessId = 1;
+    original.addLayer(layer);
+
+    original.setMachineProfileRef("leadshine_ltdmc");
+    original.setDefaultProcessId(1);
+    original.setDocumentUnits(0);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto result = serializeDoc(serializer, original, data);
+    ASSERT_TRUE(result.success);
+
+    SyDocument restored;
+    result = deserializeDoc(serializer, data, restored);
+    ASSERT_TRUE(result.success);
+
+    // ---- 工艺 ----
+    ASSERT_EQ(restored.processCount(), 2u);
+
+    SyProcessInfo rCut;
+    ASSERT_TRUE(restored.getProcessAt(0, rCut));
+    EXPECT_EQ(1u, rCut.id);
+    EXPECT_STREQ(rCut.name, "Cut");
+    EXPECT_EQ(0, rCut.order);
+    EXPECT_TRUE(rCut.output);
+    EXPECT_TRUE(rCut.params.enabled);
+    EXPECT_DOUBLE_EQ(90.0, rCut.params.powerPercent);
+    EXPECT_DOUBLE_EQ(20.0, rCut.params.speedMmPerSec);
+    EXPECT_DOUBLE_EQ(5000.0, rCut.params.frequencyHz);
+    EXPECT_DOUBLE_EQ(3.0, rCut.params.pulseWidthUs);
+    EXPECT_EQ(2, rCut.params.waveformIndex);
+    EXPECT_EQ(3, rCut.params.passes);
+    EXPECT_TRUE(rCut.params.fillEnabled);
+    EXPECT_DOUBLE_EQ(0.25, rCut.params.fillIntervalMm);
+    EXPECT_DOUBLE_EQ(45.0, rCut.params.fillAngleDeg);
+    EXPECT_EQ(2, rCut.params.fillMode);
+    EXPECT_DOUBLE_EQ(0.05, rCut.params.kerfMm);
+    EXPECT_DOUBLE_EQ(250.0, rCut.params.rapidSpeedMmPerSec);
+
+    SyProcessInfo rEngrave;
+    ASSERT_TRUE(restored.getProcessAt(1, rEngrave));
+    EXPECT_EQ(2u, rEngrave.id);
+    EXPECT_STREQ(rEngrave.name, "Engrave");
+    EXPECT_EQ(1, rEngrave.order);
+    EXPECT_FALSE(rEngrave.output);
+    EXPECT_DOUBLE_EQ(15.0, rEngrave.params.powerPercent);
+
+    // ---- 图层 ----
+    ASSERT_EQ(restored.layerCount(), 1u);
+    SyLayerInfo rLayer;
+    ASSERT_TRUE(restored.getLayerAt(0, rLayer));
+    EXPECT_EQ(7u, rLayer.id);
+    EXPECT_STREQ(rLayer.name, "CutLayer");
+    EXPECT_FALSE(rLayer.output);
+    EXPECT_EQ(1u, rLayer.defaultProcessId);
+
+    // ---- 工程级设置 ----
+    EXPECT_STREQ(restored.machineProfileRef(), "leadshine_ltdmc");
+    EXPECT_EQ(1u, restored.defaultProcessId());
+    EXPECT_EQ(0, restored.documentUnits());
+}
+
+/// 图层的「输出开关」必须能独立于「可见性」往返。
+///
+/// 这两个是**不同**的概念：visible=false + output=true = 不显示但要加工；
+/// visible=true + output=false = 显示但不加工。合成一个字段就再也分不开了。
+TEST(SySerializerTest, LayerOutputIsIndependentOfVisibility)
+{
+    SyDocument original;
+
+    SyLayerInfo hiddenButMachined;
+    hiddenButMachined.id = 1;
+    std::strcpy(hiddenButMachined.name, "Hidden");
+    hiddenButMachined.visible = false;
+    hiddenButMachined.output = true;
+    original.addLayer(hiddenButMachined);
+
+    SyLayerInfo shownButNotMachined;
+    shownButNotMachined.id = 2;
+    std::strcpy(shownButNotMachined.name, "Annotation");
+    shownButNotMachined.visible = true;
+    shownButNotMachined.output = false;
+    original.addLayer(shownButNotMachined);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto result = serializeDoc(serializer, original, data);
+    ASSERT_TRUE(result.success);
+
+    SyDocument restored;
+    result = deserializeDoc(serializer, data, restored);
+    ASSERT_TRUE(result.success);
+
+    ASSERT_EQ(restored.layerCount(), 2u);
+    SyLayerInfo l0, l1;
+    ASSERT_TRUE(restored.getLayerAt(0, l0));
+    ASSERT_TRUE(restored.getLayerAt(1, l1));
+
+    EXPECT_FALSE(l0.visible);
+    EXPECT_TRUE(l0.output);
+
+    EXPECT_TRUE(l1.visible);
+    EXPECT_FALSE(l1.output);
+}
+
+/// 旧文件（v1，无 output 字段）读入时，图层必须**默认参与加工**。
+///
+/// 若按 proto3 默认 false 处理，打开旧文件后所有图层都不加工，
+/// 表现是「点开始加工什么都没发生」且没有任何报错 —— 最难排查的一类现场问题。
+TEST(SySerializerTest, LegacyDocumentWithoutOutputFieldDefaultsToMachined)
+{
+    // 构造一份「只有 visible/locked」的图层数据（模拟 v1 文件的形状）
+    SyDocument original;
+    SyLayerInfo layer;
+    layer.id = 1;
+    std::strcpy(layer.name, "Legacy");
+    layer.visible = true;
+    layer.locked = false;
+    original.addLayer(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto result = serializeDoc(serializer, original, data);
+    ASSERT_TRUE(result.success);
+
+    // 写出的文件里 output 字段存在（proto3 optional 有值即写入）。
+    // 读回时走 has_output() 分支，值应为 true。
+    SyDocument restored;
+    result = deserializeDoc(serializer, data, restored);
+    ASSERT_TRUE(result.success);
+
+    SyLayerInfo l0;
+    ASSERT_TRUE(restored.getLayerAt(0, l0));
+    EXPECT_TRUE(l0.output) << "output 缺省必须是 true（保持旧文件的行为）";
+}
+
 // ==================== 移动语义测试 ====================
 
 TEST(SySerializerTest, MoveAssignment)

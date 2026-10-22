@@ -4,7 +4,7 @@ package sanyi.proto;
 
 // ============================================================
 // SanYi Document 序列化协议定义
-// 版本: 1
+// 版本: 2
 // 用于 .sy 文件的二进制序列化/反序列化
 //
 // 设计原则:
@@ -12,6 +12,26 @@ package sanyi.proto;
 //   2. 广泛使用 repeated/repeated map 支持扩展
 //   3. 保留 reserved 字段用于未来兼容
 //   4. oneof 用于区分图元类型，保证类型安全
+//
+// ============================================================
+// 字段号是唯一不可逆的东西
+// ============================================================
+// 其余一切（结构、命名、语义）都能靠"新字段 + 旧字段降级读取"演进，
+// 唯独字段号：一旦某个号被用掉又被删，就只能 reserved 掉，永远不能再赋给别的含义。
+// 因此本文件新增字段时遵守三条：
+//   1. 新增只用本 message 里连续的空号，并且一次性把该 message 的"未来可能字段"
+//      全部规划进来（哪怕本次不用，也先占号，见各 message 末尾的 reserved）；
+//   2. 删除字段时改为 reserved，并在注释里写明它曾经的含义；
+//   3. 语义变更不改字段号，而是新增字段 + 旧字段标记 legacy。
+//
+// v2 相对 v1 的变化（全部是纯新增，v1 文件可被 v2 读取）：
+//   - 新增 ProcessData / ProcessParamsData：工艺（加工参数）成为一等文档对象
+//     （v1 把工艺参数挂在图层上，无法表达"同层不同参数"和"多工序"）
+//   - LayerData 新增 output / default_process_id
+//   - EntityData 新增 process_id（图元级覆盖，本次预留）
+//   - DocumentMetadata 新增 units（文档长度单位，几何恒为 mm）
+//   - 新增 ProjectSettings（机器档案引用，仅用于追溯）
+//   - HardwareInfo 降级为 legacy（只保留读取兼容，不再写入新字段）
 // ============================================================
 
 option optimize_for = LITE_RUNTIME;  // 减少生成代码体积，适合移动/嵌入式
@@ -80,7 +100,16 @@ message DocumentMetadata {
     string computer_username = 12;  // 创建/修改文件的电脑用户名
     string os_version        = 13;  // 操作系统版本详情 (如 "Windows 11 23H2", "macOS 14.5")
 
+    // === 长度单位 (v2 新增) ===
+    // 文档声明的长度单位。**几何坐标恒为毫米**，本字段只记录"用户以为自己在用什么单位"，
+    // 用于界面显示与导入校验；写入方目前恒填 0，读取方遇到 1 必须给出"暂不支持英制文档"的
+    // 显式错误，而不是按毫米静默读入（那会让整份图小 25.4 倍）。
+    //   0 = mm（默认，恒等）
+    //   1 = inch（保留，未实现）
+    int32  units             = 14;
+
     bytes  reserved          = 20;  // 保留用于未来结构扩展
+    reserved 21 to 29;              // v2 占位：直接在 21..29 号扩展，不要复用 20
 }
 
 // ---------------------------- 图层 ----------------------------
@@ -95,10 +124,27 @@ message LayerData {
     uint32 layer_type       = 7;   // 图层类型 (0=VECTOR, 1=BITMAP)
     bool   fill             = 8;   // 是否填充图层
     uint32 fill_color       = 9;   // 填充颜色 ARGB
+
+    // === v2 新增：加工语义 ===
+    // 是否输出到设备。**与 visible 严格分离**：
+    //   - visible=false, output=true  → 不显示但要加工（模板/定位辅助线常见需求）
+    //   - visible=true,  output=false → 显示但不加工（尺寸标注、参考底图）
+    // v1 文件没有本字段，读取方按 proto3 默认 false 处理会**导致旧文件整体不加工**，
+    // 因此读端必须用 has 语义兜底：字段缺失时回退为 true（见 SySerializer 的迁移分支）。
+    optional bool output    = 10;
+
+    // 本图层默认使用的工艺 ID；0 表示"未指定，使用工程默认工艺"
+    uint32 default_process_id = 11;
+
+    reserved 12 to 19;              // v2 占位
 }
 
 // ---------------------------- 硬件信息 ----------------------------
 
+// 【legacy / 只读】v1 的硬件快照。
+// 保留字段号与读取路径，但 v2 起不再新增内容：真正的机器身份属于"机器档案"
+// （Main/Src/Hardware/MachineProfile，装在现场的 JSON），不属于文档；
+// 文档只通过 ProjectSettings.machine_profile_ref 记录"这份图是为哪台机器出的"。
 message HardwareInfo {
     string laser_type         = 1;   // 激光类型 (如 "CO2", "Fiber")
     string controller_model   = 2;   // 控制器型号
@@ -107,6 +153,83 @@ message HardwareInfo {
     double work_area_height   = 5;   // 工作区域高度 (mm)
     repeated PropertyEntry custom_properties = 6;  // 硬件扩展属性
     bytes  reserved           = 20;  // 保留
+}
+
+// ---------------------------- 工艺（v2 新增） ----------------------------
+
+// 一组加工参数的快照。字段与 Engine/Common/Include/Engine/Process/ProcessParams.h
+// 的 Eg::ProcessParams 一一对应，改动必须两边同步（有单测比对支持的键集合）。
+//
+// 单位约定与 HAL 一致：长度 mm、角度 度、速度 mm/s、频率 Hz、时间 微秒。
+message ProcessParamsData {
+    // 参数集名称。只用于日志与追溯（"这份图当时用的哪套参数"），不参与加工。
+    string name             = 1;
+
+    // 是否参与加工。false = 该工艺被停用（保留参数但不产出刀路）
+    bool   enabled          = 2;
+
+    double power_percent    = 3;   // 出光功率百分比 0–100
+    double speed_mm_per_sec = 4;   // 进给速度，必须 > 0
+    double frequency_hz     = 5;   // 脉冲频率；CW 激光器填 0
+    double pulse_width_us   = 6;   // 脉宽；CW 激光器填 0
+    int32  waveform_index   = 7;   // 波形序号（MOPA）
+    int32  passes           = 8;   // 加工遍数，>= 1
+
+    // 填充/扫描：fill_enabled=true 时按 fill_interval_mm 的行距在区域上扫描
+    bool   fill_enabled     = 9;
+    double fill_interval_mm = 10;  // 填充行距（mm），> 0
+    double fill_angle_deg   = 11;  // 填充角度（度）
+    int32  fill_mode        = 12;  // 0=轮廓, 1=双向扫描, 2=光栅
+
+    // 割缝补偿半径（mm）。> 0 外扩，< 0 内缩；0 = 不补偿。
+    // 方向由轮廓绕向决定（外环外扩、孔洞内缩），不由符号决定 —— 符号只是"额外偏移"。
+    double kerf_mm          = 13;
+
+    // 空移速度（mm/s），= 0 时使用工程默认值
+    double rapid_speed_mm_per_sec = 14;
+
+    repeated PropertyEntry custom_properties = 20;
+    reserved 21 to 49;             // v2 占位：新增参数直接用 21..49，不要塞进 custom_properties
+}
+
+// 工艺对象：一段"用什么参数、加工哪些目标、按什么顺序"。
+//
+// 设计要点（为什么工艺不是图层属性）：
+//   - 同一图层可能需要两种参数（先标刻后切割），挂图层表达不了；
+//   - 同一批图元可能要加工两次（粗加工 + 精修），挂图层表达不了；
+//   - 图层是「组织/显示」概念，工艺是「加工」概念，两者生命周期不同。
+// 图层只作为**默认绑定**的快捷方式（LayerData.default_process_id），
+// 目标集合为空时表示"本工艺对所有绑定到它的图层生效"。
+message ProcessData {
+    uint32 id       = 1;   // 工艺 ID，文档内唯一，>= 1
+    string name     = 2;   // 工艺名称（界面显示）
+    ProcessParamsData params = 3;
+
+    // 显式目标图层（与 default_process_id 反向绑定二选一，两者同时存在时本字段优先）
+    repeated uint32 target_layer_ids  = 4;
+    // 显式目标图元（图元级覆盖，一般留空）
+    repeated uint64 target_entity_ids = 5;
+
+    // 工序顺序，小者先执行。同值时按图层顺序，再按场景顺序（稳定排序）
+    int32  order    = 6;
+    // 是否输出到设备（与 LayerData.output 是"与"关系：任一为 false 则不加工）
+    bool   output   = 7;
+
+    repeated PropertyEntry custom_properties = 8;
+    reserved 20 to 49;
+}
+
+// 工程级设置：不影响几何，但影响"这份图会被怎么送去加工"。
+message ProjectSettings {
+    // 机器档案引用（SANYI_MACHINE_PROFILE 的 deviceId 或档案文件名）。
+    // 仅用于追溯"这份图是为哪台机器出的"，**不参与坐标换算** ——
+    // 坐标换算的唯一依据是本机装配时的机器档案，不是文档里的这个字符串。
+    string machine_profile_ref = 1;
+    // 默认工艺 ID（图层与图元都没指定工艺时使用）；0 = 无
+    uint32 default_process_id  = 2;
+
+    repeated PropertyEntry custom_properties = 4;
+    reserved 20 to 49;
 }
 
 // ---------------------------- 图元类型枚举 ----------------------------
@@ -308,6 +431,14 @@ message EntityData {
     //   - 数据正确性：.sy 的 CRC32 覆盖整个 payload，校验失败即拒绝加载，
     //     因此通过校验的文件其 cached_bbox 必然与几何数据来自同一次写入。
     optional BBoxData cached_bbox = 26;
+
+    // === v2 新增：图元级工艺覆盖 ===
+    // 0 / 缺失 = 跟随所属图层的 default_process_id，再退到工程默认工艺。
+    // 本次（v2）只落字段与读写，界面暂不开放入口；先占号是为了避免以后为一个
+    // "其实早该有"的能力再升一次格式版本。
+    optional uint32 process_id = 27;
+
+    reserved 28 to 49;              // v2 占位
 }
 
 // ---------------------------- 文档根消息 ----------------------------
@@ -317,9 +448,14 @@ message SanYiDocument {
     DocumentMetadata metadata = 1;   // 文档元信息
     repeated LayerData layers  = 2;   // 图层列表
     repeated EntityData entities = 3; // 图元列表
-    HardwareInfo hardware      = 4;   // 硬件信息
+    HardwareInfo hardware      = 4;   // [legacy] v1 硬件快照，只读
     repeated GroupData groups  = 5;   // 群组列表
 
+    // === v2 新增 ===
+    repeated ProcessData processes = 6;   // 工艺列表（加工参数的一等载体）
+    ProjectSettings project_settings = 7; // 工程级设置（机器引用、默认工艺）
+
     // === 扩展预留 ===
+    reserved 8 to 99;                 // v2 之后的常规扩展位
     reserved 100 to 200;              // 为未来大版本扩展预留字段号
 }

@@ -38,6 +38,11 @@ namespace Fio
         std::string serialNumber;      // 设备序列号
         std::string computerUsername;   // 电脑用户名
         std::string osVersion;         // 操作系统版本详情
+
+        // === 长度单位（v2）===
+        // 文档声明的长度单位。几何坐标恒为毫米，本字段只记录
+        // 「用户以为自己用什么单位」，用于界面显示与导入校验。
+        int32_t units = 0;             // 0 = mm，1 = inch（保留未实现）
     };
 
     struct LayerInfo
@@ -50,6 +55,42 @@ namespace Fio
         uint32_t layerType = 0;        // 图层类型 (0=VECTOR, 1=BITMAP)
         bool fill = false;             // 是否填充图层
         uint32_t fillColor = 0xFFFFFFFF; // 填充颜色 ARGB
+        PropertyMap customProperties;  // 扩展属性
+
+        // === v2：加工语义（与显示语义严格分离）===
+        bool output = true;             // 是否参与加工输出
+        uint32_t defaultProcessId = 0; // 默认工艺 ID，0 = 未指定
+    };
+
+    /// 工艺对象（内部模型）
+    struct ProcessInfo
+    {
+        uint32_t id = 0;               // 工艺 ID，文档内唯一，>= 1
+        std::string name;              // 工艺名称
+        int32_t order = 0;             // 工序顺序，小者先执行
+        bool output = true;            // 是否输出到设备
+
+        // 加工参数（与 Eg::ProcessParams 一一对应）
+        bool paramsEnabled = true;
+        double powerPercent = 50.0;
+        double speedMmPerSec = 100.0;
+        double frequencyHz = 20000.0;
+        double pulseWidthUs = 0.0;
+        int32_t waveformIndex = 0;
+        int32_t passes = 1;
+        bool fillEnabled = false;
+        double fillIntervalMm = 0.1;
+        double fillAngleDeg = 0.0;
+        int32_t fillMode = 1;
+        double kerfMm = 0.0;
+        double rapidSpeedMmPerSec = 0.0;
+
+        /// 显式目标图层（图层反向绑定走 LayerInfo::defaultProcessId，不重复）
+        std::vector<uint32_t> targetLayerIds;
+
+        /// 显式目标图元（图元级覆盖）
+        std::vector<uint64_t> targetEntityIds;
+
         PropertyMap customProperties;  // 扩展属性
     };
 
@@ -90,6 +131,14 @@ namespace Fio
 
         std::vector<GroupInfo> groups;  // 群组信息
         HardwareInfo hardware;
+
+        // === v2：工艺（加工参数的一等载体）===
+        std::vector<ProcessInfo> processes;
+
+        /// 机器档案引用（仅追溯，不参与坐标换算）
+        std::string machineProfileRef;
+        /// 工程默认工艺 ID（0 = 无）
+        uint32_t defaultProcessId = 0;
 
         /// entityId -> layerId 映射（反序列化时填充）
         std::map<uint64_t, uint32_t> entityLayerMap;

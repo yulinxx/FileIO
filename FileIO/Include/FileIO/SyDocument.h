@@ -37,6 +37,8 @@ namespace Fio
         uint32_t color = 0xFF000000;  // ARGB 颜色
         bool visible = true;          // 可见性
         bool locked = false;          // 锁定
+        bool output = true;           // 是否参与加工输出（与 visible 严格分离）
+        uint32_t defaultProcessId = 0; // 默认工艺 ID（0 = 未指定）
     };
 
     /// 硬件信息视图（POD，固定长度缓冲区）
@@ -47,6 +49,37 @@ namespace Fio
         double maxPower = 0.0;           // 最大功率 (W)
         double workAreaWidth = 0.0;      // 工作区宽度 (mm)
         double workAreaHeight = 0.0;     // 工作区高度 (mm)
+    };
+
+    /// 工艺参数视图（POD，固定长度缓冲区，跨 DLL 安全）
+    ///
+    /// 字段与 `Eg::ProcessParams` 一一对应（Engine/Common/Include/Engine/Process/）。
+    /// 单位：长度 mm、角度 度、速度 mm/s、频率 Hz、时间 微秒。
+    struct FILEIO_API SyProcessParamsInfo
+    {
+        bool enabled = true;             // 是否参与加工
+        double powerPercent = 50.0;      // 出光功率百分比 0-100
+        double speedMmPerSec = 100.0;    // 进给速度（必须 > 0）
+        double frequencyHz = 20000.0;    // 脉冲频率
+        double pulseWidthUs = 0.0;       // 脉宽
+        int32_t waveformIndex = 0;       // 波形序号（MOPA）
+        int32_t passes = 1;              // 加工遍数
+        bool fillEnabled = false;        // 是否填充
+        double fillIntervalMm = 0.1;     // 填充行距
+        double fillAngleDeg = 0.0;       // 填充角度
+        int32_t fillMode = 1;            // 0=轮廓 1=双向 2=光栅
+        double kerfMm = 0.0;             // 割缝补偿半径
+        double rapidSpeedMmPerSec = 0.0; // 空移速度（0 = 用工程默认值）
+    };
+
+    /// 工艺对象视图（POD，固定长度缓冲区，跨 DLL 安全）
+    struct FILEIO_API SyProcessInfo
+    {
+        uint32_t id = 0;             // 工艺 ID，文档内唯一，>= 1
+        char name[128] = {};         // 工艺名称
+        SyProcessParamsInfo params;  // 加工参数
+        int32_t order = 0;           // 工序顺序，小者先执行
+        bool output = true;          // 是否输出到设备
     };
 
     /// 群组信息视图（POD，固定长度缓冲区，跨 DLL 安全）
@@ -113,6 +146,29 @@ namespace Fio
         bool getLayerAt(size_t index, SyLayerInfo& out) const;
         void addLayer(const SyLayerInfo& layer);
         void clearLayers();
+
+        // ---- 工艺 ----
+
+        size_t processCount() const;
+        /// 拷贝第 index 个工艺到 out；越界返回 false
+        bool getProcessAt(size_t index, SyProcessInfo& out) const;
+        void addProcess(const SyProcessInfo& process);
+        void clearProcesses();
+
+        /// 工艺的显式目标图层（工艺 ID → 图层 ID 列表）
+        /// 图层反向绑定走 LayerInfo::defaultProcessId，不在这里重复。
+        bool getProcessTargetLayers(uint32_t processId, uint32_t* outLayerIds, size_t capacity, size_t* outCount) const;
+
+        /// 工程级设置：机器档案引用（仅用于追溯「这份图是为哪台机器出的」）
+        const char* machineProfileRef() const;
+        void setMachineProfileRef(const char* ref);
+        /// 工程默认工艺 ID（0 = 无）
+        uint32_t defaultProcessId() const;
+        void setDefaultProcessId(uint32_t processId);
+
+        /// 文档长度单位（0 = mm，恒等；1 = inch，保留未实现）
+        int32_t documentUnits() const;
+        void setDocumentUnits(int32_t units);
 
         // ---- 群组 ----
 

@@ -205,7 +205,21 @@ TEST(BinaryBlobTest, CopyAssignment)
 TEST(FioTypesTest, IrLayerInfoSize)
 {
     // IrLayerInfo 必须是固定大小，以确保跨 DLL 边界时的布局一致
-    // 结构体: uint32_t(4) + char[256](256) + uint32_t(4) + bool(1) + bool(1) = 266 + padding
+    //
+    // 布局：uint32_t(4) + char[256](256) + uint32_t(4) + bool(1) + bool(1) = 266 + padding
+    //
+    // ⚠️ 这个区间是**跨 DLL ABI 契约**：IrLayerInfo 的数组由 FileIO.dll 分配、
+    // 消费方（Engine3D / Main）按自己的头文件解释。改字段会改 sizeof，
+    // 而消费方与生产方**必须同时重编** —— 否则消费方按旧步长遍历新数组，
+    // 读到的是错位的字段（表现为「图层名对不上」「sourceId 乱跳」）。
+    //
+    // 因此：**字段只能加、不能删、不能改顺序**，且每次加完必须同步更新本断言。
+    // 若确实需要变更布局，应新增一个 POD 类型（如 IrLayerInfoV2）而不是原地改。
+    //
+    // 另：加工语义（是否输出、默认工艺）**刻意不放这里** ——
+    // DXF / SVG / PLT 没有这个概念，只有原生 .sy 有；
+    // 放进通用导入 IR 会为一两种格式的便利污染所有格式的公共契约。
+    // 原生格式的加工语义走 Fio::SyLayerInfo（函数边界传递，无裸指针 ABI 约束）。
     constexpr size_t expectedMinSize = 256u + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(bool) + sizeof(bool);
     EXPECT_GE(sizeof(Fio::IrLayerInfo), expectedMinSize);
     // 对齐填充后不应超过 272 字节

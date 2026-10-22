@@ -245,6 +245,8 @@ namespace Fio
         out.color = l.color;
         out.visible = l.visible;
         out.locked = l.locked;
+        out.output = l.output;
+        out.defaultProcessId = l.defaultProcessId;
         return true;
     }
 
@@ -261,6 +263,8 @@ namespace Fio
         l.color = layer.color;
         l.visible = layer.visible;
         l.locked = layer.locked;
+        l.output = layer.output;
+        l.defaultProcessId = layer.defaultProcessId;
         m_data->layers.push_back(std::move(l));
     }
 
@@ -270,6 +274,166 @@ namespace Fio
         {
             m_data->layers.clear();
         }
+    }
+
+    // ---- 工艺 ----
+
+    size_t SyDocument::processCount() const
+    {
+        return m_data ? m_data->processes.size() : 0;
+    }
+
+    bool SyDocument::getProcessAt(size_t index, SyProcessInfo& out) const
+    {
+        if (!m_data || index >= m_data->processes.size())
+        {
+            return false;
+        }
+
+        const auto& p = m_data->processes[index];
+        out.id = p.id;
+        std::strncpy(out.name, p.name.c_str(), sizeof(out.name) - 1);
+        out.name[sizeof(out.name) - 1] = '\0';
+        out.order = p.order;
+        out.output = p.output;
+
+        SyProcessParamsInfo& params = out.params;
+        params.enabled = p.paramsEnabled;
+        params.powerPercent = p.powerPercent;
+        params.speedMmPerSec = p.speedMmPerSec;
+        params.frequencyHz = p.frequencyHz;
+        params.pulseWidthUs = p.pulseWidthUs;
+        params.waveformIndex = p.waveformIndex;
+        params.passes = p.passes;
+        params.fillEnabled = p.fillEnabled;
+        params.fillIntervalMm = p.fillIntervalMm;
+        params.fillAngleDeg = p.fillAngleDeg;
+        params.fillMode = p.fillMode;
+        params.kerfMm = p.kerfMm;
+        params.rapidSpeedMmPerSec = p.rapidSpeedMmPerSec;
+        return true;
+    }
+
+    void SyDocument::addProcess(const SyProcessInfo& process)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+
+        ProcessInfo p;
+        p.id = process.id;
+        p.name = process.name;
+        p.order = process.order;
+        p.output = process.output;
+
+        const SyProcessParamsInfo& src = process.params;
+        p.paramsEnabled = src.enabled;
+        p.powerPercent = src.powerPercent;
+        p.speedMmPerSec = src.speedMmPerSec;
+        p.frequencyHz = src.frequencyHz;
+        p.pulseWidthUs = src.pulseWidthUs;
+        p.waveformIndex = src.waveformIndex;
+        p.passes = src.passes;
+        p.fillEnabled = src.fillEnabled;
+        p.fillIntervalMm = src.fillIntervalMm;
+        p.fillAngleDeg = src.fillAngleDeg;
+        p.fillMode = src.fillMode;
+        p.kerfMm = src.kerfMm;
+        p.rapidSpeedMmPerSec = src.rapidSpeedMmPerSec;
+
+        m_data->processes.push_back(std::move(p));
+    }
+
+    void SyDocument::clearProcesses()
+    {
+        if (m_data)
+        {
+            m_data->processes.clear();
+        }
+    }
+
+    bool SyDocument::getProcessTargetLayers(
+        uint32_t processId, uint32_t* outLayerIds, size_t capacity, size_t* outCount) const
+    {
+        if (!m_data)
+        {
+            if (outCount)
+            {
+                *outCount = 0;
+            }
+            return false;
+        }
+
+        for (const auto& p : m_data->processes)
+        {
+            if (p.id != processId)
+            {
+                continue;
+            }
+            const size_t n = p.targetLayerIds.size();
+            if (outCount)
+            {
+                *outCount = n;
+            }
+            if (outLayerIds && capacity > 0)
+            {
+                const size_t copy = n < capacity ? n : capacity;
+                for (size_t i = 0; i < copy; ++i)
+                {
+                    outLayerIds[i] = p.targetLayerIds[i];
+                }
+            }
+            return true;
+        }
+
+        if (outCount)
+        {
+            *outCount = 0;
+        }
+        return false;
+    }
+
+    const char* SyDocument::machineProfileRef() const
+    {
+        return m_data ? m_data->machineProfileRef.c_str() : "";
+    }
+
+    void SyDocument::setMachineProfileRef(const char* ref)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->machineProfileRef = ref ? ref : "";
+    }
+
+    uint32_t SyDocument::defaultProcessId() const
+    {
+        return m_data ? m_data->defaultProcessId : 0;
+    }
+
+    void SyDocument::setDefaultProcessId(uint32_t processId)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->defaultProcessId = processId;
+    }
+
+    int32_t SyDocument::documentUnits() const
+    {
+        return m_data ? m_data->metadata.units : 0;
+    }
+
+    void SyDocument::setDocumentUnits(int32_t units)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+        m_data->metadata.units = units;
     }
 
     // ---- 图元 ----
