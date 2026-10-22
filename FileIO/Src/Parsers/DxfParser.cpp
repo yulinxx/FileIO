@@ -746,13 +746,6 @@ namespace Fio
             m_warnings.push_back(makeWarning(entityName, reason));
         }
 
-        /// libdxfrw 读到但没通过结构校验的实体（退化样条等）：
-        /// 由读取器跳过并回调到这里，**不能静默**——用户要能看到「图纸里有内容没导入」。
-        void addInvalidEntity(const char* entityType, const char* reason) override
-        {
-            warnSkip(entityType != nullptr ? entityType : "ENTITY", reason);
-        }
-
         void applyEntityStyle(Eg::SyEntity* entity, const DRW_Entity& drwEntity)
         {
             (void)entity;
@@ -1420,13 +1413,6 @@ namespace Fio
                 m_blocks.size(),
                 m_instanceCount,
                 m_expandedCount);
-        }
-
-        /// libdxfrw 读到但没通过结构校验的实体（退化样条等）：读取器跳过并回调到这里。
-        /// 必须留痕：否则用户看到「图纸里少了几条线」却没有任何提示。
-        void addInvalidEntity(const char* entityType, const char* reason) override
-        {
-            m_warnings.push_back(makeWarning(entityType != nullptr ? entityType : "ENTITY", reason));
         }
 
     private:
