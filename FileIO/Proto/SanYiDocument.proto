@@ -439,6 +439,14 @@ message EntityData {
     optional uint32 process_id = 27;
 
     reserved 28 to 49;              // v2 占位
+
+    // === v3 新增：图元可见性 / 锁定 ===
+    // 3D 场景保存/恢复需要。旧文件缺失这两个字段时：
+    //   visible 按 true 处理（SyEntity 构造默认可见）；
+    //   locked  按 false 处理。
+    // 使用 optional 是为了区分「旧文件没写」与「显式写了 false」。
+    optional bool visible = 50;
+    optional bool locked = 51;
 }
 
 // ---------------------------- 文档根消息 ----------------------------

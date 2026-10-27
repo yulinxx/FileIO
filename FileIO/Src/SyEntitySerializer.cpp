@@ -140,10 +140,18 @@ namespace Fio
             out->set_layer_id(static_cast<uint32_t>(entity.layer()->getId()));
         }
 
-        toProtoVec2(static_cast<const Eg::SyEntity2D&>(entity).basePoint, out->mutable_base_point());
-        out->set_closed(static_cast<const Eg::SyEntity2D&>(entity).bClosed);
-        out->set_ccw(static_cast<const Eg::SyEntity2D&>(entity).bCCW);
+        // MESH 不是 SyEntity2D 的子类，直接 static_cast 是未定义行为；
+        // 2D 专有字段只对非 MESH 图元读写。
+        if (entity.eType != Eg::EType::MESH)
+        {
+            const auto& entity2d = static_cast<const Eg::SyEntity2D&>(entity);
+            toProtoVec2(entity2d.basePoint, out->mutable_base_point());
+            out->set_closed(entity2d.bClosed);
+            out->set_ccw(entity2d.bCCW);
+        }
         out->set_name(entity.name());
+        out->set_visible(entity.visible());
+        out->set_locked(entity.locked());
 
         switch (entity.eType)
         {
@@ -634,10 +642,25 @@ namespace Fio
         if (result)
         {
             result->id = static_cast<Eg::EntityId>(protoEntity.id());
-            static_cast<Eg::SyEntity2D&>(*result).basePoint = fromProtoVec2(protoEntity.base_point());
-            static_cast<Eg::SyEntity2D&>(*result).bClosed = protoEntity.closed();
-            static_cast<Eg::SyEntity2D&>(*result).bCCW = protoEntity.ccw();
+            // MESH 不是 SyEntity2D：对 3D 网格做强转写 basePoint/bClosed/bCCW
+            // 会越界覆盖 SyMeshEntity 自己的字段（未定义行为）。
+            if (result->eType != Eg::EType::MESH)
+            {
+                auto& entity2d = static_cast<Eg::SyEntity2D&>(*result);
+                entity2d.basePoint = fromProtoVec2(protoEntity.base_point());
+                entity2d.bClosed = protoEntity.closed();
+                entity2d.bCCW = protoEntity.ccw();
+            }
             result->setName(protoEntity.name().c_str());
+            // 旧文件没有这两个字段：保持 SyEntity 构造默认值（visible=true / locked=false）
+            if (protoEntity.has_visible())
+            {
+                result->setVisible(protoEntity.visible());
+            }
+            if (protoEntity.has_locked())
+            {
+                result->setLocked(protoEntity.locked());
+            }
 
             // 回填包围盒缓存，跳过 computeBBox()。
             // 必须放在最后：上方各类型分支构造几何时会 setModified() 失效缓存，
