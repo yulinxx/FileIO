@@ -19,6 +19,7 @@
 #include <fstream>
 #include <filesystem>
 #include <iomanip>
+#include <locale>
 #include <limits>
 #include <map>
 #include <sstream>
@@ -185,6 +186,8 @@ namespace Fio
 
         // 默认精度只有 6 位有效数字，坐标会被静默截断（1234.5678 → 1234.57）。
         // DXF 的组码值全部按文本解析，必须给足有效位。
+        // classic locale：DXF 坐标小数点必须是 '.'，不随系统 locale 变化。
+        out.imbue(std::locale::classic());
         out << std::setprecision(15);
 
         writePair(out, 0, "SECTION");

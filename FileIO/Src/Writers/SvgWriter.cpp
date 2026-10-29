@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <locale>
 #include <sstream>
 
 namespace Fio
@@ -83,6 +84,7 @@ namespace Fio
         const double offsetY = bbox.maxPt.y() + margin;
 
         std::ostringstream body;
+        body.imbue(std::locale::classic());  // SVG 坐标小数点必须是 '.'，不随系统 locale 变化
         int exported = 0;
 
         for (const auto& entity : entities)
@@ -196,6 +198,7 @@ namespace Fio
                 const auto* bezier2 = static_cast<const Eg::SyBezier2*>(entity.get());
                 constexpr int kSegCount = 20;
                 std::ostringstream d;
+                d.imbue(std::locale::classic());
                 d << "M " << (bezier2->basePoint.x() + offsetX) << ' ' << (offsetY - bezier2->basePoint.y());
                 for (int i = 1; i <= kSegCount; ++i)
                 {
@@ -220,6 +223,7 @@ namespace Fio
                 }
                 constexpr int kSegCount = 40;
                 std::ostringstream d;
+                d.imbue(std::locale::classic());
                 {
                     const auto pt0 = spline->value(0.0);
                     d << "M " << (pt0.x() + offsetX) << ' ' << (offsetY - pt0.y());

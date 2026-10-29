@@ -1857,6 +1857,14 @@ namespace Fio
                 onProgress(1.0f, progressCtx);
             }
 
+            // libdxfrw 跳过的坏实体（如退化样条）以 secondary 诊断留痕：转成 warning，
+            // 让消费侧知道「有实体被丢弃」，而不是静默少图元。
+            const DRW_OperationDiagnostic diag = reader.getLastDiagnostic();
+            for (const auto& entry : diag.secondary)
+            {
+                warnings.push_back(makeWarning("DXF", (entry.code + ": " + entry.message).c_str()));
+            }
+
             // 图层在 addLayer 回调里就已登记进 pub，图元的 layerSourceId 也在产出当场解析完成，
             // 因此这里不再需要「按图层名回填」的二次遍历。
             for (const auto& w : warnings)

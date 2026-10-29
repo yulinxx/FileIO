@@ -10,7 +10,9 @@
 #include "Log/SyLogger.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace Fio
 {
@@ -128,12 +130,19 @@ namespace Fio
         }
 
         // entities / extensionBlob 都是指向当前线程 thread_local 缓冲区的借用指针。
-        // 本函数必须在「解析返回之后、下一次解析之前」的同线程调用（见头文件内存契约），
-        // 因此这里就地修改是安全的；transformEntity 读旧 blob、追加新 blob 到同一发布器。
+        // 本函数必须在「解析返回之后、下一次解析之前」的同线程调用（见头文件内存契约）。
+        // 注意：transformEntity 会把变换后的扩展数据经 appendBlob() 追加到同一发布器缓冲区，
+        // 追加触发的 vector 重分配会让借用的源指针悬空（UAF），因此进入循环前先把源 blob
+        // 深拷贝到局部 vector，读取一律走拷贝。
         auto& pub = IrPublisher::threadLocal();
         EntityInfo* entities = const_cast<EntityInfo*>(result->entities);
-        const uint8_t* srcBlob = result->extensionBlob.data;
-        const std::size_t srcBlobSize = result->extensionBlob.size;
+        std::vector<uint8_t> srcBlobCopy;
+        if (result->extensionBlob.data != nullptr && result->extensionBlob.size > 0)
+        {
+            srcBlobCopy.assign(result->extensionBlob.data, result->extensionBlob.data + result->extensionBlob.size);
+        }
+        const uint8_t* srcBlob = srcBlobCopy.data();
+        const std::size_t srcBlobSize = srcBlobCopy.size();
         const IrXform xf = IrXform::scale(scale, scale);
 
         for (uint32_t i = 0; i < result->entityCount; ++i)

@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
+#include <climits>
 #include <map>
 #include <memory>
 #include <string>
@@ -57,6 +58,9 @@ namespace Fio
         using NsvgImagePtr = std::unique_ptr<NSVGimage, NsvgImageDeleter>;
 
 #ifdef FILEIO_HAS_ZLIB
+        // SVGZ 解压上限：防御 gzip 压缩炸弹，解压结果超过 64MB 即判定为异常输入并拒绝
+        constexpr size_t MAX_DECOMPRESSED_BYTES = 64ull * 1024 * 1024;
+
         // Decompress gzip data (for .svgz files)
         std::vector<char> decompressGzip(const std::vector<char>& compressedData)
         {
@@ -66,8 +70,6 @@ namespace Fio
             strm.zalloc = Z_NULL;
             strm.zfree = Z_NULL;
             strm.opaque = Z_NULL;
-            strm.avail_in = static_cast<uInt>(compressedData.size());
-            strm.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(compressedData.data()));
 
             // 15 + 16 = gzip decoding
             int ret = inflateInit2(&strm, 15 + 16);
@@ -79,8 +81,27 @@ namespace Fio
             constexpr size_t CHUNK_SIZE = 16384;
             char outBuffer[CHUNK_SIZE];
 
+            // avail_in 是 32 位 uInt，一次性喂入 >4GB 的输入会被静默截断，因此按 <= UINT_MAX 的块喂入
+            const size_t totalIn = compressedData.size();
+            size_t consumed = 0;
+
             do
             {
+                if (strm.avail_in == 0)
+                {
+                    if (consumed >= totalIn)
+                    {
+                        // 输入已喂完但流未结束：数据被截断
+                        inflateEnd(&strm);
+                        return {};
+                    }
+                    const size_t remaining = totalIn - consumed;
+                    const size_t chunk = remaining > static_cast<size_t>(UINT_MAX) ? static_cast<size_t>(UINT_MAX) : remaining;
+                    strm.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(compressedData.data())) + consumed;
+                    strm.avail_in = static_cast<uInt>(chunk);
+                    consumed += chunk;
+                }
+
                 strm.avail_out = CHUNK_SIZE;
                 strm.next_out = reinterpret_cast<Bytef*>(outBuffer);
 
@@ -93,6 +114,12 @@ namespace Fio
                 }
 
                 size_t have = CHUNK_SIZE - strm.avail_out;
+                if (decompressed.size() + have > MAX_DECOMPRESSED_BYTES)
+                {
+                    inflateEnd(&strm);
+                    SY_WARN("[SvgParser] SVGZ decompressed size exceeds 64MB limit, file rejected");
+                    return {};
+                }
                 decompressed.insert(decompressed.end(), outBuffer, outBuffer + have);
             } while (ret != Z_STREAM_END);
 

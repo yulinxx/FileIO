@@ -41,8 +41,13 @@ namespace Fio
             out.name = src->name();
             out.visible = src->visible();
             out.locked = src->locked();
-            out.closed = static_cast<const Eg::SyEntity2D*>(src)->bClosed;
-            out.ccw = static_cast<const Eg::SyEntity2D*>(src)->bCCW;
+            // bClosed/bCCW 是 2D 实体专有字段；非 2D 实体 dynamic_cast 会失败，
+            // 跳过这两个字段保持 ParsedGeometry 的默认值，避免非法向下转换。
+            if (const auto* src2d = dynamic_cast<const Eg::SyEntity2D*>(src))
+            {
+                out.closed = src2d->bClosed;
+                out.ccw = src2d->bCCW;
+            }
 
             if (auto* line = dynamic_cast<const Eg::SyLine*>(src))
             {

@@ -18,6 +18,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <locale>
 #include <sstream>
 #include <iomanip>
 #include <vector>
@@ -31,6 +32,7 @@ namespace Fio
         std::string igesDouble(double v)
         {
             std::ostringstream oss;
+            oss.imbue(std::locale::classic());  // IGES 参数小数点必须是 '.'，不随系统 locale 变化
             oss << std::fixed << std::setprecision(6) << v;
             std::string s = oss.str();
             // 去除尾部多余的零

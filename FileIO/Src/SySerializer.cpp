@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <future>
@@ -803,8 +804,16 @@ namespace Fio
             out->written = data.size();
             if (out->data && out->capacity > 0)
             {
-                const size_t toCopy = (data.size() < out->capacity) ? data.size() : out->capacity;
-                std::memcpy(out->data, data.data(), toCopy);
+                if (data.size() > out->capacity)
+                {
+                    // 缓冲区不足：明确失败并报告所需字节数，避免调用方把截断数据当完整数据用。
+                    // out->written 已置为完整大小，「先传 null 查大小」的调用模式不受影响。
+                    char msg[512];
+                    std::snprintf(msg, sizeof(msg), "Output buffer too small: need %zu bytes, capacity %zu bytes",
+                        data.size(), out->capacity);
+                    return SerializeResult::fail(msg);
+                }
+                std::memcpy(out->data, data.data(), data.size());
             }
         }
         return SerializeResult::ok();
