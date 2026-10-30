@@ -24,6 +24,7 @@
 #include "libdxfrw.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -33,6 +34,7 @@
 #include <iostream>
 #include <limits>
 #include <sstream>
+#include <string_view>
 
 namespace Fio
 {
@@ -1787,6 +1789,256 @@ namespace Fio
         }
     }
 
+    // 退化样条预清洗：libdxfrw 的 processSpline 遇到 validateDxf() 不过的样条会返回
+    // BAD_CODE_PARSED 并中止整段实体解析（一条坏样条 = 后续图元全部丢失）。第三方库
+    // 源码不能改（升级会把本地改动还原），所以在交给 libdxfrw 之前，按 DRW_Spline::
+    // validateDxf 同口径的规则识别退化 SPLINE，整条摘除并转 warning 留痕。
+    //
+    // 校验口径须与 drw_entities.cpp 的 validateDxf / validatePayloadFields 保持一致：
+    // 次数 1..1024、flags 0..0xFFFF、所有浮点值有限、各列表长度 ≤ 1e6、权重数 ≤ 控制点数、
+    // 声明计数(72/73/74)与实际列表长度一致；控制点样条要求控制点数 ≥ 次数+1 且
+    // 节点数 == 控制点数+次数+1；拟合点样条要求拟合点数 ≥ 2。
+    // 仅处理 ASCII DXF；二进制 DXF 不做文本级预清洗。
+    struct DxfSplineFacts
+    {
+        long long flags = 0;
+        long long degree = 0;
+        long long declaredKnots = 0;
+        long long declaredControl = 0;
+        long long declaredFit = 0;
+        bool hasDeclaredKnots = false;
+        bool hasDeclaredControl = false;
+        bool hasDeclaredFit = false;
+        long long knotCount = 0;
+        long long weightCount = 0;
+        long long controlCount = 0;
+        long long fitCount = 0;
+        bool valuesFinite = true;
+    };
+
+    static bool isDegenerateDxfSpline(const DxfSplineFacts& f)
+    {
+        constexpr long long kMaxSplineItems = 1000000;  // 与 drw_entities.cpp 同值
+        constexpr long long kMaxSplineDegree = 1024;
+
+        if (f.degree < 1 || f.degree > kMaxSplineDegree || f.flags < 0 || f.flags > 0xFFFF || !f.valuesFinite)
+        {
+            return true;
+        }
+        if (f.knotCount > kMaxSplineItems || f.weightCount > kMaxSplineItems || f.controlCount > kMaxSplineItems ||
+            f.fitCount > kMaxSplineItems || f.weightCount > f.controlCount)
+        {
+            return true;
+        }
+        if ((f.hasDeclaredKnots && f.declaredKnots != f.knotCount) ||
+            (f.hasDeclaredControl && f.declaredControl != f.controlCount) ||
+            (f.hasDeclaredFit && f.declaredFit != f.fitCount))
+        {
+            return true;
+        }
+
+        const bool controlLayoutOk = f.controlCount >= f.degree + 1 &&
+            f.controlCount + f.degree + 1 <= kMaxSplineItems && f.knotCount == f.controlCount + f.degree + 1;
+        const bool fitLayoutOk = f.fitCount >= 2;
+        if (f.fitCount > 0 && f.controlCount > 0)
+        {
+            return !controlLayoutOk || !fitLayoutOk;
+        }
+        return f.fitCount > 0 ? !fitLayoutOk : !controlLayoutOk;
+    }
+
+    // 值行视图指向 std::string 缓冲区，strtod/strtoll 会在行尾符('\r'/'\n')或缓冲区
+    // 终止 NUL 处自然停下，不会越过当前行；非法文本按 0 处理，与 libdxfrw 读取口径一致。
+    static long long parseDxfTagInt(std::string_view value)
+    {
+        return value.empty() ? 0 : std::strtoll(value.data(), nullptr, 10);
+    }
+
+    static bool isDxfTagFiniteDouble(std::string_view value)
+    {
+        return value.empty() || std::isfinite(std::strtod(value.data(), nullptr));
+    }
+
+    static void recordDxfSplineTag(DxfSplineFacts& f, long long code, std::string_view value)
+    {
+        switch (code)
+        {
+        case 70:
+            f.flags = parseDxfTagInt(value);
+            break;
+        case 71:
+            f.degree = parseDxfTagInt(value);
+            break;
+        case 72:
+            f.hasDeclaredKnots = true;
+            f.declaredKnots = parseDxfTagInt(value);
+            break;
+        case 73:
+            f.hasDeclaredControl = true;
+            f.declaredControl = parseDxfTagInt(value);
+            break;
+        case 74:
+            f.hasDeclaredFit = true;
+            f.declaredFit = parseDxfTagInt(value);
+            break;
+        case 40:
+            ++f.knotCount;
+            f.valuesFinite = f.valuesFinite && isDxfTagFiniteDouble(value);
+            break;
+        case 41:
+            ++f.weightCount;
+            f.valuesFinite = f.valuesFinite && isDxfTagFiniteDouble(value);
+            break;
+        case 10:
+            ++f.controlCount;
+            f.valuesFinite = f.valuesFinite && isDxfTagFiniteDouble(value);
+            break;
+        case 11:
+            ++f.fitCount;
+            f.valuesFinite = f.valuesFinite && isDxfTagFiniteDouble(value);
+            break;
+        case 20:
+        case 30:  // 控制点 y/z
+        case 21:
+        case 31:  // 拟合点 y/z
+        case 12:
+        case 22:
+        case 32:
+        case 13:
+        case 23:
+        case 33:    // 起/终点切向
+        case 210:
+        case 220:
+        case 230:   // 法向
+        case 42:
+        case 43:
+        case 44:  // 节点/控制/拟合公差
+            f.valuesFinite = f.valuesFinite && isDxfTagFiniteDouble(value);
+            break;
+        default:
+            break;
+        }
+    }
+
+    static size_t dropDegenerateSplines(std::string& content, std::vector<std::string>& warnings)
+    {
+        static constexpr char kBinaryDxfMagic[] = "AutoCAD Binary DXF";
+        if (content.compare(0, sizeof(kBinaryDxfMagic) - 1, kBinaryDxfMagic) == 0)
+        {
+            return 0;
+        }
+
+        auto trimTrailingWs = [](std::string_view sv) {
+            while (!sv.empty() && (sv.back() == '\r' || sv.back() == '\n' || sv.back() == ' ' || sv.back() == '\t'))
+            {
+                sv.remove_suffix(1);
+            }
+            return sv;
+        };
+
+        std::string out;
+        out.reserve(content.size());
+        DxfSplineFacts splineFacts;
+        std::string splineText;
+        bool inSpline = false;
+        size_t dropped = 0;
+
+        auto closeSpline = [&]() {
+            if (!inSpline)
+            {
+                return;
+            }
+            inSpline = false;
+            if (isDegenerateDxfSpline(splineFacts))
+            {
+                ++dropped;
+                warnings.push_back(makeWarning("SPLINE", "degenerate spline dropped before parse"));
+                SY_WARNF("[DxfParser] Skip SPLINE: degenerate spline dropped before parse");
+            }
+            else
+            {
+                out += splineText;
+            }
+            splineText.clear();
+            splineFacts = DxfSplineFacts{};
+        };
+
+        // 按「组码行 + 值行」成对扫描整份文件；组码非法文本按 0 处理（与 libdxfrw 的
+        // atoi 口径一致）。SPLINE 实体块（0/SPLINE 到下一个 0/xxx 之前）先进缓冲区，
+        // 关块时再决定整块保留还是整块摘除。
+        size_t pos = 0;
+        while (pos < content.size())
+        {
+            size_t nl = content.find('\n', pos);
+            const size_t codeEnd = (nl == std::string::npos) ? content.size() : nl + 1;
+            std::string_view codeLine(content.data() + pos, codeEnd - pos);
+            pos = codeEnd;
+
+            std::string_view valueLine;
+            if (pos < content.size())
+            {
+                nl = content.find('\n', pos);
+                const size_t valueEnd = (nl == std::string::npos) ? content.size() : nl + 1;
+                valueLine = std::string_view(content.data() + pos, valueEnd - pos);
+                pos = valueEnd;
+            }
+
+            long long code = 0;
+            {
+                const std::string_view codeStr = trimTrailingWs(codeLine);
+                size_t i = 0;
+                while (i < codeStr.size() && (codeStr[i] == ' ' || codeStr[i] == '\t'))
+                {
+                    ++i;
+                }
+                const bool neg = i < codeStr.size() && codeStr[i] == '-';
+                if (neg || (i < codeStr.size() && codeStr[i] == '+'))
+                {
+                    ++i;
+                }
+                for (; i < codeStr.size() && codeStr[i] >= '0' && codeStr[i] <= '9'; ++i)
+                {
+                    code = code * 10 + (codeStr[i] - '0');
+                }
+                if (neg)
+                {
+                    code = -code;
+                }
+            }
+
+            const std::string_view valueStr = trimTrailingWs(valueLine);
+
+            if (code == 0)
+            {
+                closeSpline();
+                if (valueStr == "SPLINE")
+                {
+                    inSpline = true;
+                    splineText.append(codeLine).append(valueLine);
+                }
+                else
+                {
+                    out.append(codeLine).append(valueLine);
+                }
+                continue;
+            }
+
+            if (inSpline)
+            {
+                splineText.append(codeLine).append(valueLine);
+                recordDxfSplineTag(splineFacts, code, valueStr);
+            }
+            else
+            {
+                out.append(codeLine).append(valueLine);
+            }
+        }
+        closeSpline();
+
+        content = std::move(out);
+        return dropped;
+    }
+
     static bool readFileBytes(const std::string& filePath, std::string& content)
     {
         // Windows 下 std::ifstream(const char*) 按 ANSI 码页解析路径，无法打开 UTF-8 中文路径；
@@ -1830,6 +2082,7 @@ namespace Fio
             return FioParseResult{};
         }
         sanitizeDxfBytes(content);
+        dropDegenerateSplines(content, warnings);
 
         TempFileCopy tempCopy(content, filePath, "dxf");
         if (!tempCopy.isValid())
@@ -1910,6 +2163,7 @@ namespace Fio
             return ParseResult::fail(std::string("Cannot open file: ") + filePath);
         }
         sanitizeDxfBytes(content);
+        dropDegenerateSplines(content, warnings);
 
         TempFileCopy tempCopy(content, filePath, "dxf");
 
