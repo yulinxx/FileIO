@@ -282,10 +282,22 @@ namespace Fio
                 writeEntityHeader(out, "LWPOLYLINE", entity.get());
                 writePair(out, 90, static_cast<int>(verts.size()));
                 writePair(out, 70, polygon->bClosed ? 1 : 0);
-                for (const auto& pt : verts)
+                const bool hasBulges = polygon->hasBulges();
+                const auto& bulges = polygon->bulges();
+                for (size_t i = 0; i < verts.size(); ++i)
                 {
-                    writePair(out, 10, pt.x());
-                    writePair(out, 20, pt.y());
+                    writePair(out, 10, verts[i].x());
+                    writePair(out, 20, verts[i].y());
+                    // bulge 挂在段起点顶点上（组码 42）。开放折线末点没有下一顶点，
+                    // 即使元数据里残留值也不导出，免得读方把最后一段当成圆弧。
+                    if (hasBulges && i < bulges.size() && (polygon->bClosed || i + 1 < verts.size()))
+                    {
+                        const double bulge = bulges[i];
+                        if (std::isfinite(bulge) && std::fabs(bulge) > 1e-12)
+                        {
+                            writePair(out, 42, bulge);
+                        }
+                    }
                 }
                 ++exported;
                 break;

@@ -25,10 +25,13 @@ target_include_directories(FileIOTests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../Include"
     "${CMAKE_CURRENT_SOURCE_DIR}/../Include/FileIO"
     "${CMAKE_CURRENT_SOURCE_DIR}/../Src/Internal"
+    # DXF 导出回环测试要构造 Eg::SyPolygon（FileIO 的 legacy writer 直接消费 Engine 图元）
+    "${SANYI_ENGINE_2D_DIR}/Include"
 )
 
 target_link_libraries(FileIOTests PRIVATE
     FileIO
+    Engine2D
     Log
     GTest::gtest
     GTest::gtest_main

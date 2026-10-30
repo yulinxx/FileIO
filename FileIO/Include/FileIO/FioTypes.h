@@ -248,6 +248,15 @@ namespace Fio
         // 不可信任本字段：畸形文件可能给出越界值。
         uint32_t extensionDataOffset = 0;  // 在 FioParseResult::extensionBlob 中的字节偏移
         uint32_t extensionDataSize = 0;    // 扩展数据字节数
+
+        // ---- 折线圆弧参数（可选，DXF bulge） ----
+        // 与顶点一一对应：bulge[i] 描述 vertices[i] → vertices[i+1] 这一段，
+        // 闭合轮廓最后一个顶点回到第一个顶点；bulge = tan(包角/4)，0 = 直线。
+        // 数据同样是 double 序列，单独放一块而**不混进顶点块**：
+        // 变换/单位换算可以只搬顶点，不必知道圆弧参数；读取方也更容易校验长度。
+        // 为 0 表示该折线是纯直线，消费方按普通顶点表处理。
+        uint32_t bulgeDataOffset = 0;  // 在 extensionBlob 中的字节偏移
+        uint32_t bulgeDataSize = 0;    // bulge 字节数（应为 vertexCount * sizeof(double)）
     };
 
     /// 二进制数据块（纯 POD，用于可变长度数据）

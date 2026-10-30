@@ -213,7 +213,9 @@ namespace Fio
             case Eg::EType::POLYGON:
             {
                 const auto* polygon = static_cast<const Eg::SyPolygon*>(entity);
-                const auto& verts = polygon->vertices();
+                // 带 bulge 的折线先展开成自适应圆弧折线，否则 IGES 里会退化成直线弦。
+                const std::vector<Ut::Vec2d> verts =
+                    polygon->hasBulges() ? polygon->outline(0.01) : polygon->vertices();
                 if (verts.size() < 2)
                 {
                     break;
@@ -556,7 +558,8 @@ namespace Fio
                 case Eg::EType::POLYGON:
                 {
                     const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
-                    const auto& verts = polygon->vertices();
+                    const std::vector<Ut::Vec2d> verts =
+                        polygon->hasBulges() ? polygon->outline(0.01) : polygon->vertices();
                     if (verts.size() < 2)
                     {
                         break;

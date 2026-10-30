@@ -86,7 +86,10 @@ namespace Fio
             {
                 out.type = ParsedGeometryType::Polygon;
                 out.closed = true;
-                for (auto& v : poly->vertices())
+                // bulge 圆弧按固定细精度展开，避免旧导入路径把圆弧写成直线弦。
+                const std::vector<Ut::Vec2d> pts =
+                    poly->hasBulges() ? poly->outline(0.01) : poly->vertices();
+                for (const auto& v : pts)
                 {
                     out.polyline.points.push_back({ v.x(), v.y() });
                 }

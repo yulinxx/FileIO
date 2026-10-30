@@ -163,7 +163,10 @@ namespace Fio
             case Eg::EType::POLYGON:
             {
                 const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
-                const auto& verts = polygon->vertices();
+                // 带 bulge 的 DXF 折线先按 0.01 世界单位弦高展开；
+                // 直接输出控制顶点会把圆弧写成直线弦。
+                const std::vector<Ut::Vec2d> verts =
+                    polygon->hasBulges() ? polygon->outline(0.01) : polygon->vertices();
                 if (verts.size() < 2)
                 {
                     break;

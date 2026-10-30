@@ -269,55 +269,10 @@ namespace Fio
         return xf;
     }
 
-    // bulge（组码 42）= tan(包角/4)，表示这一段折线其实是圆弧。
-    // Engine 的多边形只有顶点表、承载不了圆弧参数，所以按弦高容差把圆弧细分成折线段。
-    // 这是形状保真与既有数据结构之间的取舍：容差取弦长的 0.2%，角步长上限 6°，
-    // 单段细分点数上限 256（防畸形 bulge 造成海量顶点）。
-    // 只追加中间点，起点/终点由调用方负责，避免重复顶点。
-    static void appendBulgeArcPoints(std::vector<double>& out, double x0, double y0, double x1, double y1, double bulge)
-    {
-        const double chordX = x1 - x0;
-        const double chordY = y1 - y0;
-        const double chord = std::sqrt(chordX * chordX + chordY * chordY);
-        if (!std::isfinite(bulge) || std::fabs(bulge) < 1e-12 || chord < 1e-12)
-        {
-            return;
-        }
-
-        const double included = 4.0 * std::atan(bulge);  // 包角，带符号（正=逆时针）
-        const double radius = chord / (2.0 * std::sin(std::fabs(included) / 2.0));
-        if (!std::isfinite(radius) || radius < 1e-12)
-        {
-            return;
-        }
-
-        // 圆心在弦中点沿弦左法线偏移 |r*cos(θ/2)|：包角 ≤180° 时偏向 bulge 符号一侧，
-        // >180° 时偏向反侧（劣弧/优弧的区别）。符号弄反会让圆弧朝相反方向鼓出。
-        const double midX = (x0 + x1) * 0.5;
-        const double midY = (y0 + y1) * 0.5;
-        const double h = std::sqrt(std::fmax(radius * radius - (chord * 0.5) * (chord * 0.5), 0.0));
-        const double sign = (included > 0.0) ? 1.0 : -1.0;
-        const double dirX = -chordY / chord;
-        const double dirY = chordX / chord;
-        const double offset = (std::fabs(included) > M_PI) ? -h : h;
-        const double cx = midX + sign * offset * dirX;
-        const double cy = midY + sign * offset * dirY;
-
-        const double a0 = std::atan2(y0 - cy, x0 - cx);
-        const double tol = std::fmax(chord * 0.002, 1e-9);
-        // 弦高容差换算出的最大角步长；再与 6° 取小
-        const double maxStepByTol = 2.0 * std::acos(std::fmax(1.0 - tol / radius, -1.0));
-        const double maxStep = std::fmin(std::fmax(maxStepByTol, 1e-3), 6.0 * M_PI / 180.0);
-        int steps = static_cast<int>(std::ceil(std::fabs(included) / maxStep));
-        steps = std::clamp(steps, 1, 256);
-
-        for (int i = 1; i < steps; ++i)
-        {
-            const double a = a0 + included * (static_cast<double>(i) / steps);
-            out.push_back(cx + radius * std::cos(a));
-            out.push_back(cy + radius * std::sin(a));
-        }
-    }
+    // DXF bulge（组码 42）= tan(包角/4)，表示「本顶点到下一顶点」这一段是圆弧。
+    // 这里只做参数搬运，不再在导入期细分成折线：顶点 + bulge 一起写进中立 IR，
+    // 由 Engine 的 SyPolygon 在渲染/查询时按当前缩放自适应重采样。
+    // 这样放大多少倍，圆弧就有多精细，不会像导入期烘焙那样在极端放大下露出折线。
 
     class DxfConverter : public DRW_Interface
     {
@@ -1179,7 +1134,9 @@ namespace Fio
             }
 
             std::vector<double> verts;
+            std::vector<double> bulges;
             verts.reserve(data.vertlist.size() * 2);
+            bulges.reserve(data.vertlist.size());
             int skippedVerts = 0;
             for (size_t i = 0; i < data.vertlist.size(); ++i)
             {
@@ -1192,24 +1149,18 @@ namespace Fio
                 if (!isFinite2(p))
                 {
                     ++skippedVerts;
+                    // 被跳过的顶点让上一条 bulge 失去终点：退化成直线，避免把圆弧
+                    // 挂到「跳过非法点后新相邻」的两个顶点之间。
+                    if (!bulges.empty())
+                    {
+                        bulges.back() = 0.0;
+                    }
                     continue;
                 }
                 verts.push_back(p.x());
                 verts.push_back(p.y());
-
                 // bulge 记在「本段起点顶点」上，描述本顶点到下一顶点之间是圆弧。
-                // 早先这个字段被完全忽略，带圆角的轮廓会被拉成直线弦，切割件直接报废。
-                const size_t next = i + 1;
-                const bool hasNext = next < data.vertlist.size();
-                const bool closed = (data.flags & 1) != 0;
-                if (std::fabs(vert->bulge) > 1e-12 && (hasNext || closed))
-                {
-                    const auto& nv = hasNext ? data.vertlist[next] : data.vertlist.front();
-                    if (nv)
-                    {
-                        appendBulgeArcPoints(verts, vert->x, vert->y, nv->x, nv->y, vert->bulge);
-                    }
-                }
+                bulges.push_back(std::isfinite(vert->bulge) ? vert->bulge : 0.0);
             }
 
             if (skippedVerts > 0)
@@ -1218,8 +1169,18 @@ namespace Fio
                     (std::string("skipped ") + std::to_string(skippedVerts) + " non-finite vertex(es)").c_str()));
             }
 
+            // 首点非法时，末点回到首点的那个 bulge 同样失去意义
+            if (skippedVerts > 0 && !bulges.empty() && data.vertlist.front())
+            {
+                const auto& first = data.vertlist.front();
+                if (!isFinite2(Ut::Vec2d(first->x, first->y)))
+                {
+                    bulges.back() = 0.0;
+                }
+            }
+
             // flags 位 0 = 闭合。闭合与否早先没读，闭合轮廓会缺最后一段。
-            emitPolylineVerts(verts, (data.flags & 1) != 0, data, data.extPoint, "LWPOLYLINE");
+            emitPolylineVerts(verts, bulges, (data.flags & 1) != 0, data, data.extPoint, "LWPOLYLINE");
         }
 
         void addPolyline(const DRW_Polyline& polyline) override
@@ -1239,7 +1200,9 @@ namespace Fio
             }
 
             std::vector<double> verts;
+            std::vector<double> bulges;
             verts.reserve(polyline.vertlist.size() * 2);
+            bulges.reserve(polyline.vertlist.size());
             int skippedVerts = 0;
             for (size_t i = 0; i < polyline.vertlist.size(); ++i)
             {
@@ -1252,24 +1215,16 @@ namespace Fio
                 if (!isFinite2(p))
                 {
                     ++skippedVerts;
+                    if (!bulges.empty())
+                    {
+                        bulges.back() = 0.0;
+                    }
                     continue;
                 }
                 verts.push_back(p.x());
                 verts.push_back(p.y());
-
                 // 与 LWPOLYLINE 同一套 bulge 语义（旧式 POLYLINE 的 bulge 记在 VERTEX 上）
-                const size_t next = i + 1;
-                const bool hasNext = next < polyline.vertlist.size();
-                const bool closed = (polyline.flags & 1) != 0;
-                if (std::fabs(vert->bulge) > 1e-12 && (hasNext || closed))
-                {
-                    const auto& nv = hasNext ? polyline.vertlist[next] : polyline.vertlist.front();
-                    if (nv)
-                    {
-                        appendBulgeArcPoints(
-                            verts, vert->basePoint.x, vert->basePoint.y, nv->basePoint.x, nv->basePoint.y, vert->bulge);
-                    }
-                }
+                bulges.push_back(std::isfinite(vert->bulge) ? vert->bulge : 0.0);
             }
 
             if (skippedVerts > 0)
@@ -1278,7 +1233,16 @@ namespace Fio
                     (std::string("skipped ") + std::to_string(skippedVerts) + " non-finite vertex(es)").c_str()));
             }
 
-            emitPolylineVerts(verts, (polyline.flags & 1) != 0, polyline, polyline.extPoint, "POLYLINE");
+            if (skippedVerts > 0 && !bulges.empty() && polyline.vertlist.front())
+            {
+                const auto& first = polyline.vertlist.front();
+                if (!isFinite2(Ut::Vec2d(first->basePoint.x, first->basePoint.y)))
+                {
+                    bulges.back() = 0.0;
+                }
+            }
+
+            emitPolylineVerts(verts, bulges, (polyline.flags & 1) != 0, polyline, polyline.extPoint, "POLYLINE");
         }
 
         void addSpline(const DRW_Spline* data) override
@@ -1600,6 +1564,17 @@ namespace Fio
             const DRW_Coord& extrusion,
             const char* entityName)
         {
+            static const std::vector<double> kNoBulges;
+            emitPolylineVerts(verts, kNoBulges, closed, drwEntity, extrusion, entityName);
+        }
+
+        void emitPolylineVerts(std::vector<double>& verts,
+            const std::vector<double>& bulges,
+            bool closed,
+            const DRW_Entity& drwEntity,
+            const DRW_Coord& extrusion,
+            const char* entityName)
+        {
             if (verts.size() < 4)
             {
                 warnSkip(entityName, "less than 2 valid vertices");
@@ -1615,12 +1590,52 @@ namespace Fio
                 }
             }
 
+            // bulge 描述的是「从起点到终点逆时针」的圆弧。OCS→WCS 若含镜像（det<0），
+            // 方向翻转，bulge 必须取反；纯旋转/缩放则原样保留。
+            std::vector<double> outBulges;
+            if (bulges.size() == verts.size() / 2)
+            {
+                outBulges = bulges;
+                if (!ocs.isIdentity() && ocs.det() < 0.0)
+                {
+                    for (double& bulge : outBulges)
+                    {
+                        bulge = -bulge;
+                    }
+                }
+                // 开放折线的末项没有「下一顶点」，不参与几何，清掉避免下游误读
+                if (!closed && !outBulges.empty())
+                {
+                    outBulges.back() = 0.0;
+                }
+                bool any = false;
+                for (double bulge : outBulges)
+                {
+                    if (std::isfinite(bulge) && std::fabs(bulge) > 1e-12)
+                    {
+                        any = true;
+                        break;
+                    }
+                }
+                if (!any)
+                {
+                    outBulges.clear();
+                }
+            }
+
             EntityInfo info;
             info.type = closed ? EntityType::Polygon : EntityType::Polyline;
             info.vertexCount = static_cast<uint32_t>(verts.size() / 2);
             info.extensionDataOffset = static_cast<uint32_t>(blobTarget().size());
             info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
             appendExtensionData(verts.data(), info.extensionDataSize);
+
+            if (!outBulges.empty())
+            {
+                info.bulgeDataOffset = static_cast<uint32_t>(blobTarget().size());
+                info.bulgeDataSize = static_cast<uint32_t>(outBulges.size() * sizeof(double));
+                appendExtensionData(outBulges.data(), info.bulgeDataSize);
+            }
             emit(info, drwEntity);
         }
 

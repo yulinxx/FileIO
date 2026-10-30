@@ -7,8 +7,13 @@
 
 #include "DxfTestUtils.h"
 #include "FileIO/Parsers/DxfParser.h"
+#include "FileIO/Writers/DxfFileWriter.h"
+#include "Engine2D/SyEntity/SyPolygon.h"
 
+#include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -21,6 +26,16 @@ namespace
     {
         const auto* raw = reinterpret_cast<const double*>(r.extensionBlob.data + e.extensionDataOffset);
         return std::vector<double>(raw, raw + e.extensionDataSize / sizeof(double));
+    }
+
+    std::vector<double> readBulges(const Fio::FioParseResult& r, const Fio::EntityInfo& e)
+    {
+        if (e.bulgeDataSize == 0)
+        {
+            return {};
+        }
+        const auto* raw = reinterpret_cast<const double*>(r.extensionBlob.data + e.bulgeDataOffset);
+        return std::vector<double>(raw, raw + e.bulgeDataSize / sizeof(double));
     }
 }  // namespace
 
@@ -58,12 +73,11 @@ TEST(DxfEntityTest, LwPolylineOpenStaysPolyline)
     removeFile(path);
 }
 
-TEST(DxfEntityTest, BulgeSegmentIsTessellatedIntoArcPoints)
+TEST(DxfEntityTest, BulgeIsPreservedInIrWithoutTessellation)
 {
     // 两点一段，bulge=1 表示半圆。
-    // 方向约定：正 bulge = 从起点到终点**逆时针**。对于 (0,0)→(10,0) 这条向右的弦，
-    // 逆时针意味着路径先向下再回到弦线（左转），因此中间点应落在 y<0 一侧，
-    // 且都位于以 (5,0) 为心、半径 5 的圆上。
+    // 导入期**不再**把圆弧烘焙成折线：IR 只保留 2 个控制点 + 逐段 bulge，
+    // 圆弧由 Engine 按当前缩放自适应展开。这样极端放大也不会露出折线。
     std::string ents;
     ents += "0\nLWPOLYLINE\n8\n0\n90\n2\n70\n0\n";
     ents += "10\n0.0\n20\n0.0\n42\n1.0\n";
@@ -76,30 +90,27 @@ TEST(DxfEntityTest, BulgeSegmentIsTessellatedIntoArcPoints)
     const Fio::FioParseResult r = parser.parseToIR(path.c_str());
     ASSERT_EQ(r.entityCount, 1u);
 
-    const std::vector<double> v = readVerts(r, r.entities[0]);
-    // 起点 + 中间点 + 终点，半圆按 6° 步长细分约 30 段
-    ASSERT_GT(v.size(), 6u);
-    EXPECT_NEAR(v.front(), 0.0, 1e-9);
-    EXPECT_NEAR(v[v.size() - 2], 10.0, 1e-9);
+    const Fio::EntityInfo& info = r.entities[0];
+    EXPECT_EQ(info.vertexCount, 2u);
 
-    bool anyOffChord = false;
-    for (size_t i = 2; i + 2 < v.size(); i += 2)
-    {
-        const double dx = v[i] - 5.0;
-        const double dy = v[i + 1];
-        EXPECT_NEAR(std::sqrt(dx * dx + dy * dy), 5.0, 1e-6);
-        if (dy < -0.1)
-        {
-            anyOffChord = true;
-        }
-    }
-    EXPECT_TRUE(anyOffChord);
+    const std::vector<double> v = readVerts(r, info);
+    ASSERT_EQ(v.size(), 4u);
+    EXPECT_NEAR(v[0], 0.0, 1e-9);
+    EXPECT_NEAR(v[1], 0.0, 1e-9);
+    EXPECT_NEAR(v[2], 10.0, 1e-9);
+    EXPECT_NEAR(v[3], 0.0, 1e-9);
+
+    const std::vector<double> b = readBulges(r, info);
+    ASSERT_EQ(b.size(), 2u);
+    EXPECT_NEAR(b[0], 1.0, 1e-12);
+    // 开放折线末点没有下一顶点，最后一个 bulge 不参与几何，导入时清零。
+    EXPECT_NEAR(b[1], 0.0, 1e-12);
     removeFile(path);
 }
 
-TEST(DxfEntityTest, NegativeBulgeMirrorsArcToTheOtherSide)
+TEST(DxfEntityTest, NegativeBulgeIsPreservedWithSign)
 {
-    // 负 bulge = 顺时针，同一条弦上圆弧应鼓向相反一侧（y>0）
+    // 负 bulge = 顺时针。符号必须原样保留，否则圆弧会鼓向反侧。
     std::string ents;
     ents += "0\nLWPOLYLINE\n8\n0\n90\n2\n70\n0\n";
     ents += "10\n0.0\n20\n0.0\n42\n-1.0\n";
@@ -112,20 +123,75 @@ TEST(DxfEntityTest, NegativeBulgeMirrorsArcToTheOtherSide)
     const Fio::FioParseResult r = parser.parseToIR(path.c_str());
     ASSERT_EQ(r.entityCount, 1u);
 
-    const std::vector<double> v = readVerts(r, r.entities[0]);
-    ASSERT_GT(v.size(), 6u);
-    bool anyAbove = false;
-    for (size_t i = 2; i + 2 < v.size(); i += 2)
-    {
-        const double dx = v[i] - 5.0;
-        const double dy = v[i + 1];
-        EXPECT_NEAR(std::sqrt(dx * dx + dy * dy), 5.0, 1e-6);
-        if (dy > 0.1)
-        {
-            anyAbove = true;
-        }
-    }
-    EXPECT_TRUE(anyAbove);
+    const Fio::EntityInfo& info = r.entities[0];
+    EXPECT_EQ(info.vertexCount, 2u);
+    const std::vector<double> b = readBulges(r, info);
+    ASSERT_EQ(b.size(), 2u);
+    EXPECT_NEAR(b[0], -1.0, 1e-12);
+    removeFile(path);
+}
+
+TEST(DxfEntityTest, BulgeRoundTripsThroughDxfWriter)
+{
+    // 导出必须写组码 42，否则再导入时圆弧会退化成直线弦。
+    auto poly = std::make_unique<Eg::SyPolygon>();
+    poly->bClosed = false;
+    poly->setVerticesWithBulges({ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0) }, { 1.0, 0.0 });
+
+    Fio::VecSyEntityPtr entities;
+    entities.push_back(std::move(poly));
+
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "sanyi_dxf_bulge_roundtrip.dxf").string();
+    Fio::DxfFileWriter writer;
+    const Fio::WriteResult wr = writer.write(path.c_str(), entities);
+    ASSERT_TRUE(wr.success) << wr.errorMessage;
+
+    std::ifstream in(path, std::ios::binary);
+    ASSERT_TRUE(in.good());
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    in.close();
+
+    // 组码 42 后跟 bulge 值（writer 用 15 位有效数字输出）。
+    EXPECT_NE(text.find("\n42\n1\n"), std::string::npos);
+    EXPECT_NE(text.find("\n90\n2\n"), std::string::npos);
+    EXPECT_NE(text.find("\n70\n0\n"), std::string::npos);
+
+    Fio::DxfParser parser;
+    const Fio::FioParseResult r = parser.parseToIR(path.c_str());
+    ASSERT_EQ(r.entityCount, 1u);
+    const std::vector<double> b = readBulges(r, r.entities[0]);
+    ASSERT_EQ(b.size(), 2u);
+    EXPECT_NEAR(b[0], 1.0, 1e-12);
+    removeFile(path);
+}
+
+TEST(DxfEntityTest, NegativeExtrusionMirrorsBulgeDirection)
+{
+    // OCS→WCS 含镜像（extrusion = -Z）时圆弧方向翻转，bulge 必须取反，
+    // 否则镜像后的零件圆角会朝反侧鼓出。
+    std::string ents;
+    ents += "0\nLWPOLYLINE\n8\n0\n90\n2\n70\n0\n";
+    ents += "10\n0.0\n20\n0.0\n42\n1.0\n";
+    ents += "10\n10.0\n20\n0.0\n";
+    ents += "210\n0.0\n220\n0.0\n230\n-1.0\n";
+
+    const std::string path = writeDxf("sanyi_dxf_bulge_ocs_mirror.dxf", "", ents);
+    ASSERT_FALSE(path.empty());
+
+    Fio::DxfParser parser;
+    const Fio::FioParseResult r = parser.parseToIR(path.c_str());
+    ASSERT_EQ(r.entityCount, 1u);
+
+    const Fio::EntityInfo& info = r.entities[0];
+    const std::vector<double> v = readVerts(r, info);
+    ASSERT_EQ(v.size(), 4u);
+    EXPECT_NEAR(v[0], 0.0, 1e-9);
+    EXPECT_NEAR(v[2], -10.0, 1e-9);
+
+    const std::vector<double> b = readBulges(r, info);
+    ASSERT_EQ(b.size(), 2u);
+    EXPECT_NEAR(b[0], -1.0, 1e-12);
     removeFile(path);
 }
 

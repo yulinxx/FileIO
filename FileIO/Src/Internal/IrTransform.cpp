@@ -180,6 +180,162 @@ namespace Fio
             return true;
         }
 
+        /// 读取折线 bulge 数组。无 bulge 时返回 true 且 out 为空；
+        /// 有数据但长度与顶点数不匹配时返回 false（调用方应忽略 bulge 而不是丢图元）。
+        bool readBulgeBlob(const EntityInfo& info,
+            const uint8_t* srcBlob,
+            std::size_t srcBlobSize,
+            std::size_t vertexCount,
+            std::vector<double>& out)
+        {
+            out.clear();
+            if (info.bulgeDataSize == 0)
+            {
+                return true;
+            }
+            if (srcBlob == nullptr)
+            {
+                return false;
+            }
+            const std::size_t end =
+                static_cast<std::size_t>(info.bulgeDataOffset) + static_cast<std::size_t>(info.bulgeDataSize);
+            if (end > srcBlobSize || (info.bulgeDataSize % sizeof(double)) != 0 ||
+                info.bulgeDataSize != vertexCount * sizeof(double))
+            {
+                return false;
+            }
+            const auto* raw = reinterpret_cast<const double*>(srcBlob + info.bulgeDataOffset);
+            out.assign(raw, raw + vertexCount);
+            bool any = false;
+            for (double& b : out)
+            {
+                if (!std::isfinite(b) || std::fabs(b) < 1e-12)
+                {
+                    b = 0.0;
+                }
+                else
+                {
+                    any = true;
+                }
+            }
+            if (!any)
+            {
+                out.clear();
+            }
+            return true;
+        }
+
+        constexpr int kMaxBakeSegmentsPerArc = 1024;
+
+        struct BakeArc
+        {
+            double cx{ 0.0 };
+            double cy{ 0.0 };
+            double radius{ 0.0 };
+            double startAngle{ 0.0 };
+            double sweep{ 0.0 };
+        };
+
+        bool bakeArcFromBulge(double x0, double y0, double x1, double y1, double bulge, BakeArc& arc)
+        {
+            if (!finite(x0) || !finite(y0) || !finite(x1) || !finite(y1) || !finite(bulge) ||
+                std::fabs(bulge) < 1e-12)
+            {
+                return false;
+            }
+            const double dx = x1 - x0;
+            const double dy = y1 - y0;
+            const double chord = std::sqrt(dx * dx + dy * dy);
+            if (!(chord > 1e-12))
+            {
+                return false;
+            }
+            const double included = 4.0 * std::atan(bulge);
+            const double sinHalf = std::sin(std::fabs(included) * 0.5);
+            if (std::fabs(sinHalf) < 1e-15)
+            {
+                return false;
+            }
+            const double radius = chord / (2.0 * sinHalf);
+            if (!finite(radius) || radius < 1e-12 || radius > 1e150)
+            {
+                return false;
+            }
+            const double h = std::sqrt(std::fmax(radius * radius - (chord * 0.5) * (chord * 0.5), 0.0));
+            const double sign = (included > 0.0) ? 1.0 : -1.0;
+            const double dirX = -dy / chord;
+            const double dirY = dx / chord;
+            const double offset = (std::fabs(included) > 3.14159265358979323846) ? -h : h;
+            arc.cx = (x0 + x1) * 0.5 + sign * offset * dirX;
+            arc.cy = (y0 + y1) * 0.5 + sign * offset * dirY;
+            arc.radius = radius;
+            arc.startAngle = std::atan2(y0 - arc.cy, x0 - arc.cx);
+            arc.sweep = included;
+            return true;
+        }
+
+        /// 把带 bulge 的折线展开成纯顶点序列（x0,y0,x1,y1,...）。
+        /// 只在「非相似变换」时使用：椭圆弧无法用单一 bulge 表达，先烘焙再变换。
+        std::vector<double> bakeBulgePolyline(
+            const std::vector<double>& pts, const std::vector<double>& bulges, bool closed, double tolerance)
+        {
+            const size_t vertexCount = pts.size() / 2;
+            std::vector<double> out;
+            if (vertexCount < 2)
+            {
+                return pts;
+            }
+            const size_t segCount = closed ? vertexCount : vertexCount - 1;
+            out.reserve(pts.size() * 2);
+            size_t budget = 65536;
+
+            for (size_t i = 0; i < segCount; ++i)
+            {
+                const size_t next = (i + 1) % vertexCount;
+                out.push_back(pts[i * 2]);
+                out.push_back(pts[i * 2 + 1]);
+
+                BakeArc arc;
+                const double bulge = (i < bulges.size()) ? bulges[i] : 0.0;
+                if (!bakeArcFromBulge(
+                        pts[i * 2], pts[i * 2 + 1], pts[next * 2], pts[next * 2 + 1], bulge, arc))
+                {
+                    continue;
+                }
+                const double ratio = std::clamp(1.0 - tolerance / arc.radius, -1.0, 1.0);
+                const double maxStep = 2.0 * std::acos(ratio);
+                int steps = 1;
+                if (finite(maxStep) && maxStep > 1e-12)
+                {
+                    steps = static_cast<int>(std::ceil(std::fabs(arc.sweep) / maxStep));
+                }
+                else
+                {
+                    steps = kMaxBakeSegmentsPerArc;
+                }
+                steps = std::clamp(steps, 1, kMaxBakeSegmentsPerArc);
+                if (budget == 0)
+                {
+                    continue;
+                }
+                steps = std::min(steps, static_cast<int>(std::min<size_t>(budget, kMaxBakeSegmentsPerArc)));
+                for (int s = 1; s < steps; ++s)
+                {
+                    const double angle = arc.startAngle + arc.sweep * (static_cast<double>(s) / steps);
+                    out.push_back(arc.cx + arc.radius * std::cos(angle));
+                    out.push_back(arc.cy + arc.radius * std::sin(angle));
+                }
+                budget -= static_cast<size_t>(steps - 1);
+            }
+
+            if (!closed)
+            {
+                out.push_back(pts[(vertexCount - 1) * 2]);
+                out.push_back(pts[(vertexCount - 1) * 2 + 1]);
+            }
+            return out;
+        }
+
         /// 圆/圆弧在非等比缩放下升级为椭圆。DXF INSERT 的语义是「先缩放再旋转」，
         /// 因此椭圆两轴分别是 r*|sx| 与 r*|sy|，长轴方向就是变换的旋转角。
         void circleToEllipse(
@@ -345,10 +501,48 @@ namespace Fio
                 warnings.emplace_back("Polyline extension data out of range, entity dropped");
                 return false;
             }
+
+            const size_t vertexCount = pts.size() / 2;
+            std::vector<double> bulges;
+            if (!readBulgeBlob(info, srcBlob, srcBlobSize, vertexCount, bulges))
+            {
+                // bulge 数据畸形不影响顶点本身：退化为直线并留痕，绝不越界读取。
+                warnings.emplace_back("Bulge data invalid, polyline imported as straight segments");
+                bulges.clear();
+            }
+
+            const bool closed = (info.type == EntityType::Polygon);
+            if (!bulges.empty() && !xf.isSimilarity())
+            {
+                // 非相似变换会把圆弧压成椭圆弧，单一 bulge 无法表达。
+                // 先按高精度烘焙再变换，宁可物化成密集折线也不让形状错掉。
+                double diag = 0.0;
+                for (size_t i = 1; i < vertexCount; ++i)
+                {
+                    const double dx = pts[i * 2] - pts[0];
+                    const double dy = pts[i * 2 + 1] - pts[1];
+                    diag = std::fmax(diag, std::sqrt(dx * dx + dy * dy));
+                }
+                const double tolerance = std::fmax(1e-7 * std::fmax(diag, 1.0), 1e-9);
+                pts = bakeBulgePolyline(pts, bulges, closed, tolerance);
+                bulges.clear();
+                info.vertexCount = static_cast<uint32_t>(pts.size() / 2);
+            }
+
             for (std::size_t i = 0; i + 1 < pts.size(); i += 2)
             {
                 xf.applyPoint(pts[i], pts[i + 1]);
             }
+
+            if (!bulges.empty() && xf.det() < 0.0)
+            {
+                // 镜像翻转圆弧方向：逆时针 → 顺时针。
+                for (double& bulge : bulges)
+                {
+                    bulge = -bulge;
+                }
+            }
+
             const std::size_t bytes = pts.size() * sizeof(double);
             const uint32_t offset = pub.appendBlob(pts.data(), bytes);
             if (offset == IrPublisher::kInvalidOffset)
@@ -358,6 +552,29 @@ namespace Fio
             }
             info.extensionDataOffset = offset;
             info.extensionDataSize = static_cast<uint32_t>(bytes);
+            info.vertexCount = static_cast<uint32_t>(pts.size() / 2);
+
+            if (bulges.empty())
+            {
+                info.bulgeDataOffset = 0;
+                info.bulgeDataSize = 0;
+            }
+            else
+            {
+                const std::size_t bulgeBytes = bulges.size() * sizeof(double);
+                const uint32_t bulgeOffset = pub.appendBlob(bulges.data(), bulgeBytes);
+                if (bulgeOffset == IrPublisher::kInvalidOffset)
+                {
+                    warnings.emplace_back("Extension blob full, polyline bulges dropped");
+                    info.bulgeDataOffset = 0;
+                    info.bulgeDataSize = 0;
+                }
+                else
+                {
+                    info.bulgeDataOffset = bulgeOffset;
+                    info.bulgeDataSize = static_cast<uint32_t>(bulgeBytes);
+                }
+            }
             break;
         }
 

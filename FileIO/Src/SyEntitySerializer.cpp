@@ -184,6 +184,15 @@ namespace Fio
             }
             data->set_sides(poly->nSides);
             data->set_circum_radius(poly->dCircumRadius);
+            if (poly->hasBulges())
+            {
+                const auto& bulges = poly->bulges();
+                data->mutable_bulges()->Reserve(static_cast<int>(bulges.size()));
+                for (double bulge : bulges)
+                {
+                    data->add_bulges(bulge);
+                }
+            }
             break;
         }
 
@@ -419,6 +428,12 @@ namespace Fio
                 }
                 poly->nSides = pd.sides();
                 poly->dCircumRadius = pd.circum_radius();
+                if (pd.bulges_size() > 0)
+                {
+                    // verticesMutable() 会清空 bulge，必须在顶点写完之后再挂圆弧参数。
+                    std::vector<double> bulges(pd.bulges().begin(), pd.bulges().end());
+                    poly->setBulges(std::move(bulges));
+                }
             }
             result = std::move(poly);
             break;

@@ -269,6 +269,9 @@ message PolygonData {
     repeated Vec2d vertices     = 1;   // 顶点列表
     int32  sides                = 2;   // 边数
     double circum_radius        = 3;   // 外接圆半径
+    // DXF bulge：bulges[i] 描述 vertices[i] → vertices[i+1] 这一段（闭合时末点回首点），
+    // 0 = 直线。长度与 vertices 一致；空表示纯折线。
+    repeated double bulges      = 4;
 }
 
 message ArcData {
