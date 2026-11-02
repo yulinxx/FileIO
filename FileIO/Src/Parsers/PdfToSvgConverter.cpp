@@ -420,8 +420,7 @@ namespace Fio
             return false;
         }
 
-        // PostScript 文件签名：前4字节为 "%!PS"
-        // 旧版 AI (AI 7-) 使用此格式
+        // PostScript 文件签名：前4字节为 "%!PS"（AI 7- 文件格式）
         char header[5];
         file.read(header, 5);
         file.close();

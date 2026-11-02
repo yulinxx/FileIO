@@ -38,7 +38,7 @@ namespace Fio
             out << code << '\n' << value << '\n';
         }
 
-        /// 整型组码必须走这个重载：原先只有 double 重载，大整数会被 defaultfloat 的
+        /// 整型组码必须走这个重载：走 double 重载时大整数会被 defaultfloat 的
         /// 6 位有效数字写成科学计数法（如 16711680 → "1.67117e+07"），DXF 直接损坏
         void writePair(std::ostream& out, int code, int value)
         {

@@ -90,7 +90,6 @@ namespace Fio
             std::string ext = fsPath.extension().string();
 
             // 使用随机后缀替代确定性哈希，防止 TOCTOU 竞争和预创建文件投毒。
-            // 旧代码用 FNV 哈希生成固定文件名，多个进程处理同一文件会产生冲突。
             std::string randomSuffix = generateRandomSuffix();
             std::filesystem::path tempPath =
                 std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + randomSuffix + ext);

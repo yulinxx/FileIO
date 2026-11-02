@@ -1,14 +1,11 @@
 #pragma once
 
-// 旧版解析/写入类型定义
+// Legacy 解析/写入类型定义
 //
-// 说明（2026-07-31 C4 收口）：
-//   - 旧版解析/写入结果（ParseResult/WriteResult/DxfLayerInfo）与旧版
-//     纯虚接口（ILegacyParser::parse / ILegacyWriter::write）原属
-//     IFileParser.h / IFileWriter.h / FileIOError.h 的导出面，携带 STL
-//     跨越 DLL 边界。现已整体内迁至此，仅 FileIO.dll 内部消费。
-//   - VecSyEntityPtr 兼容别名仍由公开头 IFileParser.h 提供（Main 侧使用），
-//     此处直接复用，避免重定义。
+// ParseResult/WriteResult/DxfLayerInfo 与 ILegacyParser::parse / ILegacyWriter::write
+// 原属 IFileParser.h / IFileWriter.h / FileIOError.h 的导出面，携带 STL 跨越 DLL 边界。
+// 现已整体内迁至此，仅 FileIO.dll 内部消费。
+// VecSyEntityPtr 兼容别名仍由公开头 IFileParser.h 提供（Main 侧使用），此处直接复用。
 //
 // 本头文件为公共头（Include/FileIO/），供导出类（DxfParser、NativeWriter 等）
 // 的头文件 include，消除 Src/Internal 从公共路径泄漏的层序问题。
@@ -27,7 +24,7 @@ namespace Eg
 
 namespace Fio
 {
-    /// DXF 图层定义信息（旧版内部 API）
+    /// DXF 图层定义信息（Legacy 内部 API）
     struct DxfLayerInfo
     {
         std::string name;  // 图层名称
@@ -35,12 +32,11 @@ namespace Fio
         // 口径统一说明：DXF 文件里图层色是 ACI 索引（组码 62）或真彩色（组码 420），
         // 二者的换算属于 DXF 格式知识，一律由 DxfParser 在产出本结构时完成，
         // 消费方（FileImporter → ParsedLayer::color）直接当 ARGB 用，不再二次解释。
-        // 早期本字段存 ACI 原值而消费方按 ARGB 使用，导致图层色几乎全是暗红系。
         uint32_t color{ 0xFF000000 };
         bool visible{ true };  // 是否可见
     };
 
-    /// 旧版解析结果结构体（仅 DLL 内部使用）
+    /// Legacy 解析结果结构体（仅 DLL 内部使用）
     struct ParseResult
     {
         bool success = false;
@@ -75,7 +71,7 @@ namespace Fio
         }
     };
 
-    /// 旧版写入结果结构体（仅 DLL 内部使用）
+    /// Legacy 写入结果结构体（仅 DLL 内部使用）
     struct WriteResult
     {
         bool success = false;
@@ -92,7 +88,7 @@ namespace Fio
         }
     };
 
-    /// 旧版解析接口（仅 DLL 内部使用，不再作为导出接口跨 DLL）
+    /// Legacy 解析接口（仅 DLL 内部使用）
     class ILegacyParser
     {
     public:
@@ -100,7 +96,7 @@ namespace Fio
         virtual ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) = 0;
     };
 
-    /// 旧版写入接口（仅 DLL 内部使用，不再作为导出接口跨 DLL）
+    /// Legacy 写入接口（仅 DLL 内部使用）
     class ILegacyWriter
     {
     public:

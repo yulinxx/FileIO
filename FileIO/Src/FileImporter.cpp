@@ -248,7 +248,7 @@ namespace Fio
             return false;
         }
 
-        // 旧版 parse() 已内迁至 ILegacyParser（FileIO.dll 内部接口）
+        // Parser 须实现 ILegacyParser 接口以支持当前导入流程。
         ILegacyParser* legacyParser = dynamic_cast<ILegacyParser*>(parser);
         if (!legacyParser)
         {

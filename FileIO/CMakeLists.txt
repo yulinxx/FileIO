@@ -98,18 +98,17 @@ sanyi_add_shared_library(${LIB_NAME}
         "${CMAKE_CURRENT_SOURCE_DIR}/Src/Internal"
         ${WebP_INCLUDE_DIRS}
         ${TIFF_INCLUDE_DIRS}
-    LINK_LIBRARIES
-        PUBLIC
-            EngineCommon
-            protobuf::libprotobuf-lite
-            NanoSVG::nanosvg
-        PRIVATE
-            Engine2D
-            Engine3D
-            Log
-            ${WebP_LIBRARIES}
-            TIFF::TIFF
-            ${FILEIO_QT_CORE_LIBS}
+    PUBLIC_LINK_LIBRARIES
+        Log
+    PRIVATE_LINK_LIBRARIES
+        EngineCommon
+        Engine2D
+        Engine3D
+        protobuf::libprotobuf-lite
+        NanoSVG::nanosvg
+        ${WebP_LIBRARIES}
+        TIFF::TIFF
+        ${FILEIO_QT_CORE_LIBS}
 )
 
 # libdxfrw 第三方源码添加到目标(统一入口将其归入 External 源组)

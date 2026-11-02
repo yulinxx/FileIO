@@ -15,7 +15,7 @@ namespace Eg
 namespace Fio
 {
     // 兼容别名：Main 侧 IImportReader / IExportWriter 等仍使用 Fio::VecSyEntityPtr。
-    // 仅为类型别名（using），无 ABI 影响；旧版纯虚 parse()/write() 已随
+    // 仅为类型别名（using），无 ABI 影响；纯虚 parse()/write() 已随
     // ParseResult/WriteResult 一并内迁至 Src/Internal（ILegacyParser/ILegacyWriter），
     // 不再经导出接口携带 STL 跨越 DLL 边界。
     using VecSyEntityPtr = std::vector<std::unique_ptr<Eg::SyEntity>>;

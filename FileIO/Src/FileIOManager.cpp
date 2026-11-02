@@ -155,7 +155,7 @@ namespace Fio
             return false;
         }
 
-        // 旧版 parse() 已内迁至 ILegacyParser（FileIO.dll 内部接口）
+        // Parser 须实现 ILegacyParser 接口以支持当前导入流程。
         ILegacyParser* legacyParser = dynamic_cast<ILegacyParser*>(parser);
         if (!legacyParser)
         {
@@ -271,8 +271,8 @@ namespace Fio
 
         // Import to IR entry point
 
-        // 移除操作开始前的"成功"回调。旧代码在解析前就报 success=true，
-        // 导致调用方无法区分"操作开始"和"操作完成成功"。回调仅在操作完成后触发。
+        // 移除操作开始前的"成功"回调。回调仅在操作完成后触发，
+        // 成功/失败都通过 callback 的第二个 bool 参数区分。
 
         auto& factory = FileParserFactory::instance();
         if (!factory.hasParser(format))
@@ -333,7 +333,7 @@ namespace Fio
         }
         factory.destroyParser(parser);
 
-        // parseToIR 返回空结果（entityCount == 0）视为解析失败，由调用方回退旧路径
+        // parseToIR 返回空结果（entityCount == 0）视为解析失败。
         if (result.entityCount == 0)
         {
             if (m_importCallback)
@@ -425,7 +425,7 @@ namespace Fio
             return false;
         }
 
-        // 旧版 write() 已内迁至 ILegacyWriter（FileIO.dll 内部接口）
+        // Writer 须实现 ILegacyWriter 接口以支持当前导出流程。
         ILegacyWriter* legacyWriter = dynamic_cast<ILegacyWriter*>(writer);
         if (!legacyWriter)
         {

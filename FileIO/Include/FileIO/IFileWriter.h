@@ -8,7 +8,7 @@
 
 namespace Fio
 {
-    // 旧版纯虚 write() 已随 WriteResult 内迁至 Src/Internal（ILegacyWriter），
+    // 纯虚 write() 已随 WriteResult 内迁至 Src/Internal（ILegacyWriter），
     // 不再经导出接口携带 STL 跨越 DLL 边界。
     class FILEIO_API IFileWriter
     {
