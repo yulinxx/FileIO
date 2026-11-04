@@ -13,7 +13,7 @@
 #include <sstream>
 #include <filesystem>
 
-// 临时保留的 Engine 转换（后续逐个 Parser 迁移后移除）
+// Engine 图元 → 内部 ParsedGeometry 的转换（仅 importFile 入口使用，Parser 迁移到 IR 后可移除）
 #include "Engine2D/SyEntity/SyLine.h"
 #include "Engine2D/SyEntity/SyArc.h"
 #include "Engine2D/SyEntity/SyCircle.h"

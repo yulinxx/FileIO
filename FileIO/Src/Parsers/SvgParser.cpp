@@ -43,7 +43,7 @@ namespace Fio
 {
     namespace
     {
-        // RAII wrapper for NSVGimage to ensure exception safety
+        // NSVGimage 的 RAII 包装，保证异常安全
         struct NsvgImageDeleter
         {
             void operator()(NSVGimage* image) const
@@ -61,7 +61,7 @@ namespace Fio
         // SVGZ 解压上限：防御 gzip 压缩炸弹，解压结果超过 64MB 即判定为异常输入并拒绝
         constexpr size_t MAX_DECOMPRESSED_BYTES = 64ull * 1024 * 1024;
 
-        // Decompress gzip data (for .svgz files)
+        // 解压 gzip 数据（用于 .svgz 文件）
         std::vector<char> decompressGzip(const std::vector<char>& compressedData)
         {
             std::vector<char> decompressed;
@@ -71,7 +71,7 @@ namespace Fio
             strm.zfree = Z_NULL;
             strm.opaque = Z_NULL;
 
-            // 15 + 16 = gzip decoding
+            // windowBits 取 15 + 16 表示 gzip 解码
             int ret = inflateInit2(&strm, 15 + 16);
             if (ret != Z_OK)
             {
@@ -128,14 +128,14 @@ namespace Fio
         }
 #endif  // FILEIO_HAS_ZLIB
 
-        // Check if data starts with gzip magic number (0x1f, 0x8b)
+        // 判断数据是否以 gzip 魔数（0x1f, 0x8b）开头
         bool isGzipData(const std::vector<char>& data)
         {
             return data.size() >= 2 && static_cast<unsigned char>(data[0]) == 0x1f &&
                 static_cast<unsigned char>(data[1]) == 0x8b;
         }
 
-        // Read file into memory
+        // 把文件读入内存
         std::vector<char> readFileContent(const std::filesystem::path& filePath)
         {
             std::ifstream file(filePath, std::ios::binary | std::ios::ate);
@@ -161,7 +161,7 @@ namespace Fio
             return buffer;
         }
 
-        // Extract SVG color from nanosvg paint, returns normalized RGB (0-1)
+        // 从 nanosvg paint 提取 SVG 颜色，返回归一化 RGB（0-1）
         // nanosvg 使用 NSVG_RGB 格式: r | (g<<8) | (b<<16)，即低字节是 R、高字节是 B
         Ut::Vec3f extractSvgColor(const NSVGpaint& paint)
         {
@@ -173,7 +173,7 @@ namespace Fio
                 float b = static_cast<float>((color >> 16) & 0xFF) / 255.0f;
                 return Ut::Vec3f(r, g, b);
             }
-            // For gradients or unknown types, return default color
+            // 渐变或未知类型返回默认色
             return Ut::Vec3f(0.0f, 0.0f, 0.0f);
         }
 
@@ -188,7 +188,7 @@ namespace Fio
                 (static_cast<uint32_t>(toByte(c.y())) << 8) | static_cast<uint32_t>(toByte(c.z()));
         }
 
-        // ===== SVG CSS <style> 类样式内联（优化版：单次遍历 + string_view 避免拷贝）=====
+        // ---- SVG CSS <style> 类样式内联（单次遍历 + string_view，避免拷贝） ----
         // nanosvg 不解析 <style> 中的 .class 规则，只认元素内联属性。大量（尤其 Illustrator
         // 导出）SVG 把颜色/描边放在 class 里，导致 nanosvg 看不到颜色 → 整图变黑。
         // 这里在交给 nanosvg 前，把 class 引用的样式内联成元素属性。
@@ -504,12 +504,9 @@ namespace Fio
             return out;
         }
 
-        // 点到线段距离（用于曲线扁平度估计）
-        // 注：保留贝塞尔曲线后不再需要把曲线离散为折线，此函数及 computeAdaptiveSegments 已移除。
-
-        // ========================================================================
-        // <text> / <image> 元素辅助工具（nanosvg 不解析这两个元素，需自行抽取）
-        // ========================================================================
+        // ----
+        // ---- <text> / <image> 元素辅助工具（nanosvg 不解析这两个元素，需自行抽取） ----
+        // ----
 
         std::string_view attrValue(
             const std::vector<std::pair<std::string_view, std::string_view>>& attrs, const std::string_view key)
@@ -702,7 +699,7 @@ namespace Fio
             return !out.empty();
         }
 
-        // 在编辑中：解码 XML/HTML 常见实体（&amp; &lt; &gt; &quot; &#39; 及数字/十六进制）。
+        // 解码 XML/HTML 常见实体（&amp; &lt; &gt; &quot; &#39; 及数字/十六进制）。
         void htmlEntityDecodeInplace(std::string& s)
         {
             const auto amp = s.find('&');
@@ -835,7 +832,7 @@ namespace Fio
 
         void parseFile(const std::string& filePath)
         {
-            // Read file content
+            // 读取文件内容
             std::filesystem::path fsPath = std::filesystem::u8path(filePath);
             std::vector<char> fileContent = readFileContent(fsPath);
 
@@ -845,7 +842,7 @@ namespace Fio
                 return;
             }
 
-            // Check if it's gzip compressed (.svgz)
+            // 判断是否为 gzip 压缩（.svgz）
             std::vector<char> svgData;
             if (isGzipData(fileContent))
             {
@@ -875,7 +872,7 @@ namespace Fio
                 svgData.assign(inlined.begin(), inlined.end());
             }
 
-            // Parse SVG from memory (null-terminated string)
+            // 从内存解析 SVG（要求以 '\0' 结尾）
             svgData.push_back('\0');
 
             // 预扫描 <g> 层级（nanosvg 会把群组层级压平，这里先建好 id→群组 映射）
@@ -888,7 +885,7 @@ namespace Fio
                 return;
             }
 
-            // Wrap in RAII pointer for exception safety
+            // 用 RAII 指针接管，保证异常安全
             NsvgImagePtr image(rawImage);
 
             size_t shapeCount = 0;
@@ -1027,8 +1024,8 @@ namespace Fio
         /// 单条 path 的段缓冲，逐路径复用容量，避免每条路径各分配一次
         std::vector<double> m_segBuf;
 
-        /// ARGB 颜色 → 图层 sourceId。O(1) 查找，取代原来对 m_outLayers 的线性扫描
-        /// （线性版在「每个 shape 一个图层」时是 O(shape²)）。
+        /// ARGB 颜色 → 图层 sourceId，O(1) 哈希查找。
+        /// 线性扫描 m_outLayers 在「每个 shape 一个图层」时是 O(shape²)，所以用哈希表。
         std::unordered_map<uint32_t, uint32_t> m_layerByColor;
         bool m_layerLimitWarned = false;
 
@@ -1038,9 +1035,9 @@ namespace Fio
         /// <image> 因解码失败/无内嵌数据而被跳过的次数（解析结束时统一汇总告警一次）
         int m_imageSkipped = 0;
 
-        // ========================================================================
-        // <g> 群组层级预扫描
-        // ========================================================================
+        // ----
+        // ---- <g> 群组层级预扫描 ----
+        // ----
 
         /// 查询某 id 对应的群组 sourceId；未登记返回 0（不属于任何群组）。
         uint64_t lookupGroupById(std::string_view id) const
@@ -1241,9 +1238,9 @@ namespace Fio
             }
         }
 
-        // ========================================================================
-        // <text> / <image> 抽取（nanosvg 不解析这两个元素）
-        // ========================================================================
+        // ----
+        // ---- <text> / <image> 抽取（nanosvg 不解析这两个元素） ----
+        // ----
 
         /// 遍历原始（CSS 已内联的）SVG 文本，处理所有 <text>/<image> 元素。
         void parsePendantElements(const char* data)
@@ -1676,13 +1673,11 @@ namespace Fio
             return Ut::Vec3f(0.0f, 0.0f, 0.0f);
         }
 
-        /// 把一条子路径（nanosvg 的一个 NSVGpath）聚合成**一个**图元。
-        ///
-        /// 旧实现是「每段三次贝塞尔一个图元」：一条 10 段的 path 产出 10 个图元，
-        /// 语义上选不中整条路径，落地阶段还要为每段各走一遍 clone / R-tree insert /
-        /// observer 通知，是导入慢的主要放大器。现在的规则：
+        /// 把一条子路径（nanosvg 的一个 NSVGpath）聚合成**一个**图元：
         ///   - ≥2 段 → EntityType::SmartLine（复合曲线），几何写进扩展数据块；
         ///   - 单段 → 直接产出 Line 或 Bezier，不套复合曲线容器（少一层间接）。
+        /// 按段拆图元会让一条 10 段的 path 变成 10 个图元，选中不了整条路径，落地阶段
+        /// 每段还要各走一遍 clone / R-tree insert / observer 通知，是导入变慢的主要原因。
         void convertPathToCompositeEntity(NSVGpath* svgPath,
             const Ut::Vec3f& shapeColor,
             uint32_t layerSourceId,
@@ -1883,11 +1878,11 @@ namespace Fio
         }
     };
 
-    // ========================================================================
-    // SvgParser::parseToIR() — 中立 IR 解析路径
+    // ----
+    // ---- SvgParser::parseToIR() — 中立 IR 解析路径 ----
     // SVG 子路径 → 一个图元（多段为 SmartLine 复合曲线，单段为 Line/Bezier），
     // 不离散为折线；不依赖 Engine2D 类型，跨 DLL 安全
-    // ========================================================================
+    // ----
     FioParseResult SvgParser::parseToIR(const char* filePath)
     {
         return parseToIRImpl(filePath, nullptr, nullptr);

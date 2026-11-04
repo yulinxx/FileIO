@@ -209,7 +209,7 @@ namespace Fio
     // DXF 里 CIRCLE / ARC / LWPOLYLINE / 2D POLYLINE / TEXT / SOLID 等图元的坐标记在
     // 「对象坐标系(OCS)」中，OCS 由挤出方向（extrusion，组码 210/220/230）确定。
     // 最常见的情形是挤出方向为 (0,0,-1)——AutoCAD 中镜像过的图元，此时 OCS 的 X 轴反向；
-    // 不做换算就会导入成左右颠倒，而且圆弧起止角也是反的。早先本解析器完全没读挤出方向。
+    // 不做换算就会导入成左右颠倒，而且圆弧起止角也是反的。
     //
     // 这里按 DXF 规范的 Arbitrary Axis Algorithm 求出 OCS 的 X/Y 轴，取它们的 XY 分量
     // 组成 2D 仿射矩阵。挤出方向为一般空间向量时，这等价于把 OCS 平面正投影到 WCS 的
@@ -270,7 +270,7 @@ namespace Fio
     }
 
     // DXF bulge（组码 42）= tan(包角/4)，表示「本顶点到下一顶点」这一段是圆弧。
-    // 这里只做参数搬运，不再在导入期细分成折线：顶点 + bulge 一起写进中立 IR，
+    // 这里只做参数搬运，不在导入期细分成折线：顶点 + bulge 一起写进中立 IR，
     // 由 Engine 的 SyPolygon 在渲染/查询时按当前缩放自适应重采样。
     // 这样放大多少倍，圆弧就有多精细，不会像导入期烘焙那样在极端放大下露出折线。
 
@@ -753,8 +753,8 @@ namespace Fio
 
         void addHeader(const DRW_Header* header) override
         {
-            // $INSUNITS 是图纸自身声明的单位。早先本回调是空实现，FioParseResult::sourceUnit
-            // 永远为空串，英制图纸导入后尺寸差 25.4 倍且无从察觉。
+            // $INSUNITS 是图纸自身声明的单位。sourceUnit 为空串时，英制图纸导入后
+            // 尺寸会差 25.4 倍且无从察觉，所以这里必须解析。
             if (header == nullptr)
             {
                 return;
@@ -798,9 +798,8 @@ namespace Fio
 
         // libdxfrw 的回调时序：BLOCKS 段里每个块先回调 addBlock()，随后该块内部的图元
         // 照常走 addLine/addCircle/... 回调，最后回调 endBlock()。
-        // 早先 addBlock/endBlock 都是空实现，于是**块定义里的图元被当成模型空间图元直接产出**：
-        // 未被引用的块也会画出来，被引用的块画两遍（定义一遍、引用一遍还没实现所以少一遍）。
-        // 这里改为在块定义期间把图元改道到块自己的缓冲区，只有 INSERT 才实例化。
+        // 块定义里的图元若直接产出，未被引用的块会画出来，被引用的块会画两遍。
+        // 因此块定义期间把图元改道到块自己的缓冲区，只有 INSERT 才实例化。
         void addBlock(const DRW_Block& block) override
         {
             BlockDef& def = m_blocks[block.name];
@@ -878,7 +877,7 @@ namespace Fio
 
         // 标注类图元（DIMENSION 的 7 种变体）都是由标注样式驱动、运行期生成几何的复合体，
         // 逐一还原成图元既不现实也无意义（切割不需要标注）。统一发 warning 而不是静默丢弃：
-        // 早先这些回调是空实现，用户完全看不出图纸里有内容没被导入。
+        // 静默丢弃会让用户完全看不出图纸里有内容没被导入。
         void addDimAlign(const DRW_DimAligned*) override
         {
             warnSkip("DIMENSION", "aligned dimension is not imported");
@@ -1179,7 +1178,7 @@ namespace Fio
                 }
             }
 
-            // flags 位 0 = 闭合。闭合与否早先没读，闭合轮廓会缺最后一段。
+            // flags 位 0 = 闭合；漏读它会让闭合轮廓缺最后一段。
             emitPolylineVerts(verts, bulges, (data.flags & 1) != 0, data, data.extPoint, "LWPOLYLINE");
         }
 
@@ -1256,8 +1255,8 @@ namespace Fio
             if (data->controllist.empty())
             {
                 // SPLINE 有两种写法：控制点式（含节点/权重）与拟合点式（只给曲线要过的点）。
-                // 早先只认控制点式，拟合点式的样条被整条丢弃。这里降级为过拟合点的折线：
-                // 精确还原需要做插值反解控制点，属于后续能力，先保证形状与数量不丢。
+                // 没有控制点时降级为过拟合点的折线：精确还原需要做插值反解控制点，
+                // 属于后续能力，先保证形状与数量不丢。
                 std::vector<double> verts;
                 verts.reserve(data->fitlist.size() * 2);
                 int skippedFitPts = 0;
@@ -2084,7 +2083,7 @@ namespace Fio
         const auto startTime = std::chrono::steady_clock::now();
 
         // 图元 / 图层 / 群组 / 扩展数据的缓冲区统一由 IrPublisher 持有（每线程一份），
-        // 解析器不再各自声明 thread_local 向量，跨 DLL 内存契约只在一处定义。
+        // 解析器不各自声明 thread_local 向量，跨 DLL 内存契约只在这一处定义。
         IrPublisher& pub = IrPublisher::threadLocal();
         pub.reset();
 
@@ -2134,7 +2133,7 @@ namespace Fio
             }
 
             // 图层在 addLayer 回调里就已登记进 pub，图元的 layerSourceId 也在产出当场解析完成，
-            // 因此这里不再需要「按图层名回填」的二次遍历。
+            // 因此这里无需「按图层名回填」的二次遍历。
             for (const auto& w : warnings)
             {
                 pub.warnings().push_back(w);

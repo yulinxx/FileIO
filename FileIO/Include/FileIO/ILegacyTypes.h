@@ -3,12 +3,11 @@
 // Legacy 解析/写入类型定义
 //
 // ParseResult/WriteResult/DxfLayerInfo 与 ILegacyParser::parse / ILegacyWriter::write
-// 原属 IFileParser.h / IFileWriter.h / FileIOError.h 的导出面，携带 STL 跨越 DLL 边界。
-// 现已整体内迁至此，仅 FileIO.dll 内部消费。
-// VecSyEntityPtr 兼容别名仍由公开头 IFileParser.h 提供（Main 侧使用），此处直接复用。
+// 携带 STL 类型，跨越 DLL 边界不安全，因此只在 FileIO.dll 内部消费。
+// VecSyEntityPtr 别名仍由公开头 IFileParser.h 提供（Main 侧使用），此处直接复用。
 //
 // 本头文件为公共头（Include/FileIO/），供导出类（DxfParser、NativeWriter 等）
-// 的头文件 include，消除 Src/Internal 从公共路径泄漏的层序问题。
+// 的头文件 include，避免 Src/Internal 路径从公共头泄漏。
 
 #include "FileIO/IFileParser.h"
 

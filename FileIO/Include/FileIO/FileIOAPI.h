@@ -1,13 +1,13 @@
 #pragma once
 
-// ============================================================================
-// FileIOAPI.h — DLL 导入/导出宏定义
+// ----
+// ---- FileIOAPI.h — DLL 导入/导出宏定义 ----
 //
 // 跨平台 / 跨编译器 DLL 导出约定:
 //   - FILEIO_API:   用于 C++ 类/函数导出 (__declspec / visibility)
 //   - FILEIO_C_API: 用于 extern "C" 函数导出 (C 调用约定 + 标准导出)
 //
-// 构建 DLL 时需定义 FILEIO_EXPORTS，本例已在 CMakeLists.txt 中通过
+// 构建 DLL 时需定义 FILEIO_EXPORTS，本模块的 CMakeLists.txt 已通过
 // target_compile_definitions(${LIB_NAME} PRIVATE ${LIB_EXPORT_MACRO}) 自动定义。
 //
 // Windows (MSVC / Clang-CL / MinGW):
@@ -17,7 +17,7 @@
 // Linux / macOS (GCC / Clang):
 //   - 使用 __attribute__((visibility("default"))) 控制可见性
 //   - 在构建时通过 -fvisibility=hidden 隐藏非导出符号
-// ============================================================================
+// ----
 
 // ---- 编译器/平台检测 ----
 #if defined(_WIN32) || defined(_WIN64)

@@ -4,12 +4,14 @@
 #include "Log/SyLogger.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <vector>
 
 #if defined(FILEIO_HAS_GEOMODELCORE) && defined(GMC_ENABLE_STEP_IO)
     #include "GeoModelCore/GeoModelDocument.h"
+    #include "GeoModelCore/GmcCutContour.h"
     #include "GeoModelCore/GmcProjection.h"
     #include "GeoModelCore/GmcTypes.h"
     #include "GeoModelCore/TopoShape.h"
@@ -58,41 +60,111 @@ namespace Fio
                 return FioParseResult{};
             }
 
-            const auto polylines = GeoModelCore::GmcProjection::projectTopView(*shape);
-            if (polylines.empty())
-            {
-                SY_WARNF("[StepParser] parseToIR: no projectable edges: %s", filePath);
-                return FioParseResult{};
-            }
-
-            pub.entities().reserve(polylines.size());
-            for (const auto& poly : polylines)
-            {
-                if (poly.points.size() < 2)
-                {
-                    continue;
-                }
-
-                // 收集顶点为 double 序列（x0,y0,x1,y1,...）
-                std::vector<double> verts;
-                verts.reserve(poly.points.size() * 2);
-                for (const auto& pt : poly.points)
-                {
-                    verts.push_back(pt.first);
-                    verts.push_back(pt.second);
-                }
-
+            // 统一发射：顶点按 x0,y0,x1,y1 顺序写入 extensionBlob
+            auto emitPolygon = [&](const std::vector<double>& verts, uint32_t pointCount, EntityType type) {
                 EntityInfo info{};
-                info.type = EntityType::Polyline;
+                info.type = type;
                 info.sourceId = static_cast<uint64_t>(pub.entities().size());
                 info.visible = true;
-                info.vertexCount = static_cast<uint32_t>(poly.points.size());
+                info.vertexCount = pointCount;
                 info.extensionDataOffset = static_cast<uint32_t>(pub.blob().size());
                 info.extensionDataSize = static_cast<uint32_t>(verts.size() * sizeof(double));
                 pub.blob().insert(pub.blob().end(),
                     reinterpret_cast<const uint8_t*>(verts.data()),
                     reinterpret_cast<const uint8_t*>(verts.data()) + info.extensionDataSize);
                 pub.entities().push_back(info);
+            };
+
+            // 轮廓抽取优先：闭环 + 内外环分类；失败时退回旧顶视图投影
+            bool usedContour = false;
+            int32_t openWireCount = 0;
+            int32_t skippedFaceCount = 0;
+            int32_t planeCount = 0;
+            int32_t closedLoopCount = 0;
+            const char* envSwitch = std::getenv("SANYI_STEP_CONTOUR");
+            const bool contourEnabled = !(envSwitch != nullptr && std::strcmp(envSwitch, "0") == 0);
+
+            if (contourEnabled)
+            {
+                GeoModelCore::GmcContourResult contourResult =
+                    GeoModelCore::GmcCutContour::extract(*shape);
+                planeCount = static_cast<int32_t>(contourResult.planes.size());
+                openWireCount = contourResult.openWireCount;
+                skippedFaceCount = contourResult.skippedFaceCount;
+                if (contourResult.status.ok && !contourResult.planes.empty())
+                {
+                    // 多高度板件取净面积最大的平面作为下料轮廓
+                    const GeoModelCore::GmcContourPlane* best = &contourResult.planes.front();
+                    for (const auto& plane : contourResult.planes)
+                    {
+                        if (plane.totalArea > best->totalArea)
+                        {
+                            best = &plane;
+                        }
+                    }
+                    for (const auto& loop : best->loops)
+                    {
+                        if (loop.points.size() < 2)
+                        {
+                            continue;
+                        }
+                        std::vector<double> verts;
+                        verts.reserve(loop.points.size() * 2);
+                        for (const auto& pt : loop.points)
+                        {
+                            verts.push_back(pt.x);
+                            verts.push_back(pt.y);
+                        }
+                        if (loop.closed)
+                        {
+                            emitPolygon(verts, static_cast<uint32_t>(loop.points.size()), EntityType::Polygon);
+                            ++closedLoopCount;
+                        }
+                        else
+                        {
+                            emitPolygon(verts, static_cast<uint32_t>(loop.points.size()), EntityType::Polyline);
+                        }
+                    }
+                    usedContour = !pub.entities().empty();
+                }
+                if (!usedContour)
+                {
+                    SY_WARNF("[StepParser] contour extract fallback: code=%d msg=%s skipped=%d open=%d planes=%d",
+                        contourResult.status.code, contourResult.status.message,
+                        skippedFaceCount, openWireCount, planeCount);
+                }
+            }
+
+            if (!usedContour)
+            {
+                const auto polylines = GeoModelCore::GmcProjection::projectTopView(*shape);
+                if (polylines.empty())
+                {
+                    SY_WARNF("[StepParser] parseToIR: no projectable edges: %s", filePath);
+                    return FioParseResult{};
+                }
+
+                pub.entities().reserve(polylines.size());
+                for (const auto& poly : polylines)
+                {
+                    if (poly.points.size() < 2)
+                    {
+                        continue;
+                    }
+                    std::vector<double> verts;
+                    verts.reserve(poly.points.size() * 2);
+                    for (const auto& pt : poly.points)
+                    {
+                        verts.push_back(pt.first);
+                        verts.push_back(pt.second);
+                    }
+                    emitPolygon(verts, static_cast<uint32_t>(poly.points.size()), EntityType::Polyline);
+                }
+            }
+            else
+            {
+                SY_INFOF("[StepParser] contour extract: planes=%d closedLoops=%d openWires=%d skippedFaces=%d",
+                    planeCount, closedLoopCount, openWireCount, skippedFaceCount);
             }
 
             if (pub.entities().empty())

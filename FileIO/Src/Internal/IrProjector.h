@@ -1,30 +1,23 @@
 #pragma once
 
-// ============================================================================
-// IrProjector —— FileIO 内部 IR 到跨 DLL IR 的**唯一**投影点
+// ----
+// ---- IrProjector —— FileIO 内部 IR 到跨 DLL IR 的**唯一**投影点 ----
 //
-// 背景：
-//   在此之前，每个解析器都自己声明一组 `thread_local std::vector<...>` 缓冲区，
-//   自己拼 FioParseResult，自己决定 sourceFormat / sourceUnit 填不填。结果是
-//   同一套内存契约被复制了 6 份、群组通道没人填、单位口径各写各的。
-//
-// 本文件把这件事收敛成两个入口，2D / 3D 解析器共用同一套语义：
-//
-//   1. IrPublisher —— 缓冲区持有者 + 发布器。
-//      适用于「直接构造 EntityInfo」的解析器（DXF / SVG / PLT / STL / STEP / IGES）。
-//      解析器向 entities()/layers()/groups()/blob() 追加数据，最后调用 publish()
-//      拿到 FioParseResult。所有 thread_local 缓冲区只在本文件里声明一次。
-//
-//   2. IrProjector::project —— ParseData → FioParseResult 的结构化投影。
-//      适用于产出内部富 IR（ParsedGeometry 树）的解析器（OBJ / 未来的 SVG 重构）。
-//      内部同样走 IrPublisher，因此两条路的内存契约完全一致。
+// 本文件提供两个入口，2D / 3D 解析器共用同一套语义：
+//   1. IrPublisher —— 缓冲区持有者 + 发布器，适用于「直接构造 EntityInfo」的解析器
+//      （DXF / SVG / PLT / STL / STEP / IGES）。解析器向 entities()/layers()/groups()/blob()
+//      追加数据，最后调用 publish() 拿到 FioParseResult。所有 thread_local 缓冲区只在
+//      本文件里声明一次，避免各解析器各复制一份内存契约。
+//   2. IrProjector::project —— ParseData → FioParseResult 的结构化投影，适用于产出内部
+//      富 IR（ParsedGeometry 树）的解析器（OBJ 等）。内部同样走 IrPublisher，
+//      因此两条路的内存契约完全一致。
 //
 // 内存契约（与 FioTypes.h 中 FioParseResult 的注释必须保持一致）：
 //   - 返回的 FioParseResult 里所有指针都指向本文件的 thread_local 缓冲区；
 //   - 调用方只读、绝不释放；
 //   - 有效期到「同一线程下一次调用任意解析入口」为止；
 //   - 每个线程一套缓冲区，因此并发解析（每线程一个文件）是安全的。
-// ============================================================================
+// ----
 
 #include "FileIO/FioTypes.h"
 #include "ParsedGeometry.h"

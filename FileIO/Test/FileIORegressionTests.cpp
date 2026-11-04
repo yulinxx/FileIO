@@ -28,7 +28,7 @@
 #include <filesystem>
 #include <fstream>
 
-// ==================== 文件格式检测 ====================
+// ---- 文件格式检测 ----
 
 TEST(FileIORegressionTest, DetectFormat_DxfExtension)
 {
@@ -65,7 +65,7 @@ TEST(FileIORegressionTest, DetectFormat_NoExtension)
     EXPECT_EQ(format, Fio::FileFormat::Unknown);
 }
 
-// ==================== FileImporter 空状态行为 ====================
+// ---- FileImporter 空状态行为 ----
 
 TEST(FileIORegressionTest, FileImporter_EmptyStateDefault)
 {
@@ -100,7 +100,7 @@ TEST(FileIORegressionTest, FileImporter_ReopenAfterFailure)
     EXPECT_EQ(importer.EntityCount(), 0);
 }
 
-// ==================== 序列化错误处理 ====================
+// ---- 序列化错误处理 ----
 
 TEST(FileIORegressionTest, Serialization_DeserializeEmptyData)
 {
@@ -126,7 +126,7 @@ TEST(FileIORegressionTest, Serialization_DeserializeCorruptedData)
     EXPECT_FALSE(result.success);
 }
 
-// ==================== 文档有效性检查 ====================
+// ---- 文档有效性检查 ----
 
 TEST(FileIORegressionTest, SyDocument_DefaultIsEmpty)
 {
@@ -143,7 +143,7 @@ TEST(FileIORegressionTest, SyDocument_MoveSemantics)
     EXPECT_TRUE(doc.entityCount() == 0);
 }
 
-// ==================== 格式枚举完整性 ====================
+// ---- 格式枚举完整性 ----
 
 TEST(FileIORegressionTest, FileFormat_AllFormatsDistinct)
 {
@@ -164,7 +164,7 @@ TEST(FileIORegressionTest, FileFormat_AllFormatsDistinct)
     EXPECT_EQ(it, values.end());
 }
 
-// ==================== 文件级序列化闭环 ====================
+// ---- 文件级序列化闭环 ----
 
 TEST(FileIORegressionTest, SaveLoadFile_RoundTrip)
 {
@@ -222,7 +222,7 @@ TEST(FileIORegressionTest, SaveToInvalidPath)
     EXPECT_TRUE(result.errorMessage[0] != '\0');
 }
 
-// ==================== 导入导出端到端测试 ====================
+// ---- 导入导出端到端测试 ----
 
 TEST(FileIORegressionTest, MultipleLayersRoundTrip)
 {
@@ -387,7 +387,7 @@ TEST(FileIORegressionTest, FileIOManager_FormatDetection_AllFormats)
     }
 }
 
-// ==================== 序列化一致性测试 ====================
+// ---- 序列化一致性测试 ----
 
 TEST(FileIORegressionTest, Serialization_Idempotent)
 {
@@ -431,7 +431,7 @@ TEST(FileIORegressionTest, Serialization_EmptyDocumentIsValid)
     EXPECT_GT(query.written, 0u);  // 空文档也能序列化出有效数据
 }
 
-// ==================== IGES (UG) 导入解析测试 ====================
+// ---- IGES (UG) 导入解析测试 ----
 
 namespace
 {
@@ -489,9 +489,8 @@ namespace
 
 TEST(FileIORegressionTest, IgesParser_LineArcPoint)
 {
-    // 临时文件必须用 std::filesystem::temp_directory_path() 取系统临时目录。
-    // 原先硬编码 "/tmp/..." 在 Windows 上不存在，fopen 直接失败、路径返回空，
-    // 用例在 Windows 上从来没真正跑过解析逻辑（本文件其余用例已用此写法）。
+    // 临时文件必须用 std::filesystem::temp_directory_path() 取系统临时目录：
+    // 硬编码 "/tmp/..." 在 Windows 上不存在，fopen 会失败并返回空路径。
     const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_iges_test.igs";
     const std::string path = writeMinimalIgesFile(tempFile.string());
     ASSERT_FALSE(path.empty());
@@ -526,10 +525,10 @@ TEST(FileIORegressionTest, IgesParser_LineArcPoint)
     EXPECT_DOUBLE_EQ(result.entities[2].line.y1, 5.0);
 }
 
-// ==================== SVG 解析 ====================
+// ---- SVG 解析 ----
 
-// 带 <style> class 的自闭合标签（<path class="st0" .../>）曾让 class 内联的属性扫描
-// 停在标签末尾的 '/' 上不再前进，导入表现为长时间无响应（死循环）。
+// class 内联的属性扫描必须跳过自闭合标签末尾的 '/'：若停在该字符上不再前进，
+// 导入会长时间无响应（死循环），此处用用例守住该缺陷。
 // 用例同时校验 class 样式确实被内联成了元素属性（fill / stroke 颜色可见）。
 TEST(FileIORegressionTest, SvgParser_SelfClosingClassTagDoesNotHang)
 {

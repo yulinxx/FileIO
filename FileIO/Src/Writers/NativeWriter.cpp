@@ -10,11 +10,11 @@
 
 namespace Fio
 {
-    // ============================================================
-    // NativeWriter::Impl —— PIMPL 隐藏实现细节
+    // ----
+    // ---- NativeWriter::Impl —— PIMPL 隐藏实现细节 ----
     //
     // 持有 SySerializer 实例，按目标格式选择魔数和软件名称。
-    // ============================================================
+    // ----
     class NativeWriter::Impl
     {
     public:
@@ -40,9 +40,9 @@ namespace Fio
         }
     };
 
-    // ============================================================
-    // 构造 / 析构
-    // ============================================================
+    // ----
+    // ---- 构造 / 析构 ----
+    // ----
 
     NativeWriter::NativeWriter(FileFormat fmt)
         : m_impl(std::make_unique<Impl>(fmt))
@@ -60,9 +60,9 @@ namespace Fio
         m_impl->progressCtx = ctx;
     }
 
-    // ============================================================
-    // IFileWriter 接口
-    // ============================================================
+    // ----
+    // ---- IFileWriter 接口 ----
+    // ----
 
     FileFormat NativeWriter::format() const
     {
@@ -82,12 +82,12 @@ namespace Fio
         return copyToBuffer(buffer, bufferSize, ext);
     }
 
-    // ============================================================
-    // ILegacyWriter 接口（兼容旧路径）
+    // ----
+    // ---- ILegacyWriter 接口 ----
     //
     // 仅处理 2D 图元，适用于不区分 2D/3D 的调用方。
-    // 3D 场景推荐使用 writeDocument() 传入完整 SyDocument。
-    // ============================================================
+    // 3D 场景使用 writeDocument() 传入完整 SyDocument。
+    // ----
 
     WriteResult NativeWriter::write(const char* filePath, const VecSyEntityPtr& entities)
     {
@@ -114,14 +114,14 @@ namespace Fio
         return writeDocument(filePath, doc);
     }
 
-    // ============================================================
-    // 完整文档写入（推荐路径）
+    // ----
+    // ---- 完整文档写入（推荐路径） ----
     //
     // 支持同时保存 2D 图元和 3D 网格。
     // SySerializer 根据目标格式自动选择魔数：
     //   - FileFormat::Native  → "SYPB"
     //   - FileFormat::Native3D → "SXPB"
-    // ============================================================
+    // ----
 
     WriteResult NativeWriter::writeDocument(const char* filePath, const SyDocument& doc)
     {

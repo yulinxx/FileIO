@@ -56,7 +56,7 @@ namespace Fio
             return m_svgImportFillAsOutline;
         }
 
-        // ==================== 导入 ====================
+        // ---- 导入 ----
         // 成功返回 true，*outEntities 指向 FileIO 分配的图元数组，*outCount 为个数。
         // 错误消息写入 errorBuffer（尽力截断 + '\0'）。
         bool importFile(const char* filePath,
@@ -84,8 +84,8 @@ namespace Fio
             char* errorBuffer,
             size_t errorBufferSize);
 
-        // ==================== IR 导入（中立 POD 路径） ====================
-        // 新版导入：输出中立 IR（FioParseResult），不实例化 Engine 对象。
+        // ---- IR 导入（中立 POD 路径） ----
+        // 输出中立 IR（FioParseResult），不实例化 Engine 对象。
         // 调用方通过 FioEntityConverter（Main 层）将 IR 转换为领域对象。
         //
         // 注意：FioParseResult 内的指针指向解析器内部缓冲区，仅在本函数返回后
@@ -106,7 +106,7 @@ namespace Fio
         // 仅释放数组本身（图元所有权已由调用方接管时使用）
         static void freeEntityArray(Eg::SyEntity** entities);
 
-        // ==================== 导出 ====================
+        // ---- 导出 ----
         // 图元以裸指针数组传入（借用，不转移所有权）。
         bool exportFile(const char* filePath,
             FileFormat format,
@@ -121,7 +121,7 @@ namespace Fio
             char* errorBuffer,
             size_t errorBufferSize);
 
-        // ==================== 查询 ====================
+        // ---- 查询 ----
         FileFormat detectFormat(const char* filePath) const;
 
         // 扩展名列表写入 buffer（空格分隔），返回所需长度（不含结尾 '\0'）

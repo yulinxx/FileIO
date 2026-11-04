@@ -99,7 +99,7 @@ namespace Fio
                 ? "#000000"
                 : colorToHex(Ut::Vec3f(entityColor.r(), entityColor.g(), entityColor.b()));
             const std::string attrs =
-                "fill=\"none\" stroke=\"" + stroke + "\" stroke-width=\"2\"";  // Increased stroke width for visibility
+                "fill=\"none\" stroke=\"" + stroke + "\" stroke-width=\"2\"";  // 加大线宽以保证可见性
 
             switch (entity->eType)
             {
@@ -138,10 +138,9 @@ namespace Fio
                 const double ex = arc->basePoint.x() + arc->dRadius * std::cos(arc->dEndAngle);
                 const double ey = arc->basePoint.y() + arc->dRadius * std::sin(arc->dEndAngle);
 
-                // Y-axis is flipped in SVG (offsetY - y), so sweep direction is reversed
-                // Original: positive sweep = counterclockwise
-                // After Y-flip: counterclockwise becomes clockwise visually
-                // SVG sweep flag: 0 = counterclockwise, 1 = clockwise
+                // SVG 中 Y 轴是翻转的（offsetY - y），所以扫掠方向相反：
+                // 角度增量为正表示逆时针，Y 翻转后视觉上变成顺时针。
+                // SVG sweep flag：0 = 逆时针，1 = 顺时针。
                 const int sweepFlag = (sweep >= 0) ? 0 : 1;
 
                 body << "<path " << attrs << " d=\"M " << (sx + offsetX) << ' ' << (offsetY - sy) << " A "
@@ -277,7 +276,7 @@ namespace Fio
                         const double sy = arc->basePoint.y() + arc->dRadius * std::sin(arc->dStartAngle);
                         const double ex = arc->basePoint.x() + arc->dRadius * std::cos(arc->dEndAngle);
                         const double ey = arc->basePoint.y() + arc->dRadius * std::sin(arc->dEndAngle);
-                        // Y-axis is flipped, so sweep direction is reversed
+                        // Y 轴翻转，扫掠方向相反
                         body << "<path " << attrs << " d=\"M " << (sx + offsetX) << ' ' << (offsetY - sy) << " A "
                              << arc->dRadius << ' ' << arc->dRadius << " 0 " << largeArc << ' ' << (sweep >= 0 ? 0 : 1)
                              << ' ' << (ex + offsetX) << ' ' << (offsetY - ey) << "\"/>\n";

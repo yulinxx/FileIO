@@ -5,7 +5,7 @@
 #include <string>
 #include <filesystem>
 
-// ==================== FileImporter 构造与析构 ====================
+// ---- FileImporter 构造与析构 ----
 
 TEST(FileImporterTest, DefaultConstruction)
 {
@@ -21,7 +21,7 @@ TEST(FileImporterTest, DestructorDoesNotCrash)
     delete importer;
 }
 
-// ==================== 文件打开与错误处理 ====================
+// ---- 文件打开与错误处理 ----
 
 TEST(FileImporterTest, OpenNonExistentFile)
 {
@@ -54,7 +54,7 @@ TEST(FileImporterTest, OpenDirectoryPath)
     EXPECT_FALSE(ok);
 }
 
-// ==================== 逐条查询接口（空状态） ====================
+// ---- 逐条查询接口（空状态） ----
 
 TEST(FileImporterTest, GetLayerOutOfRange)
 {
@@ -86,7 +86,7 @@ TEST(FileImporterTest, GetEntityNullOutput)
     EXPECT_FALSE(ok);
 }
 
-// ==================== Blob 接口 ====================
+// ---- Blob 接口 ----
 
 TEST(FileImporterTest, ExportBlobOnEmptyImporter)
 {
@@ -110,7 +110,7 @@ TEST(FileImporterTest, FreeEmptyBlob)
     EXPECT_EQ(blob.size, 0u);
 }
 
-// ==================== Open + 重新 Open 的幂等性 ====================
+// ---- Open + 重新 Open 的幂等性 ----
 
 TEST(FileImporterTest, OpenAfterFailedOpenResetsState)
 {
@@ -122,7 +122,7 @@ TEST(FileImporterTest, OpenAfterFailedOpenResetsState)
     EXPECT_EQ(entityCount, 0);
 }
 
-// ==================== FileFormat 枚举 ====================
+// ---- FileFormat 枚举 ----
 
 TEST(FileFormatTest, KnownFormatsAreUnique)
 {

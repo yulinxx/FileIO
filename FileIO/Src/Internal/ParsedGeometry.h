@@ -9,7 +9,7 @@
 namespace Fio
 {
 
-    // ===================== 基础类型 =====================
+    // ---- 基础类型 ----
 
     struct ParsedPoint2D
     {
@@ -21,7 +21,7 @@ namespace Fio
         double x = 0, y = 0, z = 0;
     };
 
-    // ===================== 图元类型枚举 =====================
+    // ---- 图元类型枚举 ----
 
     enum class ParsedGeometryType
     {
@@ -45,7 +45,7 @@ namespace Fio
         Unknown
     };
 
-    // ===================== 图层信息 =====================
+    // ---- 图层信息 ----
 
     struct ParsedLayer
     {
@@ -56,7 +56,7 @@ namespace Fio
         bool locked = false;
     };
 
-    // ===================== 群组信息 =====================
+    // ---- 群组信息 ----
 
     struct ParsedGroup
     {
@@ -71,7 +71,7 @@ namespace Fio
     };
 
 
-    // ===================== 图元数据 =====================
+    // ---- 图元数据 ----
 
     struct ParsedGeometry
     {
@@ -173,7 +173,7 @@ namespace Fio
         } mesh;
     };
 
-    // ===================== 文档元信息 =====================
+    // ---- 文档元信息 ----
 
     struct ParsedMetadata
     {
@@ -185,7 +185,7 @@ namespace Fio
         std::map<std::string, std::string> customProperties;
     };
 
-    // ===================== 完整解析结果 =====================
+    // ---- 完整解析结果 ----
 
     struct ParseData
     {

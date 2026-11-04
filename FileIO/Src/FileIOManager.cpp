@@ -113,7 +113,7 @@ namespace Fio
             *outLayerCount = 0;
         }
 
-        // [防御性编程] 文件路径空指针检查
+        // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
             SY_ERROR("[FileIO] importFile: invalid file path (null or empty)");
@@ -125,13 +125,12 @@ namespace Fio
             return false;
         }
 
-        // Import file entry point
         if (format == FileFormat::STEP)
         {
-            // STEP import
+            // STEP 导入
         }
 
-        // 移除操作开始前的"成功"回调，仅在操作完成后触发。
+        // 回调仅在操作完成后触发，成功/失败由第二个 bool 参数区分。
 
         auto& factory = FileParserFactory::instance();
         if (!factory.hasParser(format))
@@ -227,7 +226,7 @@ namespace Fio
     bool FileIOManager::importFile(
         const char* filePath, Eg::SyEntity*** outEntities, size_t* outCount, char* errorBuffer, size_t errorBufferSize)
     {
-        // [防御性编程] 文件路径空指针检查
+        // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
             writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
@@ -257,7 +256,7 @@ namespace Fio
             *outResult = FioParseResult{};
         }
 
-        // [防御性编程] 文件路径空指针检查
+        // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
             SY_ERROR("[FileIO] importToIR: invalid file path (null or empty)");
@@ -268,11 +267,6 @@ namespace Fio
             }
             return false;
         }
-
-        // Import to IR entry point
-
-        // 移除操作开始前的"成功"回调。回调仅在操作完成后触发，
-        // 成功/失败都通过 callback 的第二个 bool 参数区分。
 
         auto& factory = FileParserFactory::instance();
         if (!factory.hasParser(format))
@@ -387,9 +381,7 @@ namespace Fio
         char* errorBuffer,
         size_t errorBufferSize)
     {
-        // Export file entry point
-
-        // [防御性编程] 文件路径空指针检查
+        // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
             SY_ERROR("[FileIO] exportFile: invalid file path (null or empty)");
@@ -401,7 +393,7 @@ namespace Fio
             return false;
         }
 
-        // 移除操作开始前的"成功"回调，仅在操作完成后触发。
+        // 回调仅在操作完成后触发，成功/失败由第二个 bool 参数区分。
 
         auto& factory = FileWriterFactory::instance();
         if (!factory.hasWriter(format))
@@ -488,7 +480,7 @@ namespace Fio
         char* errorBuffer,
         size_t errorBufferSize)
     {
-        // [防御性编程] 文件路径空指针检查
+        // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
             writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");

@@ -11,9 +11,9 @@
 
 namespace Fio
 {
-    // ============================================================
-    // NativeParser::Impl —— PIMPL 隐藏实现细节
-    // ============================================================
+    // ----
+    // ---- NativeParser::Impl —— PIMPL 隐藏实现细节 ----
+    // ----
     class NativeParser::Impl
     {
     public:
@@ -29,9 +29,9 @@ namespace Fio
         SySerializer serializer;
     };
 
-    // ============================================================
-    // 构造 / 析构
-    // ============================================================
+    // ----
+    // ---- 构造 / 析构 ----
+    // ----
 
     NativeParser::NativeParser(FileFormat fmt)
         : m_impl(std::make_unique<Impl>(fmt))
@@ -43,9 +43,9 @@ namespace Fio
 
     NativeParser::~NativeParser() = default;
 
-    // ============================================================
-    // IFileParser 接口
-    // ============================================================
+    // ----
+    // ---- IFileParser 接口 ----
+    // ----
 
     FileFormat NativeParser::format() const
     {
@@ -76,12 +76,12 @@ namespace Fio
         }
     }
 
-    // ============================================================
-    // ILegacyParser 接口（兼容旧路径）
+    // ----
+    // ---- ILegacyParser 接口 ----
     //
     // 仅返回 2D 图元，适用于不区分 2D/3D 的调用方。
-    // 3D 场景推荐使用 parseDocument() 获取完整 SyDocument。
-    // ============================================================
+    // 3D 场景使用 parseDocument() 获取完整 SyDocument。
+    // ----
 
     ParseResult NativeParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
     {
@@ -109,12 +109,12 @@ namespace Fio
         return result;
     }
 
-    // ============================================================
-    // 完整文档读取（推荐路径）
+    // ----
+    // ---- 完整文档读取（推荐路径） ----
     //
     // 支持同时读取 2D 图元和 3D 网格。
     // SySerializer 根据文件头魔数自动检测格式。
-    // ============================================================
+    // ----
 
     ParseResult NativeParser::parseDocument(const char* filePath, SyDocument& outDoc)
     {
