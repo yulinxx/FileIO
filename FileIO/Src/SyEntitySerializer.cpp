@@ -15,6 +15,10 @@
 #include "Engine2D/SyEntity/SyText.h"
 #include "Engine3D/SyEntity/SyMeshEntity.h"
 #include "Engine/Layer/SyLayer.h"
+#include "Engine/SyEntity/SyEntity.h"
+#include "Engine2D/SyEntity/SyFillRegion.h"
+#include "Ut/Color.h"
+#include "ColorArgbUtils.h"
 
 namespace Fio
 {
@@ -58,6 +62,8 @@ namespace Fio
                 return sanyi::proto::ENTITY_MESH;
             case Eg::EType::GROUP:
                 return sanyi::proto::ENTITY_GROUP;
+            case Eg::EType::FILL_REGION:
+                return sanyi::proto::ENTITY_FILL_REGION;
             default:
                 return sanyi::proto::ENTITY_UNKNOWN;
             }
@@ -101,6 +107,8 @@ namespace Fio
                 return Eg::EType::MESH;
             case sanyi::proto::ENTITY_GROUP:
                 return Eg::EType::GROUP;
+            case sanyi::proto::ENTITY_FILL_REGION:
+                return Eg::EType::FILL_REGION;
             default:
                 return Eg::EType::UNKNOWN;
             }
@@ -128,6 +136,9 @@ namespace Fio
         {
             return Ut::Vec3f(p.x(), p.y(), p.z());
         }
+
+        // 颜色的 ARGB 编解码放在 Internal/ColorArgbUtils.h 中统一提供：
+        // unity build 会把多个 cpp 合并进同一翻译单元，各写一份会重复定义。
     }  // namespace
 
     void SyEntitySerializer::serializeEntity(const Eg::SyEntity& entity, sanyi::proto::EntityData* out)
@@ -152,6 +163,12 @@ namespace Fio
         out->set_name(entity.name());
         out->set_visible(entity.visible());
         out->set_locked(entity.locked());
+        // 覆盖色（含 alpha）：仅当图元本来就有覆盖色时写 optional 字段；
+        // 缺失表示跟随图层颜色，与旧文件语义一致
+        if (const auto override = entity.overrideColor(); override.has_value())
+        {
+            out->set_override_argb(detail::colorToArgb(*override));
+        }
 
         switch (entity.eType)
         {
@@ -318,6 +335,26 @@ namespace Fio
             toProtoVec2(img->topRight, data->mutable_top_right());
             toProtoVec2(img->bottomLeft, data->mutable_bottom_left());
             toProtoVec2(img->bottomRight, data->mutable_bottom_right());
+            break;
+        }
+
+        case Eg::EType::FILL_REGION:
+        {
+            // 跨 DLL 只使用 POD 访问器读取三角形顶点流与来源 ID
+            const auto* fill = static_cast<const Eg::SyFillRegion*>(&entity);
+            auto* data = out->mutable_fill_region_data();
+            const size_t vertexCount = fill->vertexCount();
+            data->mutable_vertices()->Reserve(static_cast<int>(vertexCount));
+            for (size_t i = 0; i < vertexCount; ++i)
+            {
+                toProtoVec2(fill->vertices()[i], data->add_vertices());
+            }
+            const size_t sourceCount = fill->sourceCount();
+            data->mutable_source_ids()->Reserve(static_cast<int>(sourceCount));
+            for (size_t i = 0; i < sourceCount; ++i)
+            {
+                data->add_source_ids(static_cast<uint64_t>(fill->sources()[i]));
+            }
             break;
         }
 
@@ -617,6 +654,40 @@ namespace Fio
             break;
         }
 
+        case Eg::EType::FILL_REGION:
+        {
+            auto fill = std::make_unique<Eg::SyFillRegion>();
+            if (protoEntity.has_fill_region_data())
+            {
+                const auto& fd = protoEntity.fill_region_data();
+                const int vertexSize = fd.vertices_size();
+                if (vertexSize > 0)
+                {
+                    std::vector<Ut::Vec2d> pts;
+                    pts.reserve(static_cast<size_t>(vertexSize));
+                    for (int j = 0; j < vertexSize; ++j)
+                    {
+                        pts.push_back(fromProtoVec2(fd.vertices(j)));
+                    }
+                    // 跨 DLL 通过 POD 访问器设置顶点流
+                    fill->setVertices(pts.data(), pts.size());
+                }
+                const int sourceSize = fd.source_ids_size();
+                if (sourceSize > 0)
+                {
+                    std::vector<Eg::EntityId> ids;
+                    ids.reserve(static_cast<size_t>(sourceSize));
+                    for (int j = 0; j < sourceSize; ++j)
+                    {
+                        ids.push_back(static_cast<Eg::EntityId>(fd.source_ids(j)));
+                    }
+                    fill->setSources(ids.data(), ids.size());
+                }
+            }
+            result = std::move(fill);
+            break;
+        }
+
         case Eg::EType::MESH:
         {
             // 3D 网格图元反序列化：顶点、法线、材质属性
@@ -675,6 +746,12 @@ namespace Fio
             if (protoEntity.has_locked())
             {
                 result->setLocked(protoEntity.locked());
+            }
+            // 覆盖色：旧文件没有该字段 → 保持跟随图层色；
+            // 存在时恢复覆盖色（含 alpha，历史零值按不透明兜底）
+            if (protoEntity.has_override_argb())
+            {
+                result->setOverrideColor(detail::argbToColor(protoEntity.override_argb()));
             }
 
             // 回填包围盒缓存，跳过 computeBBox()。

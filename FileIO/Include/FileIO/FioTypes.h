@@ -6,8 +6,8 @@
 
 #include "FileIO/FileIOAPI.h"
 
-// ============================================================================
-// FioTypes.h — 跨 DLL 边界的中立 POD 类型
+// ----
+// ---- FioTypes.h — 跨 DLL 边界的中立 POD 类型 ----
 //
 // 设计原则：
 //   1. 所有类型均为纯 POD，不含 std::vector / std::string / std::unique_ptr
@@ -22,14 +22,13 @@
 // 目标架构：
 //   FileIO（解析器） → ParseData（中立 IR） → Engine（SyEntity 转换）
 //
-// 当前状态：
-//   VecSyEntityPtr（IFileParser.h）仍直接暴露 Engine 类型，
-//   属于已知的 ABI 技术债，后续逐步迁移到 ParseData 体系。
-// ============================================================================
+// 已知技术债：
+//   VecSyEntityPtr（IFileParser.h）直接暴露 Engine 类型，将逐步迁移到 ParseData 体系。
+// ----
 
 namespace Fio
 {
-    // ===== 基础枚举与 POD 结构 =====
+    // ---- 基础枚举与 POD 结构 ----
 
     /// 解析进度回调（跨 DLL 安全，C 函数指针 + 不透明上下文）。
     ///
@@ -284,7 +283,7 @@ namespace Fio
         size_t written = 0;
     };
 
-    // ===== 中立 IR 层：FioParseResult =====
+    // ---- 中立 IR 层：FioParseResult ----
 
     /// 解析结果（中立 IR，不含任何 Engine 类型）
     /// 这是 FileIO 解析器对外的标准输出格式

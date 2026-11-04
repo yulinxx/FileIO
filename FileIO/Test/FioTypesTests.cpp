@@ -2,7 +2,7 @@
 #include "FileIO/FioTypes.h"
 #include <type_traits>
 
-// ==================== POD 合规性验证 ====================
+// ---- POD 合规性验证 ----
 
 TEST(FioTypesTest, IrLayerInfoIsPOD)
 {
@@ -22,7 +22,7 @@ TEST(FioTypesTest, BinaryBlobIsPOD)
     EXPECT_TRUE(std::is_standard_layout_v<Fio::BinaryBlob>);
 }
 
-// ==================== IrLayerInfo 默认构造 ====================
+// ---- IrLayerInfo 默认构造 ----
 
 TEST(IrLayerInfoTest, DefaultValues)
 {
@@ -59,7 +59,7 @@ TEST(IrLayerInfoTest, CopyAssignment)
     EXPECT_EQ(std::string(b.name), "TestLayer");
 }
 
-// ==================== EntityInfo 默认构造 ====================
+// ---- EntityInfo 默认构造 ----
 
 TEST(EntityInfoTest, DefaultValues)
 {
@@ -171,7 +171,7 @@ TEST(EntityInfoTest, BezierGeometry)
     EXPECT_DOUBLE_EQ(entity.bezier.ey, 0.0);
 }
 
-// ==================== EntityType 枚举 ====================
+// ---- EntityType 枚举 ----
 
 TEST(EntityTypeTest, EnumValues)
 {
@@ -182,7 +182,7 @@ TEST(EntityTypeTest, EnumValues)
     EXPECT_NE(static_cast<int>(Fio::EntityType::Unknown), static_cast<int>(Fio::EntityType::Mesh3D));
 }
 
-// ==================== BinaryBlob ====================
+// ---- BinaryBlob ----
 
 TEST(BinaryBlobTest, DefaultValues)
 {
@@ -195,12 +195,12 @@ TEST(BinaryBlobTest, CopyAssignment)
 {
     uint8_t dummyData[] = { 0x01, 0x02, 0x03 };
     Fio::BinaryBlob a{ dummyData, 3 };
-    Fio::BinaryBlob b = a;  // shallow POD copy — intentional
+    Fio::BinaryBlob b = a;  // 浅拷贝是刻意行为：只复制指针与长度
     EXPECT_EQ(b.data, dummyData);
     EXPECT_EQ(b.size, 3u);
 }
 
-// ==================== 跨 DLL 安全验证 ====================
+// ---- 跨 DLL 安全验证 ----
 
 TEST(FioTypesTest, IrLayerInfoSize)
 {
@@ -208,7 +208,7 @@ TEST(FioTypesTest, IrLayerInfoSize)
     //
     // 布局：uint32_t(4) + char[256](256) + uint32_t(4) + bool(1) + bool(1) = 266 + padding
     //
-    // ⚠️ 这个区间是**跨 DLL ABI 契约**：IrLayerInfo 的数组由 FileIO.dll 分配、
+    // 注意：这个区间是**跨 DLL ABI 契约**：IrLayerInfo 的数组由 FileIO.dll 分配、
     // 消费方（Engine3D / Main）按自己的头文件解释。改字段会改 sizeof，
     // 而消费方与生产方**必须同时重编** —— 否则消费方按旧步长遍历新数组，
     // 读到的是错位的字段（表现为「图层名对不上」「sourceId 乱跳」）。

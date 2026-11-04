@@ -117,13 +117,15 @@ message DocumentMetadata {
 message LayerData {
     uint32 id               = 1;   // 图层唯一标识
     string name             = 2;   // 图层名称 (UTF-8)
-    uint32 color            = 3;   // ARGB 颜色值
+    uint32 color            = 3;   // ARGB 颜色值（高 8 位为 alpha）
     bool   visible          = 4;   // 可见性
     bool   locked           = 5;   // 锁定状态
     repeated PropertyEntry custom_properties = 6;  // 图层扩展属性
     uint32 layer_type       = 7;   // 图层类型 (0=VECTOR, 1=BITMAP)
     bool   fill             = 8;   // 是否填充图层
-    uint32 fill_color       = 9;   // 填充颜色 ARGB
+    uint32 fill_color       = 9;   // 填充颜色 ARGB（高 8 位为 alpha）
+    // 兼容说明：历史文件由旧写路径产出，颜色高 8 位可能是 0（未设置/缺省），
+    // 读端统一按不透明（0xFF）处理，避免旧工程加载后整体变透明。
 
     // === v2 新增：加工语义 ===
     // 是否输出到设备。**与 visible 严格分离**：
@@ -136,7 +138,14 @@ message LayerData {
     // 本图层默认使用的工艺 ID；0 表示"未指定，使用工程默认工艺"
     uint32 default_process_id = 11;
 
-    reserved 12 to 19;              // v2 占位
+    // 本图层关联的硬件 Profile ID。proto3 int32 默认值 0 与 C++ 默认 hardwareProfileId=0 对齐。
+    int32 hardware_profile_id = 12;
+
+    // 填充专属硬件 Profile ID。-1 表示"未设置，回退到 hardware_profile_id"
+    // 使用 optional 以区分"旧文件无此字段"（→ 回退 -1）和"显式设为 0"。
+    optional int32 fill_hardware_profile_id = 13;
+
+    reserved 14 to 19;              // v2 占位
 }
 
 // ---------------------------- 硬件信息 ----------------------------
@@ -253,6 +262,7 @@ enum EntityType {
     ENTITY_IMAGE      = 15;
     ENTITY_MESH       = 16;   // 3D 网格图元
     ENTITY_GROUP      = 17;   // 群组
+    ENTITY_FILL_REGION = 18;  // 色块填充区域（三角形顶点流 + 来源图元）
 }
 
 // ---------------------------- 各图元特有数据 ----------------------------
@@ -374,6 +384,12 @@ message MeshData {
     repeated PropertyEntry custom_properties = 20;  // 扩展属性
 }
 
+// 色块填充区域数据（每 3 个顶点构成一个三角形）
+message FillRegionData {
+    repeated Vec2d vertices   = 1;  // 扁平三角形顶点流，长度必须为 3 的倍数
+    repeated uint64 source_ids = 2; // 来源图元 ID（增量更新定位用）
+}
+
 // 群组数据
 message GroupData {
     uint64 id                = 1;   // 群组唯一标识
@@ -422,6 +438,7 @@ message EntityData {
         QRCodeData     qrcode_data     = 23;
         ImageData      image_data      = 24;
         MeshData       mesh_data       = 25;
+        FillRegionData fill_region_data = 53;
     }
 
     // === 加载加速数据（可选） ===
@@ -450,6 +467,12 @@ message EntityData {
     // 使用 optional 是为了区分「旧文件没写」与「显式写了 false」。
     optional bool visible = 50;
     optional bool locked = 51;
+
+    // === 图元覆盖色（含 alpha） ===
+    // 仅当图元存在独立覆盖色时写入；字段缺失表示「跟随图层颜色」，与旧文件语义一致。
+    // 高 8 位为 alpha；历史文件没有本字段，读取后自然保持跟随图层色。
+    // 若字段存在但 alpha 位为 0，按不透明（0xFF）处理，避免缺省数据把图元变透明。
+    optional uint32 override_argb = 52;
 }
 
 // ---------------------------- 文档根消息 ----------------------------

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FileIO/FileIOAPI.h"
-#include "FileIO/FioTypes.h"  // for BinaryBlob
+#include "FileIO/FioTypes.h"  // 依赖 BinaryBlob
 
 #include <cstdint>
 #include <cstring>
@@ -10,14 +10,14 @@
 
 namespace Fio
 {
-    // ============================================================
-    // SyCryptoProvider —— 加密策略抽象层
+    // ----
+    // ---- SyCryptoProvider —— 加密策略抽象层 ----
     //
     // 设计模式: Strategy Pattern (策略模式)
     //   - 加密算法可插拔，不影响序列化核心逻辑
-    //   - 默认提供 XOR 实现，可替换为 AES/ChaCha20 等
-    //   - 派生类通过工厂注册即可无缝集成
-    // ============================================================
+    //   - 默认为 XOR 实现，也可提供 AES/ChaCha20 等实现
+    //   - 派生类通过工厂注册即可集成
+    // ----
 
     /// 加密结果（POD 安全，固定缓冲区 + BinaryBlob）
     struct CryptoResult
@@ -49,13 +49,13 @@ namespace Fio
         }
     };
 
-    ////////////////////////////////////////////////////////////////////
-    // ---------------------------- 抽象接口 ----------------------------
+    // ----
+    // ---- 抽象接口 ----
 
     class FILEIO_API ISyCryptoProvider
     {
     public:
-        // 析构定义移至 .cpp 避免 STL 跨 DLL 边界
+        // 析构在 .cpp 中定义，避免 STL 跨 DLL 边界
         virtual ~ISyCryptoProvider();
 
         /// 算法名称（buffer 模式替代 std::string 返回）
@@ -89,8 +89,8 @@ namespace Fio
         }
     };
 
-    /////////////////////////////////////////////////////////////////////////
-    // ---------------------------- 默认 XOR 实现 ----------------------------
+    // ----
+    // ---- 默认 XOR 实现 ----
 
     /// 基于 XOR + 密钥轮转的"加密"——实质为可逆混淆，非真正加密。
     /// 默认密钥 "SanYiDefaultKey2024" 硬编码在公共头文件中，trivially 可逆。

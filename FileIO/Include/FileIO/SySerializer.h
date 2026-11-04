@@ -13,8 +13,8 @@ namespace Fio
 {
     class ISyCryptoProvider;
 
-    // ============================================================
-    // SySerializer —— 文档序列化/反序列化核心
+    // ----
+    // ---- SySerializer —— 文档序列化/反序列化核心 ----
     //
     // 职责:
     //   1. SyDocument ↔ Protobuf 消息互转
@@ -25,12 +25,12 @@ namespace Fio
     //   - 对外提供简洁的 saveToFile / loadFromFile 接口
     //   - 内部编排 ProtoConverter + CryptoProvider
     //
-    // ABI 说明（2026-07-31 C3 收口）:
-    //   - 序列化结果 SerializeResult 改为纯 POD（错误消息固定 char[] 缓冲）
-    //   - 文件路径统一 const char*；内存序列化输入/输出改为 BinaryBlob/BinaryBlobOut
+    // ABI 说明:
+    //   - 序列化结果 SerializeResult 为纯 POD（错误消息固定 char[] 缓冲）
+    //   - 文件路径统一 const char*；内存序列化输入/输出为 BinaryBlob/BinaryBlobOut
     //   - 警告经 C 函数指针回调逐条输出（不使用 std::function / std::vector）
     //   - 实现细节（加密提供者等）通过 PIMPL 隐藏，头文件不含任何 STL
-    // ============================================================
+    // ----
 
     /// 序列化结果（纯 POD，跨 DLL 安全）
     struct FILEIO_API SerializeResult
@@ -64,8 +64,8 @@ namespace Fio
     /// @param ctx      用户上下文指针
     typedef void (*SerializeProgressCallback)(float progress, const char* stage, void* ctx);
 
-    ///////////////////////////////////////////////////////////////////////
-    // ---------------------------- 文件格式常量 ----------------------------
+    // ----
+    // ---- 文件格式常量 ----
     namespace SyFileConst
     {
         /// 文件魔数: "SYPB" (SY ProtoBinary) - 2D 格式
@@ -87,8 +87,8 @@ namespace Fio
         constexpr uint32_t FLAG_ENCRYPTED = 0x01;
     }  // namespace SyFileConst
 
-    ////////////////////////////////////////////////////////////////////
-    // ---------------------------- 序列化器 ----------------------------
+    // ----
+    // ---- 序列化器 ----
 
     class FILEIO_API SySerializer
     {
@@ -102,7 +102,7 @@ namespace Fio
         SySerializer(SySerializer&&) noexcept;
         SySerializer& operator=(SySerializer&&) noexcept;
 
-        // ========== 加密配置 ==========
+        // ---- 加密配置 ----
 
         /// 设置加密提供者（接管所有权），传入 nullptr 禁用加密
         void setCryptoProvider(ISyCryptoProvider* provider);
@@ -110,7 +110,7 @@ namespace Fio
         /// 是否有加密提供者
         bool hasCrypto() const;
 
-        // ========== 文件级操作 ==========
+        // ---- 文件级操作 ----
 
         /// 将文档保存到 .sy 文件
         /// @param filePath 文件路径（UTF-8）
@@ -146,7 +146,7 @@ namespace Fio
             SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
 
-        // ========== 内存级操作 ==========
+        // ---- 内存级操作 ----
 
         /// 将文档序列化为内存中的二进制数据
         /// @param doc 文档数据
@@ -162,7 +162,7 @@ namespace Fio
         SerializeResult deserializeFromMemory(
             BinaryBlob in, SyDocument& doc, SerializeWarningCallback warningCb = nullptr, void* warningCtx = nullptr);
 
-        // ========== 工具方法 ==========
+        // ---- 工具方法 ----
 
         /// 获取当前文件格式版本
         static uint32_t fileVersion();

@@ -1,6 +1,7 @@
 #include "FileIO/SySerializer.h"
 #include "SyEntitySerializer.h"
 #include "SyDocumentData.h"
+#include "ColorArgbUtils.h"
 
 #include "FileIO/SyCryptoProvider.h"
 #include "SanYiDocument.pb.h"
@@ -55,6 +56,9 @@ namespace Fio
             }
             return crc ^ 0xFFFFFFFF;
         }
+
+        // 颜色 ARGB 编解码由 Internal/ColorArgbUtils.h 统一提供：
+        // unity build 会把多个 cpp 合并进同一翻译单元，各写一份会重复定义。
 
         void toProtoProperties(const PropertyMap& props,
             sanyi::proto::SanYiDocument& /*doc*/,
@@ -285,12 +289,13 @@ namespace Fio
                 LayerInfo layer;
                 layer.id = l.id();
                 layer.name = l.name();
-                layer.color = l.color();
+                // 颜色高 8 位为 alpha；历史缺省值（0）按不透明兜底
+                layer.color = detail::normalizeLegacyArgb(l.color());
                 layer.visible = l.visible();
                 layer.locked = l.locked();
                 layer.layerType = l.layer_type();
                 layer.fill = l.fill();
-                layer.fillColor = l.fill_color();
+                layer.fillColor = detail::normalizeLegacyArgb(l.fill_color());
                 layer.customProperties = fromProtoProperties(l.custom_properties());
                 // v2：加工语义。output 是 optional —— v1 文件里没有这个字段，
                 // proto3 的 has_output() 为 false。**必须回退为 true**：

@@ -21,8 +21,15 @@
 
 // SyDocument 使用 std::unique_ptr<Eg::SyEntity>，需要完整类型定义
 #include "Engine/SyEntity/SyEntity.h"
+#include "Engine2D/SyEntity/SyPolygon.h"
+#include "Engine2D/SyEntity/SyFillRegion.h"
+
+// 内部文档数据：测试需要构造带填充色的图层（公开 SyLayerInfo 无 fillColor 字段）
+#include "SyDocumentData.h"
+#include "Ut/Color.h"
 
 #include <cstring>
+#include <memory>
 
 using namespace Fio;
 
@@ -180,7 +187,8 @@ TEST(SySerializerTest, SerializeDeserializeWithLayers)
     SyLayerInfo layer;
     layer.id = 1;
     std::strcpy(layer.name, "Default");
-    layer.color = 0xFF0000;
+    // ARGB：高 8 位为 alpha，这里用不透明红验证颜色往返
+    layer.color = 0xFFFF0000;
     layer.visible = true;
     layer.locked = false;
     doc.addLayer(layer);
@@ -200,7 +208,7 @@ TEST(SySerializerTest, SerializeDeserializeWithLayers)
     ASSERT_TRUE(loadedDoc.getLayerAt(0, loadedLayer));
     EXPECT_EQ(loadedLayer.id, 1u);
     EXPECT_STREQ(loadedLayer.name, "Default");
-    EXPECT_EQ(loadedLayer.color, 0xFF0000u);
+    EXPECT_EQ(loadedLayer.color, 0xFFFF0000u);
     EXPECT_TRUE(loadedLayer.visible);
     EXPECT_FALSE(loadedLayer.locked);
 }
@@ -654,4 +662,151 @@ TEST(SySerializerTest, MoveAssignment)
     std::vector<uint8_t> data;
     auto result = serializeDoc(b, doc, data);
     EXPECT_TRUE(result.success);
+}
+
+// ==================== 颜色 alpha 持久化 ====================
+
+TEST(SySerializerTest, LayerColorAlphaRoundTrip)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    // 图层色 alpha=128，填充色 alpha=64：非不透明值必须原样往返
+    LayerInfo layer;
+    layer.id = 3;
+    layer.name = "AlphaLayer";
+    layer.color = 0x800A141E;   // ARGB(128,10,20,30)
+    layer.fill = true;
+    layer.fillColor = 0x40C8280A; // ARGB(64,200,40,10)
+    src.layers.push_back(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).layers;
+    ASSERT_EQ(loaded.size(), 1u);
+    EXPECT_EQ(loaded[0].color, 0x800A141Eu);
+    EXPECT_EQ(loaded[0].fillColor, 0x40C8280Au);
+}
+
+TEST(SySerializerTest, LayerColorOpaqueRoundTrip)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    LayerInfo layer;
+    layer.id = 5;
+    layer.name = "OpaqueLayer";
+    layer.color = 0xFF0A141E;
+    layer.fillColor = 0xFFC8280A;
+    src.layers.push_back(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).layers;
+    ASSERT_EQ(loaded.size(), 1u);
+    EXPECT_EQ(loaded[0].color, 0xFF0A141Eu);
+    EXPECT_EQ(loaded[0].fillColor, 0xFFC8280Au);
+}
+
+TEST(SySerializerTest, LegacyLayerColorZeroAlphaFallsBackOpaque)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    // 模拟历史数据：颜色高 8 位为 0（旧写路径未设置 alpha）
+    LayerInfo layer;
+    layer.id = 7;
+    layer.name = "LegacyLayer";
+    layer.color = 0x000A141E;
+    layer.fillColor = 0x00C8280A;
+    src.layers.push_back(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).layers;
+    ASSERT_EQ(loaded.size(), 1u);
+    // alpha 位 0 必须回落到不透明，RGB 保持不变
+    EXPECT_EQ(loaded[0].color, 0xFF0A141Eu);
+    EXPECT_EQ(loaded[0].fillColor, 0xFFC8280Au);
+}
+
+TEST(SySerializerTest, EntityOverrideColorAlphaRoundTrip)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    // 色块实体覆盖色 alpha=96：持久化后必须保留，几何（三角形流）也要保留
+    auto fill = std::make_unique<Eg::SyFillRegion>();
+    fill->id = 1001;
+    const Ut::Vec2d tri[] = { Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0), Ut::Vec2d(10.0, 10.0),
+        Ut::Vec2d(10.0, 10.0), Ut::Vec2d(0.0, 10.0), Ut::Vec2d(0.0, 0.0) };
+    fill->setVertices(tri, 6);
+    const Eg::EntityId sources[] = { 7, 8 };
+    fill->setSources(sources, 2);
+    fill->setOverrideColor(Ut::Color::fromRGB255(90, 160, 220, 96));
+    src.entities.push_back(std::move(fill));
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).entities;
+    ASSERT_EQ(loaded.size(), 1u);
+    ASSERT_EQ(loaded[0]->eType, Eg::EType::FILL_REGION);
+    const auto* loadedFill = static_cast<const Eg::SyFillRegion*>(loaded[0].get());
+    EXPECT_EQ(loadedFill->vertexCount(), 6u);
+    EXPECT_EQ(loadedFill->sourceCount(), 2u);
+    const auto overrideColor = loaded[0]->overrideColor();
+    ASSERT_TRUE(overrideColor.has_value());
+    EXPECT_EQ(overrideColor->red255(), 90);
+    EXPECT_EQ(overrideColor->green255(), 160);
+    EXPECT_EQ(overrideColor->blue255(), 220);
+    EXPECT_EQ(overrideColor->alpha255(), 96);
+    EXPECT_EQ(loaded[0]->getColor().alpha255(), 96);
+}
+
+TEST(SySerializerTest, EntityWithoutOverrideColorStaysNullopt)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    auto poly = std::make_unique<Eg::SyPolygon>();
+    poly->id = 1002;
+    poly->setVertices({ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0), Ut::Vec2d(10.0, 10.0) });
+    src.entities.push_back(std::move(poly));
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).entities;
+    ASSERT_EQ(loaded.size(), 1u);
+    // 旧文件/无覆盖色：保持跟随图层色，不能被钉成独立颜色
+    EXPECT_FALSE(loaded[0]->overrideColor().has_value());
 }
