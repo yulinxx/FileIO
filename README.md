@@ -495,7 +495,7 @@ END 至少给出图元数与耗时；提前 return 的分支一律要写明原�
 cmake -S FileIO -B FileIO/build
 cmake --build FileIO/build --config Release
 ctest --test-dir FileIO/build -C Release
-cmake -S FileIO -B FileIO/build -DBUILD_FILEIO_TESTS=OFF   # 只编库
+cmake -S FileIO -B FileIO/build -DBUILD_TESTS=OFF   # 只编库
 ```
 
 `FileIO/CMakeLists.txt` 复用仓库统一配置（`../Config.cmake` +
@@ -505,12 +505,12 @@ cmake -S FileIO -B FileIO/build -DBUILD_FILEIO_TESTS=OFF   # 只编库
 Utility / Log ──> EngineCommon ──> Engine2D ──> Engine3D ──> FileIO
 ```
 
-`Main` / `UI` / `Renderx` 一概不参与。兄弟模块的测试目标被
-`set(BUILD_XXX_TESTS OFF CACHE BOOL "" FORCE)` 强制关闭。
+`Main` / `UI` / `Renderx` 一概不参与。兄弟模块的测试目标由独立入口的
+`sanyi_only_own_tests(FILEIO)` 声明裁剪掉——只有 FileIO 自己的测试会被生成。
 `Engine2D`/`Engine3D` 只被 `Writers/` 用于 `dynamic_cast` 具体图元子类——
 导出侧也切到 IR 之后，依赖闭包可以缩到 `Utility + Log`。
 
-GTest 缺失时 `BUILD_FILEIO_TESTS` 会被自动置 OFF（只编库仍然成功）。
+GTest 缺失时 `BUILD_TESTS` 会被自动降级为 OFF（只编库仍然成功）。
 
 ### 8.2 测试
 
