@@ -147,7 +147,8 @@ endif()
 
 # --- 单元测试 ---
 
-if(BUILD_FILEIO_TESTS)
+sanyi_module_tests_enabled(FILEIO _fileio_tests)
+if(_fileio_tests)
     enable_testing()
     find_package(GTest CONFIG REQUIRED)
     add_subdirectory(Test)
@@ -158,11 +159,6 @@ message(STATUS "[${LIB_NAME}]")
 message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}(${CMAKE_SYSTEM_PROCESSOR})")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
-if(BUILD_FILEIO_TESTS)
-    message(STATUS "  Tests: ENABLED")
-else()
-    message(STATUS "  Tests: DISABLED")
-endif()
 message(STATUS "----------------------------------------")
 
 sanyi_export_imported_target(${LIB_NAME}

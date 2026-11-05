@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 4.3)
 #   cmake -S FileIO -B FileIO/build
 #   cmake --build FileIO/build --config Release
 #   ctest --test-dir FileIO/build -C Release
-#   cmake -S FileIO -B FileIO/build -DBUILD_FILEIO_TESTS=OFF   # 只编库、不编测试
+#   cmake -S FileIO -B FileIO/build -DBUILD_TESTS=OFF   # 只编库、不编测试
 #   cmake -S FileIO -B FileIO/build -DBUILD_FILEIO_EXAMPLE=OFF # 不编示例
 # ============================================================================
 
@@ -49,13 +49,11 @@ sanyi_setup_compiler_options()
 option(BUILD_FILEIO_EXAMPLE "Build FileIO usage example" ON)
 
 # --- 测试与兄弟模块 ---------------------------------------------------------
-# 先关兄弟测试、再探测 GTest（缺失时把测试开关统一降级为 OFF），
+# 先声明本构建树的测试模块范围、再探测 GTest（缺失时把唯一总开关降级为 OFF），
 # 两步都必须发生在拉入兄弟模块之前，否则兄弟内层的 find_package(GTest REQUIRED)
 # 会在降级前硬失败。
-sanyi_only_own_tests(BUILD_FILEIO_TESTS)
-if(BUILD_FILEIO_TESTS)
-    sanyi_find_gtest()
-endif()
+sanyi_only_own_tests(FILEIO)
+sanyi_finalize_tests()
 
 # 严格按依赖顺序：Utility / Log 是叶子，Engine2D 依赖 EngineCommon，Engine3D 依赖 Engine2D。
 # 硬依赖，缺了没有降级空间 —— sanyi_add_sibling 默认 FATAL_ERROR。
@@ -65,7 +63,7 @@ sanyi_add_sibling(EngineCommon "${SANYI_ENGINE_COMMON_DIR}")
 sanyi_add_sibling(Engine2D     "${SANYI_ENGINE_2D_DIR}")
 sanyi_add_sibling(Engine3D     "${SANYI_ENGINE_3D_DIR}")
 
-# 内层：创建 FileIO DLL、挂载测试（BUILD_FILEIO_TESTS 时）、输出状态。
+# 内层：创建 FileIO DLL、挂载测试（BUILD_TESTS 时）、输出状态。
 # 测试子目录只由内层挂载，这里不再重复添加 —— 两处添加同一目录会导致 target 重定义。
 add_subdirectory(FileIO)
 
@@ -80,7 +78,6 @@ message(STATUS "========================================")
 message(STATUS "  [Standalone: ${PROJECT_NAME}]")
 message(STATUS "========================================")
 message(STATUS "  Version:        ${PROJECT_VERSION}")
-message(STATUS "  Build Tests:    ${BUILD_FILEIO_TESTS}")
 message(STATUS "  Build Example:  ${BUILD_FILEIO_EXAMPLE}")
 message(STATUS "  Output:         ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "========================================")
