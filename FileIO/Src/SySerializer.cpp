@@ -82,7 +82,7 @@ namespace Fio
             return props;
         }
 
-        bool serializeToProto(const SyDocument& doc, std::vector<uint8_t>& out)
+        bool serializeToProto(const SyDocument& doc, std::vector<uint8_t>& out, std::string* errorMessage = nullptr)
         {
             const auto& docData = syDocumentData(doc);
             sanyi::proto::SanYiDocument protoDoc;
@@ -251,16 +251,41 @@ namespace Fio
             }
 
             const size_t byteSize = protoDoc.ByteSizeLong();
+            // protobuf 的 SerializeToArray 只接受 int 长度，文件头的 payload 长度也是 uint32。
+            // 超过 2 GiB 时序列化结果会溢出甚至被截断，必须在分配/写入之前拒绝。
+            if (byteSize > static_cast<size_t>(INT32_MAX))
+            {
+                if (errorMessage)
+                {
+                    *errorMessage = "Document is too large to serialize (payload exceeds the 2 GiB limit)";
+                }
+                return false;
+            }
             out.resize(byteSize);
             return protoDoc.SerializeToArray(out.data(), static_cast<int>(byteSize));
         }
 
-        bool deserializeFromProto(const uint8_t* data, size_t size, SyDocument& doc)
+        bool deserializeFromProto(const uint8_t* data, size_t size, SyDocument& doc, std::string* errorMessage = nullptr)
         {
             auto& docData = syDocumentData(doc);
             sanyi::proto::SanYiDocument protoDoc;
-            if (!protoDoc.ParseFromArray(data, static_cast<int>(size)))
+            if (size > static_cast<size_t>(INT32_MAX) || !protoDoc.ParseFromArray(data, static_cast<int>(size)))
             {
+                if (errorMessage)
+                {
+                    *errorMessage = "Failed to parse protobuf data";
+                }
+                return false;
+            }
+
+            // 英制文档（units=1）尚未实现：几何恒为 mm，若按 mm 静默读入整图会小 25.4 倍。
+            // 协议注释要求读端显式报错，而不是降级读取。
+            if (protoDoc.has_metadata() && protoDoc.metadata().units() != 0)
+            {
+                if (errorMessage)
+                {
+                    *errorMessage = "Unsupported document units: imperial (inch) documents are not supported";
+                }
                 return false;
             }
 
@@ -520,9 +545,11 @@ namespace Fio
         const char* magic = (fmt == FileFormat::Native3D) ? SyFileConst::MAGIC_SYX : SyFileConst::MAGIC_SY;
 
         std::vector<uint8_t> protoData;
-        if (!serializeToProto(doc, protoData))
+        std::string serializeError;
+        if (!serializeToProto(doc, protoData, &serializeError))
         {
-            return SerializeResult::fail("Failed to serialize document to protobuf");
+            return SerializeResult::fail(
+                serializeError.empty() ? "Failed to serialize document to protobuf" : serializeError.c_str());
         }
 
         emitProgress(0.5f, "encrypting");
@@ -777,17 +804,21 @@ namespace Fio
             data.assign(decResult.data, decResult.data + decResult.dataSize);
             m_impl->m_cryptoProvider->freeCryptoData(decResult.data);
 
-            if (!deserializeFromProto(data.data(), data.size(), doc))
+            std::string parseError;
+            if (!deserializeFromProto(data.data(), data.size(), doc, &parseError))
             {
-                return SerializeResult::fail("Failed to parse protobuf data");
+                return SerializeResult::fail(
+                    parseError.empty() ? "Failed to parse protobuf data" : parseError.c_str());
             }
         }
         else
         {
             // 非加密文件: 直接解析 fileBuffer 中的 payload，零拷贝
-            if (!deserializeFromProto(dataPtr, dataLen, doc))
+            std::string parseError;
+            if (!deserializeFromProto(dataPtr, dataLen, doc, &parseError))
             {
-                return SerializeResult::fail("Failed to parse protobuf data");
+                return SerializeResult::fail(
+                    parseError.empty() ? "Failed to parse protobuf data" : parseError.c_str());
             }
         }
 
@@ -799,9 +830,11 @@ namespace Fio
         const SyDocument& doc, BinaryBlobOut* out, SerializeWarningCallback /*warningCb*/, void* /*warningCtx*/)
     {
         std::vector<uint8_t> data;
-        if (!serializeToProto(doc, data))
+        std::string serializeError;
+        if (!serializeToProto(doc, data, &serializeError))
         {
-            return SerializeResult::fail("Failed to serialize document to protobuf");
+            return SerializeResult::fail(
+                serializeError.empty() ? "Failed to serialize document to protobuf" : serializeError.c_str());
         }
 
         if (out)
@@ -828,9 +861,11 @@ namespace Fio
         BinaryBlob in, SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
     {
         doc.clear();
-        if (!deserializeFromProto(in.data, in.size, doc))
+        std::string parseError;
+        if (!deserializeFromProto(in.data, in.size, doc, &parseError))
         {
-            return SerializeResult::fail("Failed to parse protobuf data from memory");
+            return SerializeResult::fail(
+                parseError.empty() ? "Failed to parse protobuf data from memory" : parseError.c_str());
         }
         emitWarnings(doc, warningCb, warningCtx);
         return SerializeResult::ok();

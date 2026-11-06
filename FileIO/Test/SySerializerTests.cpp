@@ -333,6 +333,26 @@ TEST(SySerializerTest, SmartLineRoundTrip)
     EXPECT_NEAR(pts1[1].x(), 30.0, 1e-9);
 }
 
+TEST(SySerializerTest, RejectsImperialUnits)
+{
+    // units=1 表示英制文档，当前几何恒按 mm 解释。读端必须显式失败，
+    // 否则整份图会被当作毫米读入，尺寸小 25.4 倍。
+    SyDocument doc;
+    doc.addLayer(SyLayerInfo{});
+    doc.setDocumentUnits(1);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    EXPECT_FALSE(loadResult.success);
+    EXPECT_STRNE(loadResult.errorMessage, "");
+    EXPECT_NE(std::string(loadResult.errorMessage).find("units"), std::string::npos);
+}
+
 // ==================== 反序列化错误处理 ====================
 
 TEST(SySerializerTest, DeserializeFromInvalidData)
