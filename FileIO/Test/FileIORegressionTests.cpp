@@ -373,6 +373,7 @@ TEST(FileIORegressionTest, FileIOManager_FormatDetection_AllFormats)
         { "svg", Fio::FileFormat::SVG },
         { "sy", Fio::FileFormat::Native },
         { "syx", Fio::FileFormat::Native3D },
+        { "sy3d", Fio::FileFormat::Native3D },
         { "plt", Fio::FileFormat::PLT },
         { "ai", Fio::FileFormat::AI },
         { "pdf", Fio::FileFormat::PDF },

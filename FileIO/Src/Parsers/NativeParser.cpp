@@ -69,6 +69,7 @@ namespace Fio
         if (m_impl->targetFormat == FileFormat::Native3D)
         {
             visitor("syx", ctx);
+            visitor("sy3d", ctx);
         }
         else
         {
