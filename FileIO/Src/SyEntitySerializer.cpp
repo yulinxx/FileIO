@@ -12,11 +12,13 @@
 #include "Engine2D/SyEntity/SyPoint.h"
 #include "Engine2D/SyEntity/SyPolygon.h"
 #include "Engine2D/SyEntity/SyQRCode.h"
+#include "Engine2D/SyEntity/SySmartLine.h"
 #include "Engine2D/SyEntity/SyText.h"
 #include "Engine3D/SyEntity/SyMeshEntity.h"
 #include "Engine/Layer/SyLayer.h"
 #include "Engine/SyEntity/SyEntity.h"
 #include "Engine2D/SyEntity/SyFillRegion.h"
+#include "Log/SyLogger.h"
 #include "Ut/Color.h"
 #include "ColorArgbUtils.h"
 
@@ -137,12 +139,36 @@ namespace Fio
             return Ut::Vec3f(p.x(), p.y(), p.z());
         }
 
+        // SMARTLINE 的段本身也可能是 SMARTLINE（嵌套复合曲线），文件里因此可能出现
+        // 任意深度的递归结构。读写都设上限，避免恶意或损坏文件在递归时耗尽调用栈。
+        constexpr int kMaxEntityNestingDepth = 32;
+        thread_local int t_entityNestingDepth = 0;
+
+        /// 递归深度守卫：构造时 +1，析构时 -1
+        struct EntityNestingGuard
+        {
+            EntityNestingGuard() { ++t_entityNestingDepth; }
+            ~EntityNestingGuard() { --t_entityNestingDepth; }
+        };
+
+        bool entityNestingTooDeep()
+        {
+            return t_entityNestingDepth > kMaxEntityNestingDepth;
+        }
+
         // 颜色的 ARGB 编解码放在 Internal/ColorArgbUtils.h 中统一提供：
         // unity build 会把多个 cpp 合并进同一翻译单元，各写一份会重复定义。
     }  // namespace
 
     void SyEntitySerializer::serializeEntity(const Eg::SyEntity& entity, sanyi::proto::EntityData* out)
     {
+        EntityNestingGuard nestingGuard;
+        if (entityNestingTooDeep())
+        {
+            SY_ERRORF("[SyEntitySerializer] Entity nesting depth exceeds %d, nested entity skipped", kMaxEntityNestingDepth);
+            return;
+        }
+
         out->set_type(toProtoType(entity.eType));
         out->set_id(entity.id);
 
@@ -282,6 +308,50 @@ namespace Fio
             break;
         }
 
+        case Eg::EType::NURBS:
+        {
+            // legacy 兼容：SyNurbs 的构造函数把 eType 设为 SPLINE，正常 UI 不会产出
+            // NURBS 类型。这里保留 NURBS 分支，用于读取早期/外部写出的 ENTITY_NURBS。
+            // 数据结构与 SplineData 相同，但写入 nurbs_data 以保持类型一致。
+            const auto* spl = static_cast<const Eg::SyNurbs*>(&entity);
+            auto* data = out->mutable_nurbs_data();
+            data->set_degree(spl->nDegree);
+            data->mutable_knots()->Reserve(static_cast<int>(spl->knotRef().size()));
+            data->mutable_weights()->Reserve(static_cast<int>(spl->weightRef().size()));
+            data->mutable_control_points()->Reserve(static_cast<int>(spl->controlPointRef().size()));
+            for (double k : spl->knotRef())
+            {
+                data->add_knots(k);
+            }
+            for (double w : spl->weightRef())
+            {
+                data->add_weights(w);
+            }
+            for (const auto& cp : spl->controlPointRef())
+            {
+                toProtoVec2(cp, data->add_control_points());
+            }
+            break;
+        }
+
+        case Eg::EType::SMARTLINE:
+        {
+            // 复合曲线：逐段递归序列化。段坐标独立保存，
+            // 读取时不会按“连接上一段”重新平移。
+            const auto* smart = static_cast<const Eg::SySmartLine*>(&entity);
+            auto* data = out->mutable_smartline_data();
+            data->mutable_segments()->Reserve(static_cast<int>(smart->segmentCount()));
+            for (size_t i = 0; i < smart->segmentCount(); ++i)
+            {
+                const Eg::SyEntity* segment = smart->segment(i);
+                if (segment)
+                {
+                    serializeEntity(*segment, data->add_segments());
+                }
+            }
+            break;
+        }
+
         case Eg::EType::TEXT:
         {
             const auto* txt = static_cast<const Eg::SyText*>(&entity);
@@ -400,8 +470,7 @@ namespace Fio
 
         // 写入包围盒缓存（加载加速用）。
         // 两个跳过条件：
-        //   1. 类型特有数据未写入 —— SMARTLINE/NURBS 等未在上方 switch 中持久化，
-        //      几何已丢失，写包围盒无意义；
+        //   1. 类型特有数据未写入 —— 未知/不支持的类型无法还原几何，写包围盒无意义；
         //   2. MESH 是 3D 图元，2D 包围盒不参与 2D 空间索引。
         if (out->type_specific_case() != sanyi::proto::EntityData::TYPE_SPECIFIC_NOT_SET &&
             entity.eType != Eg::EType::MESH)
@@ -418,6 +487,13 @@ namespace Fio
 
     std::unique_ptr<Eg::SyEntity> SyEntitySerializer::deserializeEntity(const sanyi::proto::EntityData& protoEntity)
     {
+        EntityNestingGuard nestingGuard;
+        if (entityNestingTooDeep())
+        {
+            SY_ERRORF("[SyEntitySerializer] Entity nesting depth exceeds %d, entity dropped", kMaxEntityNestingDepth);
+            return nullptr;
+        }
+
         Eg::EType eType = fromProtoType(protoEntity.type());
         std::unique_ptr<Eg::SyEntity> result;
 
@@ -576,6 +652,70 @@ namespace Fio
                 }
             }
             result = std::move(spl);
+            break;
+        }
+
+        case Eg::EType::NURBS:
+        {
+            // legacy 兼容：早期文件可能写出 ENTITY_NURBS + nurbs_data。
+            // SyNurbs 构造后 eType 会被归一为 SPLINE，重新保存时自然写成 SplineData。
+            auto spl = std::make_unique<Eg::SyNurbs>();
+            if (protoEntity.has_nurbs_data())
+            {
+                const auto& nd = protoEntity.nurbs_data();
+                spl->nDegree = nd.degree();
+
+                const int knotCount = nd.knots_size();
+                const int weightCount = nd.weights_size();
+                const int cpCount = nd.control_points_size();
+
+                if (knotCount > 0)
+                {
+                    spl->reserveKnots(static_cast<size_t>(knotCount));
+                    for (int j = 0; j < knotCount; ++j)
+                    {
+                        spl->addKnot(nd.knots(j));
+                    }
+                }
+                if (weightCount > 0)
+                {
+                    spl->reserveWeights(static_cast<size_t>(weightCount));
+                    for (int j = 0; j < weightCount; ++j)
+                    {
+                        spl->addWeight(nd.weights(j));
+                    }
+                }
+                if (cpCount > 0)
+                {
+                    spl->reserveControlPoints(static_cast<size_t>(cpCount));
+                    for (int j = 0; j < cpCount; ++j)
+                    {
+                        spl->addControlPoint(fromProtoVec2(nd.control_points(j)));
+                    }
+                }
+            }
+            result = std::move(spl);
+            break;
+        }
+
+        case Eg::EType::SMARTLINE:
+        {
+            auto smart = std::make_unique<Eg::SySmartLine>();
+            if (protoEntity.has_smartline_data())
+            {
+                const auto& sd = protoEntity.smartline_data();
+                for (int j = 0; j < sd.segments_size(); ++j)
+                {
+                    auto segment = deserializeEntity(sd.segments(j));
+                    if (segment)
+                    {
+                        // connectToPrevious=false：段坐标已随文件独立保存，
+                        // 若按“连接上一段”追加会把后段再次平移到前段终点。
+                        smart->addSegmentUnique(std::move(segment), false);
+                    }
+                }
+            }
+            result = std::move(smart);
             break;
         }
 

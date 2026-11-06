@@ -23,6 +23,8 @@
 #include "Engine/SyEntity/SyEntity.h"
 #include "Engine2D/SyEntity/SyPolygon.h"
 #include "Engine2D/SyEntity/SyFillRegion.h"
+#include "Engine2D/SyEntity/SyLine.h"
+#include "Engine2D/SyEntity/SySmartLine.h"
 
 // 内部文档数据：测试需要构造带填充色的图层（公开 SyLayerInfo 无 fillColor 字段）
 #include "SyDocumentData.h"
@@ -277,6 +279,58 @@ TEST(SySerializerTest, SerializeDeserializeWithHardwareInfo)
     EXPECT_DOUBLE_EQ(loadedHw.maxPower, 100.0);
     EXPECT_DOUBLE_EQ(loadedHw.workAreaWidth, 1200.0);
     EXPECT_DOUBLE_EQ(loadedHw.workAreaHeight, 800.0);
+}
+
+// ==================== SMARTLINE 读写往返 ====================
+
+TEST(SySerializerTest, SmartLineRoundTrip)
+{
+    // SMARTLINE 曾是唯一没有持久化分支的 2D 图元：保存后重新打开整条丢失。
+    // 这里验证类型、段数、段内坐标与 ID 都能还原。
+    SyDocument doc;
+    auto smart = std::make_unique<Eg::SySmartLine>();
+    auto line1 = std::make_unique<Eg::SyLine>(std::vector<Ut::Vec2d>{ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0) });
+    auto line2 = std::make_unique<Eg::SyLine>(std::vector<Ut::Vec2d>{ Ut::Vec2d(20.0, 5.0), Ut::Vec2d(30.0, 5.0) });
+    // connectToPrevious=false：两个段保持各自坐标，便于验证读取时没有被二次平移
+    smart->addSegmentUnique(std::move(line1), false);
+    smart->addSegmentUnique(std::move(line2), false);
+    smart->id = 42;
+    doc.addEntity(smart.release());
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    ASSERT_EQ(loadedDoc.entityCount(), 1u);
+    Eg::SyEntity* loadedEntity = loadedDoc.entityAt(0);
+    ASSERT_NE(loadedEntity, nullptr);
+    EXPECT_EQ(loadedEntity->eType, Eg::EType::SMARTLINE);
+    EXPECT_EQ(loadedEntity->id, 42);
+
+    auto* loadedSmart = static_cast<Eg::SySmartLine*>(loadedEntity);
+    ASSERT_EQ(loadedSmart->segmentCount(), 2u);
+
+    auto* seg0 = loadedSmart->segment(0);
+    auto* seg1 = loadedSmart->segment(1);
+    ASSERT_NE(seg0, nullptr);
+    ASSERT_NE(seg1, nullptr);
+    ASSERT_EQ(seg0->eType, Eg::EType::LINE);
+    ASSERT_EQ(seg1->eType, Eg::EType::LINE);
+
+    const auto& pts0 = static_cast<Eg::SyLine*>(seg0)->pointRef();
+    const auto& pts1 = static_cast<Eg::SyLine*>(seg1)->pointRef();
+    ASSERT_EQ(pts0.size(), 2u);
+    ASSERT_EQ(pts1.size(), 2u);
+    EXPECT_NEAR(pts0[0].x(), 0.0, 1e-9);
+    EXPECT_NEAR(pts0[1].x(), 10.0, 1e-9);
+    EXPECT_NEAR(pts1[0].x(), 20.0, 1e-9);
+    EXPECT_NEAR(pts1[0].y(), 5.0, 1e-9);
+    EXPECT_NEAR(pts1[1].x(), 30.0, 1e-9);
 }
 
 // ==================== 反序列化错误处理 ====================
