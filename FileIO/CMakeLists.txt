@@ -39,6 +39,10 @@ list(FILTER LIB_SOURCES EXCLUDE REGEX "${SANYI_SOURCE_EXCLUDE_REGEX}")
 list(FILTER LIB_HEADERS EXCLUDE REGEX "${SANYI_HEADER_EXCLUDE_REGEX}")
 
 # --- 第三方依赖 ---
+# 必需性由根 CMakeLists 的 vcpkg 预检统一把关（CMake/VcpkgPreflight.cmake）：
+# 缺失时预检会汇总报错并给出安装命令，configure 在进入本模块之前就已失败，
+# 因此这里保持原生 find_package 调用，确保模块模式包的结果变量（如
+# WebP_LIBRARIES）留在目录作用域，避免被函数作用域吞掉导致链接缺库。
 find_package(protobuf CONFIG REQUIRED)
 find_package(NanoSVG CONFIG REQUIRED)
 find_package(Stb REQUIRED)
