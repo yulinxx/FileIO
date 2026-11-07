@@ -60,6 +60,12 @@ namespace Fio
         // === v2：加工语义（与显示语义严格分离）===
         bool output = true;             // 是否参与加工输出
         uint32_t defaultProcessId = 0; // 默认工艺 ID，0 = 未指定
+
+        // 与 proto LayerData.hardware_profile_id / fill_hardware_profile_id 对应。
+        // 这两个字段在 SanYiDocument.proto 里早就声明了，但 SySerializer 的写/读
+        // 路径一直没碰它们，导致图层→硬件 Profile 的绑定在 .sy 里全量丢失。
+        int32_t hardwareProfileId = 0;       // 0 = 默认 Profile
+        int32_t fillHardwareProfileId = -1;  // -1 = 未设置，回退到 hardwareProfileId
     };
 
     /// 工艺对象（内部模型）
@@ -92,6 +98,19 @@ namespace Fio
         std::vector<uint64_t> targetEntityIds;
 
         PropertyMap customProperties;  // 扩展属性
+    };
+
+    /// 硬件 Profile 值集（内部模型）。与公开 POD SyHardwareProfileInfo 一一对应，
+    /// 单位保持 HardwareProfileManager 的约定：frequency=kHz、focusOffset=mm。
+    struct HardwareProfileInfo
+    {
+        int32_t id = -1;
+        std::string name;
+        double power = 100.0;
+        double speed = 1000.0;
+        double frequency = 50.0;
+        double focusOffset = 0.0;
+        int32_t passes = 1;
     };
 
     struct HardwareInfo
@@ -131,6 +150,10 @@ namespace Fio
 
         std::vector<GroupInfo> groups;  // 群组信息
         HardwareInfo hardware;
+
+        /// 图层 hardware_profile_id / fill_hardware_profile_id 引用的参数值集。
+        /// 没有它，图层绑定只是个悬空 id：重开文件时参数全部退回运行时默认 Profile。
+        std::vector<HardwareProfileInfo> hardwareProfiles;
 
         // === v2：工艺（加工参数的一等载体）===
         std::vector<ProcessInfo> processes;

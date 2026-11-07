@@ -1,9 +1,11 @@
 #include "FileIO/SyDocument.h"
 #include "SyDocumentData.h"
+#include "ColorArgbUtils.h"
 
 #include "Engine/SyEntity/SyEntity.h"
 
 #include <cstring>
+#include <utility>
 
 namespace Fio
 {
@@ -273,6 +275,124 @@ namespace Fio
         if (m_data)
         {
             m_data->layers.clear();
+        }
+    }
+
+    // ---- 完整图层表 / 硬件 Profile 值集 ----
+    //
+    // 老 POD SyLayerInfo 是冻结的跨 DLL ABI，不能加字段；完整往返改走
+    // SyLayerDetailInfo。读端对老字段沿用同一套兜底语义（alpha=0 → 不透明），
+    // 避免新结构体引入第二套默认值。
+
+    namespace
+    {
+        // 名字带 sanyiSyDocument 前缀：FileIO 也开 unity build，同一 TU 里
+        // 多个匿名命名空间的同名辅助函数会互相重定义。
+        void sanyiSyDocumentCopyLayerName(char (&dst)[256], const std::string& src)
+        {
+            std::strncpy(dst, src.c_str(), sizeof(dst) - 1);
+            dst[sizeof(dst) - 1] = '\0';
+        }
+
+        void sanyiSyDocumentCopyProfileName(char (&dst)[128], const std::string& src)
+        {
+            std::strncpy(dst, src.c_str(), sizeof(dst) - 1);
+            dst[sizeof(dst) - 1] = '\0';
+        }
+    }  // namespace
+
+    bool SyDocument::getLayerDetailAt(size_t index, SyLayerDetailInfo& out) const
+    {
+        if (!m_data || index >= m_data->layers.size())
+        {
+            return false;
+        }
+
+        const auto& l = m_data->layers[index];
+        out.id = l.id;
+        sanyiSyDocumentCopyLayerName(out.name, l.name);
+        out.color = detail::normalizeLegacyArgb(l.color);
+        out.visible = l.visible;
+        out.locked = l.locked;
+        out.output = l.output;
+        out.defaultProcessId = l.defaultProcessId;
+        out.layerType = l.layerType;
+        out.fill = l.fill;
+        out.fillColor = detail::normalizeLegacyArgb(l.fillColor);
+        out.hardwareProfileId = l.hardwareProfileId;
+        out.fillHardwareProfileId = l.fillHardwareProfileId;
+        return true;
+    }
+
+    void SyDocument::addLayerDetail(const SyLayerDetailInfo& layer)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+
+        LayerInfo l;
+        l.id = layer.id;
+        l.name = layer.name;
+        l.color = layer.color;
+        l.visible = layer.visible;
+        l.locked = layer.locked;
+        l.layerType = layer.layerType;
+        l.fill = layer.fill;
+        l.fillColor = layer.fillColor;
+        l.output = layer.output;
+        l.defaultProcessId = layer.defaultProcessId;
+        l.hardwareProfileId = layer.hardwareProfileId;
+        l.fillHardwareProfileId = layer.fillHardwareProfileId;
+        m_data->layers.push_back(std::move(l));
+    }
+
+    size_t SyDocument::hardwareProfileCount() const
+    {
+        return m_data ? m_data->hardwareProfiles.size() : 0;
+    }
+
+    bool SyDocument::getHardwareProfileAt(size_t index, SyHardwareProfileInfo& out) const
+    {
+        if (!m_data || index >= m_data->hardwareProfiles.size())
+        {
+            return false;
+        }
+
+        const auto& p = m_data->hardwareProfiles[index];
+        out.id = p.id;
+        sanyiSyDocumentCopyProfileName(out.name, p.name);
+        out.power = p.power;
+        out.speed = p.speed;
+        out.frequency = p.frequency;
+        out.focusOffset = p.focusOffset;
+        out.passes = p.passes;
+        return true;
+    }
+
+    void SyDocument::addHardwareProfile(const SyHardwareProfileInfo& profile)
+    {
+        if (!m_data)
+        {
+            m_data = new SyDocumentData();
+        }
+
+        HardwareProfileInfo p;
+        p.id = profile.id;
+        p.name = profile.name;
+        p.power = profile.power;
+        p.speed = profile.speed;
+        p.frequency = profile.frequency;
+        p.focusOffset = profile.focusOffset;
+        p.passes = profile.passes;
+        m_data->hardwareProfiles.push_back(std::move(p));
+    }
+
+    void SyDocument::clearHardwareProfiles()
+    {
+        if (m_data)
+        {
+            m_data->hardwareProfiles.clear();
         }
     }
 

@@ -884,3 +884,155 @@ TEST(SySerializerTest, EntityWithoutOverrideColorStaysNullopt)
     // 旧文件/无覆盖色：保持跟随图层色，不能被钉成独立颜色
     EXPECT_FALSE(loaded[0]->overrideColor().has_value());
 }
+
+// ==================== 图层 → 硬件 Profile 绑定持久化 ====================
+// SanYiDocument.proto 里 hardware_profile_id=12 / fill_hardware_profile_id=13
+// 早就声明了，但 SySerializer 的写/读路径一直没赋过值：保存后图层绑定的
+// 工艺参数全部退回默认 Profile，用户设置的功率/速度在重开文档后丢失。
+
+TEST(SySerializerTest, LayerHardwareProfileIdsRoundTrip)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    LayerInfo layer;
+    layer.id = 7;
+    layer.name = "CutLayer";
+    layer.hardwareProfileId = 3;
+    layer.fillHardwareProfileId = 4;
+    src.layers.push_back(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    const auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    const auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).layers;
+    ASSERT_EQ(loaded.size(), 1u);
+    EXPECT_EQ(loaded[0].hardwareProfileId, 3);
+    EXPECT_EQ(loaded[0].fillHardwareProfileId, 4);
+}
+
+TEST(SySerializerTest, LayerWithoutFillProfileFallsBackToMinusOne)
+{
+    SyDocument doc;
+    auto& src = syDocumentData(doc);
+    LayerInfo layer;
+    layer.id = 9;
+    layer.name = "LegacyLayer";
+    layer.hardwareProfileId = 2;
+    // fill 未设置（-1）：不应被写成 proto3 默认 0 而误指到默认 Profile
+    src.layers.push_back(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    const auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    const auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    const auto& loaded = syDocumentData(loadedDoc).layers;
+    ASSERT_EQ(loaded.size(), 1u);
+    EXPECT_EQ(loaded[0].hardwareProfileId, 2);
+    EXPECT_EQ(loaded[0].fillHardwareProfileId, -1);
+}
+
+// ==================== 完整加工语义往返（公开 API 通道） ====================
+// 生产导出路径不能碰 SyDocumentData.h（那是 FileIO.dll 内部头）；它只能走
+// SyLayerDetailInfo / SyHardwareProfileInfo 这两个跨 DLL POD。下面用公开 API
+// 验证这条通道确实把图层完整字段 + Profile 值集写进 .sy 并读回来。
+
+TEST(SySerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
+{
+    SyDocument doc;
+
+    SyLayerDetailInfo layer;
+    layer.id = 42;
+    std::strncpy(layer.name, "Cut-42", sizeof(layer.name) - 1);
+    layer.color = 0xFF123456;
+    layer.visible = false;
+    layer.locked = true;
+    layer.output = false;
+    layer.defaultProcessId = 7;
+    layer.layerType = 1;
+    layer.fill = true;
+    layer.fillColor = 0xFFAABBCC;
+    layer.hardwareProfileId = 3;
+    layer.fillHardwareProfileId = 4;
+    doc.addLayerDetail(layer);
+
+    SyHardwareProfileInfo profile;
+    profile.id = 3;
+    std::strncpy(profile.name, "Steel-3mm", sizeof(profile.name) - 1);
+    profile.power = 78.5;
+    profile.speed = 245.25;
+    profile.frequency = 32.0;  // kHz
+    profile.focusOffset = -1.25;
+    profile.passes = 3;
+    doc.addHardwareProfile(profile);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    const auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    SyDocument loadedDoc;
+    const auto loadResult = deserializeDoc(serializer, data, loadedDoc);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+
+    ASSERT_EQ(loadedDoc.layerCount(), 1u);
+    SyLayerDetailInfo loadedLayer;
+    ASSERT_TRUE(loadedDoc.getLayerDetailAt(0, loadedLayer));
+    EXPECT_EQ(loadedLayer.id, 42u);
+    EXPECT_STREQ(loadedLayer.name, "Cut-42");
+    EXPECT_EQ(loadedLayer.color, 0xFF123456u);
+    EXPECT_FALSE(loadedLayer.visible);
+    EXPECT_TRUE(loadedLayer.locked);
+    EXPECT_FALSE(loadedLayer.output);
+    EXPECT_EQ(loadedLayer.defaultProcessId, 7u);
+    EXPECT_EQ(loadedLayer.layerType, 1u);
+    EXPECT_TRUE(loadedLayer.fill);
+    EXPECT_EQ(loadedLayer.fillColor, 0xFFAABBCCu);
+    EXPECT_EQ(loadedLayer.hardwareProfileId, 3);
+    EXPECT_EQ(loadedLayer.fillHardwareProfileId, 4);
+
+    ASSERT_EQ(loadedDoc.hardwareProfileCount(), 1u);
+    SyHardwareProfileInfo loadedProfile;
+    ASSERT_TRUE(loadedDoc.getHardwareProfileAt(0, loadedProfile));
+    EXPECT_EQ(loadedProfile.id, 3);
+    EXPECT_STREQ(loadedProfile.name, "Steel-3mm");
+    EXPECT_DOUBLE_EQ(loadedProfile.power, 78.5);
+    EXPECT_DOUBLE_EQ(loadedProfile.speed, 245.25);
+    EXPECT_DOUBLE_EQ(loadedProfile.frequency, 32.0);
+    EXPECT_DOUBLE_EQ(loadedProfile.focusOffset, -1.25);
+    EXPECT_EQ(loadedProfile.passes, 3);
+}
+
+TEST(SySerializerTest, LegacyDocumentWithoutProfileValueSetStaysEmpty)
+{
+    // v1/v2 旧文件没有 hardware_profiles 字段。读端必须返回空值集，
+    // 由上层据此决定「保持运行时现有 Profile」——静默清空用户参数是数据丢失。
+    SyDocument doc;
+    SyLayerDetailInfo layer;
+    layer.id = 1;
+    std::strncpy(layer.name, "Legacy", sizeof(layer.name) - 1);
+    doc.addLayerDetail(layer);
+
+    SySerializer serializer;
+    std::vector<uint8_t> data;
+    ASSERT_TRUE(serializeDoc(serializer, doc, data).success);
+
+    SyDocument loadedDoc;
+    ASSERT_TRUE(deserializeDoc(serializer, data, loadedDoc).success);
+    EXPECT_EQ(loadedDoc.hardwareProfileCount(), 0u);
+
+    SyLayerDetailInfo loadedLayer;
+    ASSERT_TRUE(loadedDoc.getLayerDetailAt(0, loadedLayer));
+    EXPECT_EQ(loadedLayer.hardwareProfileId, 0);
+    EXPECT_EQ(loadedLayer.fillHardwareProfileId, -1);
+}

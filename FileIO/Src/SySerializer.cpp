@@ -129,6 +129,15 @@ namespace Fio
                 // 必须回退为 true，否则打开旧文件后「开始加工」什么都不发生。
                 l->set_output(layer.output);
                 l->set_default_process_id(layer.defaultProcessId);
+                // proto 里早就声明了这两个字段，旧写路径却从未赋过值：
+                // 保存后图层绑定的硬件 Profile 全部退回默认，用户设置的功率/速度丢了。
+                l->set_hardware_profile_id(layer.hardwareProfileId);
+                // optional：-1 表示「未设置」，不写该字段，读端按 has_* 回退到 -1，
+                // 与 v1 文件（无此字段）的行为一致。
+                if (layer.fillHardwareProfileId >= 0)
+                {
+                    l->set_fill_hardware_profile_id(layer.fillHardwareProfileId);
+                }
                 toProtoProperties(layer.customProperties, protoDoc, l->mutable_custom_properties());
             }
 
@@ -177,6 +186,25 @@ namespace Fio
                 auto* ps = protoDoc.mutable_project_settings();
                 ps->set_machine_profile_ref(docData.machineProfileRef);
                 ps->set_default_process_id(docData.defaultProcessId);
+            }
+
+            // === v2 补齐：硬件 Profile 值集 ===
+            // LayerData.hardware_profile_id / fill_hardware_profile_id 只是引用，
+            // 没有这组值就等于没存功率/速度/频率。旧读端忽略未知字段，安全退化。
+            if (!docData.hardwareProfiles.empty())
+            {
+                protoDoc.mutable_hardware_profiles()->Reserve(static_cast<int>(docData.hardwareProfiles.size()));
+            }
+            for (const auto& hp : docData.hardwareProfiles)
+            {
+                auto* p = protoDoc.add_hardware_profiles();
+                p->set_id(hp.id);
+                p->set_name(hp.name);
+                p->set_power(hp.power);
+                p->set_speed(hp.speed);
+                p->set_frequency(hp.frequency);
+                p->set_focus_offset(hp.focusOffset);
+                p->set_passes(hp.passes);
             }
 
             // 预先 Reserve，避免 add_entities() 反复扩容搬移整个 repeated message 数组。
@@ -328,6 +356,11 @@ namespace Fio
                 // 表现是「点开始加工什么都没发生」，且没有任何报错。
                 layer.output = l.has_output() ? l.output() : true;
                 layer.defaultProcessId = l.default_process_id();
+                layer.hardwareProfileId = l.hardware_profile_id();
+                // optional 字段：旧文件没有时回退 -1（= 用 hardwareProfileId），
+                // 不能按 proto3 默认 0 处理，否则会误指到 id=0 的默认 Profile。
+                layer.fillHardwareProfileId = l.has_fill_hardware_profile_id()
+                    ? l.fill_hardware_profile_id() : -1;
                 docData.layers.push_back(std::move(layer));
             }
 
@@ -378,6 +411,23 @@ namespace Fio
                 const auto& ps = protoDoc.project_settings();
                 docData.machineProfileRef = ps.machine_profile_ref();
                 docData.defaultProcessId = ps.default_process_id();
+            }
+
+            // === v2 补齐：硬件 Profile 值集 ===
+            // 旧文件没有本字段：hardware_profiles_size()==0，读端只返回一个空值集，
+            // 由调用方据此决定「保持运行时现有 Profile」，绝不在这里清空用户的 Profile。
+            for (int i = 0; i < protoDoc.hardware_profiles_size(); ++i)
+            {
+                const auto& hp = protoDoc.hardware_profiles(i);
+                HardwareProfileInfo info;
+                info.id = hp.id();
+                info.name = hp.name();
+                info.power = hp.power();
+                info.speed = hp.speed();
+                info.frequency = hp.frequency();
+                info.focusOffset = hp.focus_offset();
+                info.passes = hp.passes();
+                docData.hardwareProfiles.push_back(std::move(info));
             }
 
             for (int i = 0; i < protoDoc.entities_size(); ++i)

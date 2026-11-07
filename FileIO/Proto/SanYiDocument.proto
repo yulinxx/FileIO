@@ -31,6 +31,8 @@ package sanyi.proto;
 //   - EntityData 新增 process_id（图元级覆盖，本次预留）
 //   - DocumentMetadata 新增 units（文档长度单位，几何恒为 mm）
 //   - 新增 ProjectSettings（机器档案引用，仅用于追溯）
+//   - 新增 HardwareProfileData + 根级 hardware_profiles=8（图层 id 引用所指向的
+//     功率/速度/频率值集；纯新增，旧文件无此字段时读端不改运行时 Profile）
 //   - HardwareInfo 降级为 legacy（只保留读取兼容，不再写入新字段）
 // ============================================================
 
@@ -226,6 +228,24 @@ message ProcessData {
 
     repeated PropertyEntry custom_properties = 8;
     reserved 20 to 49;
+}
+
+// ---------------------------- 硬件参数值集（v2 补齐） ----------------------------
+
+// 图层上的 hardware_profile_id / fill_hardware_profile_id 只是**引用**，
+// 真正决定功率/速度/频率的是这组值。旧写路径只存图层表不存值集，
+// 打开文件后所有引用都落回运行时默认 Profile，用户设置的参数静默丢失。
+// 值集与 Engine2D/Interaction/HardwareProfileManager.h 的 HardwareProfile 一一对应：
+//   frequency 单位 kHz、focus_offset 单位 mm（与 Eg::ProcessParams 的 Hz 不同，别混）。
+message HardwareProfileData {
+    int32  id            = 1;   // Profile ID，0 恒为默认 Profile
+    string name          = 2;
+    double power         = 3;   // 功率 (%)
+    double speed         = 4;   // 速度 (mm/s)
+    double frequency     = 5;   // 频率 (kHz)
+    double focus_offset  = 6;   // 焦距补偿 (mm)
+    int32  passes        = 7;   // 加工遍数
+    reserved 8 to 19;
 }
 
 // 工程级设置：不影响几何，但影响"这份图会被怎么送去加工"。
@@ -489,7 +509,14 @@ message SanYiDocument {
     repeated ProcessData processes = 6;   // 工艺列表（加工参数的一等载体）
     ProjectSettings project_settings = 7; // 工程级设置（机器引用、默认工艺）
 
+    // === v2 补齐：硬件 Profile 值集 ===
+    // LayerData.hardware_profile_id / fill_hardware_profile_id 只是 id 引用，
+    // 没有值集就等于没存参数。旧文件没有本字段：读端保持运行时现有 Profile，
+    // 不清空、不重置；旧版本软件读新文件时 protobuf 忽略未知字段，行为退化如旧。
+    repeated HardwareProfileData hardware_profiles = 8;
+
     // === 扩展预留 ===
-    reserved 8 to 99;                 // v2 之后的常规扩展位
+    // 8 已用于 hardware_profiles，预留区间从 9 起。
+    reserved 9 to 99;                 // v2 之后的常规扩展位
     reserved 100 to 200;              // 为未来大版本扩展预留字段号
 }

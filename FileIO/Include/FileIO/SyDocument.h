@@ -41,6 +41,41 @@ namespace Fio
         uint32_t defaultProcessId = 0; // 默认工艺 ID（0 = 未指定）
     };
 
+    /// 扩展图层视图（POD，跨 DLL 安全）。
+    ///
+    /// 为什么另起一个结构体而不是往 `SyLayerInfo` 加字段：`SyLayerInfo` 是冻结的
+    /// 跨 DLL POD，加字段会改 sizeof 进而破坏 ABI。原生 .sy 需要把「图层表 +
+    /// 硬件 Profile 绑定」完整来回，但又不能动旧结构体，所以用另一个 POD 承载
+    /// 全部字段，`addLayerDetail()` / `getLayerDetailAt()` 走它。
+    struct FILEIO_API SyLayerDetailInfo
+    {
+        uint32_t id = 0;
+        char name[256] = {};
+        uint32_t color = 0xFF000000;      // ARGB，高 8 位为 alpha
+        bool visible = true;
+        bool locked = false;
+        bool output = true;               // 是否参与加工输出（与 visible 分离）
+        uint32_t defaultProcessId = 0;   // 0 = 未指定
+        uint32_t layerType = 0;          // 0=VECTOR, 1=BITMAP
+        bool fill = false;
+        uint32_t fillColor = 0xFFFFFFFF;
+        int32_t hardwareProfileId = 0;        // 0 = 默认 Profile
+        int32_t fillHardwareProfileId = -1;   // -1 = 未设置，回退到 hardwareProfileId
+    };
+
+    /// 硬件 Profile 值集视图（POD，跨 DLL 安全）。
+    /// 单位与 HardwareProfileManager 一致：frequency=kHz、focusOffset=mm。
+    struct FILEIO_API SyHardwareProfileInfo
+    {
+        int32_t id = -1;
+        char name[128] = {};
+        double power = 100.0;
+        double speed = 1000.0;
+        double frequency = 50.0;
+        double focusOffset = 0.0;
+        int32_t passes = 1;
+    };
+
     /// 硬件信息视图（POD，固定长度缓冲区）
     struct FILEIO_API SyHardwareInfo
     {
@@ -146,6 +181,20 @@ namespace Fio
         bool getLayerAt(size_t index, SyLayerInfo& out) const;
         void addLayer(const SyLayerInfo& layer);
         void clearLayers();
+
+        /// 完整图层表出入参（含显示属性、加工语义与硬件 Profile 绑定）。
+        /// 原生 .sy 的保存/打开走这两个方法；`addLayer()` 只覆盖老 POD 的字段，
+        /// 会把 layerType/fill/fillColor/硬件 Profile 绑定留成默认值，不能用于完整往返。
+        bool getLayerDetailAt(size_t index, SyLayerDetailInfo& out) const;
+        void addLayerDetail(const SyLayerDetailInfo& layer);
+
+        // ---- 硬件 Profile 值集 ----
+
+        size_t hardwareProfileCount() const;
+        /// 拷贝第 index 个 Profile；越界返回 false
+        bool getHardwareProfileAt(size_t index, SyHardwareProfileInfo& out) const;
+        void addHardwareProfile(const SyHardwareProfileInfo& profile);
+        void clearHardwareProfiles();
 
         // ---- 工艺 ----
 

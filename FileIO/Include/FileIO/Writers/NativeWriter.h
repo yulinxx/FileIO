@@ -40,8 +40,21 @@ namespace Fio
         // ---- ILegacyWriter 接口（兼容旧路径，仅处理 2D 图元）----
         WriteResult write(const char* filePath, const VecSyEntityPtr& entities) override;
 
-        /// 完整文档写入（同时保存 2D 图元和 3D 网格，推荐使用）
+        /// 完整文档写入（同时保存 2D 图元和 3D 网格）
+        ///
+        /// **不填充元数据**：本方法假定调用方已经自行填好 SyDocument 的
+        /// software/version/时间戳等溯源字段。直接 new 一份 SyDocument 再调用
+        /// 它，会写出元数据全空的 .sy/.syx —— 文件能打开，但来源与创建时间丢失。
+        /// 这类调用方请改用 writeDocumentWithMetadata()。
         WriteResult writeDocument(const char* filePath, const SyDocument& doc);
+
+        /// 填充标准元数据后写入完整文档（生产导出路径应使用本方法）。
+        ///
+        /// 新构造的文档走 MetadataFiller::fillMetadata（软件名/版本/创建时间/
+        /// OS 溯源信息）；已带元数据的文档（读入后修改再保存）只刷新
+        /// modifiedTime，不覆盖 createdTime 与原始来源信息。
+        /// 与 write() 共享同一套填充逻辑，避免降级路径与借用路径写出不同元数据。
+        WriteResult writeDocumentWithMetadata(const char* filePath, SyDocument& doc);
 
     private:
         class Impl;

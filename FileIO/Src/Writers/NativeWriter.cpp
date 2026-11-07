@@ -115,12 +115,15 @@ namespace Fio
     }
 
     // ----
-    // ---- 完整文档写入（推荐路径） ----
+    // ---- 完整文档写入 ----
     //
     // 支持同时保存 2D 图元和 3D 网格。
     // SySerializer 根据目标格式自动选择魔数：
     //   - FileFormat::Native  → "SYPB"
     //   - FileFormat::Native3D → "SXPB"
+    //
+    // 注意：本方法不碰元数据。调用方若直接构造 SyDocument，必须先用
+    // writeDocumentWithMetadata()，否则溯源字段会整片写空。
     // ----
 
     WriteResult NativeWriter::writeDocument(const char* filePath, const SyDocument& doc)
@@ -144,5 +147,22 @@ namespace Fio
 
         SY_DEBUGF("[NativeWriter] writeDocument() succeeded: %s", filePath);
         return WriteResult::ok();
+    }
+
+    WriteResult NativeWriter::writeDocumentWithMetadata(const char* filePath, SyDocument& doc)
+    {
+        // softwareName 是 fillMetadata 一定会写的字段，用它区分「全新文档」与
+        // 「读入后修改再保存」。后者只刷新 modifiedTime，避免把 createdTime
+        // 和原文件来源信息改成本次保存。
+        const char* const existingSoftware = doc.softwareName();
+        if (existingSoftware && existingSoftware[0] != '\0')
+        {
+            MetadataFiller::updateModifiedTime(doc);
+        }
+        else
+        {
+            MetadataFiller::fillMetadata(doc, m_impl->softwareName(), "1.0.0");
+        }
+        return writeDocument(filePath, doc);
     }
 }  // namespace Fio
