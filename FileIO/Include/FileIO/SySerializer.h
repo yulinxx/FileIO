@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 namespace Fio
@@ -49,7 +50,7 @@ namespace Fio
             r.success = false;
             if (msg)
             {
-                std::strncpy(r.errorMessage, msg, sizeof(r.errorMessage) - 1);
+                std::snprintf(r.errorMessage, sizeof(r.errorMessage), "%s", msg);
             }
             return r;
         }
