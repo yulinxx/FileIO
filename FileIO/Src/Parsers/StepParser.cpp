@@ -130,7 +130,7 @@ namespace Fio
                 if (!usedContour)
                 {
                     SY_WARNF("[StepParser] contour extract fallback: code=%d msg=%s skipped=%d open=%d planes=%d",
-                        contourResult.status.code, contourResult.status.message,
+                        static_cast<int>(contourResult.status.code), contourResult.status.message,
                         skippedFaceCount, openWireCount, planeCount);
                 }
             }
