@@ -1,13 +1,13 @@
 ﻿#include "FileIO/Writers/PltWriter.h"
 
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyBezier.h"
-#include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SySmartLine.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprBezier.h"
+#include "Engine2D/AprEntity/AprBezier2.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprSmartLine.h"
 
 #ifndef _USE_MATH_DEFINES
     #define _USE_MATH_DEFINES
@@ -45,7 +45,7 @@ namespace Fio
         return copyToBuffer(buffer, bufferSize, "plt");
     }
 
-    WriteResult PltWriter::write(const char* filePath, const VecSyEntityPtr& entities)
+    WriteResult PltWriter::write(const char* filePath, const VecAprEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -67,7 +67,7 @@ namespace Fio
             {
             case Eg::EType::LINE:
             {
-                const auto* line = static_cast<const Eg::SyLine*>(entity.get());
+                const auto* line = static_cast<const Eg::AprLine*>(entity.get());
                 if (line->pointRef().empty())
                 {
                     break;
@@ -91,7 +91,7 @@ namespace Fio
             }
             case Eg::EType::CIRCLE:
             {
-                const auto* circle = static_cast<const Eg::SyCircle*>(entity.get());
+                const auto* circle = static_cast<const Eg::AprCircle*>(entity.get());
                 if (circle->dRadius <= 0)
                 {
                     break;
@@ -104,7 +104,7 @@ namespace Fio
             }
             case Eg::EType::ARC:
             {
-                const auto* arc = static_cast<const Eg::SyArc*>(entity.get());
+                const auto* arc = static_cast<const Eg::AprArc*>(entity.get());
                 if (arc->dRadius <= 0)
                 {
                     break;
@@ -120,7 +120,7 @@ namespace Fio
             }
             case Eg::EType::POLYGON:
             {
-                const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
+                const auto* polygon = static_cast<const Eg::AprPolygon*>(entity.get());
                 // 带 bulge 的折线先按 0.01 世界单位弦高展开，避免绘图仪输出直线弦。
                 const std::vector<Ut::Vec2d> verts =
                     polygon->hasBulges() ? polygon->outline(0.01) : polygon->vertices();
@@ -143,7 +143,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER:
             {
-                const auto* bezier = static_cast<const Eg::SyBezier*>(entity.get());
+                const auto* bezier = static_cast<const Eg::AprBezier*>(entity.get());
                 constexpr int kSegCount = 20;
                 hpgl << "PU";
                 {
@@ -166,7 +166,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER2:
             {
-                const auto* bezier2 = static_cast<const Eg::SyBezier2*>(entity.get());
+                const auto* bezier2 = static_cast<const Eg::AprBezier2*>(entity.get());
                 constexpr int kSegCount = 20;
                 hpgl << "PU";
                 {
@@ -189,7 +189,7 @@ namespace Fio
             }
             case Eg::EType::SPLINE:
             {
-                const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
+                const auto* spline = static_cast<const Eg::AprNurbs*>(entity.get());
                 if (spline->controlPointCount() < 2)
                 {
                     break;
@@ -210,7 +210,7 @@ namespace Fio
             }
             case Eg::EType::SMARTLINE:
             {
-                const auto* smartLine = static_cast<const Eg::SySmartLine*>(entity.get());
+                const auto* smartLine = static_cast<const Eg::AprSmartLine*>(entity.get());
                 for (size_t si = 0; si < smartLine->segmentCount(); ++si)
                 {
                     const auto* seg = smartLine->segment(si);
@@ -222,7 +222,7 @@ namespace Fio
                     {
                     case Eg::EType::LINE:
                     {
-                        const auto* ln = static_cast<const Eg::SyLine*>(seg);
+                        const auto* ln = static_cast<const Eg::AprLine*>(seg);
                         if (ln->pointRef().empty())
                         {
                             break;
@@ -238,7 +238,7 @@ namespace Fio
                     }
                     case Eg::EType::ARC:
                     {
-                        const auto* arc = static_cast<const Eg::SyArc*>(seg);
+                        const auto* arc = static_cast<const Eg::AprArc*>(seg);
                         if (arc->dRadius <= 0)
                         {
                             break;
@@ -253,7 +253,7 @@ namespace Fio
                     }
                     case Eg::EType::CIRCLE:
                     {
-                        const auto* circle = static_cast<const Eg::SyCircle*>(seg);
+                        const auto* circle = static_cast<const Eg::AprCircle*>(seg);
                         if (circle->dRadius <= 0)
                         {
                             break;

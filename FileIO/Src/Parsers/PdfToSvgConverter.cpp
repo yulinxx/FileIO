@@ -125,8 +125,8 @@ namespace Fio
             return result;
         }
 
-        // SANYI_TOOLS_DIR 环境变量指定的目录 + 工具名
-        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        // APR_TOOLS_DIR 环境变量指定的目录 + 工具名
+        const char* toolsDirEnv = std::getenv("APR_TOOLS_DIR");
         if (toolsDirEnv)
         {
             std::string envToolBin = (std::filesystem::path(toolsDirEnv) / toolName / "bin").string();
@@ -151,8 +151,8 @@ namespace Fio
             return toolLibDir;
         }
 
-        // SANYI_TOOLS_DIR 环境变量
-        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        // APR_TOOLS_DIR 环境变量
+        const char* toolsDirEnv = std::getenv("APR_TOOLS_DIR");
         if (toolsDirEnv)
         {
             std::string envToolLib = (std::filesystem::path(toolsDirEnv) / toolName / "lib").string();
@@ -173,7 +173,7 @@ namespace Fio
 #endif
 
         // 外部工具发现策略（优先级从高到低）：
-        // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
+        // 1. APR_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
         // 2. App Bundle 内 Resources/bin/ (macOS 打包部署)
         // 3. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
         // 4. 结构化 tools/poppler/bin/ 目录（Linux/macOS 便携部署）
@@ -181,8 +181,8 @@ namespace Fio
         // 5. PATH 环境变量（系统级安装）
         // 6. 常见安装路径（兜底查找）
 
-        // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
-        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        // 1. APR_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
+        const char* toolsDirEnv = std::getenv("APR_TOOLS_DIR");
         if (toolsDirEnv)
         {
             std::string result = findInDirectory(toolsDirEnv, exeName);
@@ -276,14 +276,14 @@ namespace Fio
 #endif
 
         // 外部工具发现策略（优先级从高到低）：
-        // 1. SANYI_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
+        // 1. APR_TOOLS_DIR 环境变量（用户显式指定，最高优先级）
         // 2. App Bundle 内 Resources/bin/ (macOS 打包部署)
         // 3. 应用程序同级目录（Windows 便携部署，CMake 直接复制）
         // 4. 结构化 tools/ghostscript/bin/ 目录（Linux/macOS 便携部署）
         // 5. 应用程序同级目录的 tools/ 子目录（扁平结构）
         // 6. PATH 环境变量（系统级安装）
         // 7. 常见安装路径（兜底查找）
-        const char* toolsDirEnv = std::getenv("SANYI_TOOLS_DIR");
+        const char* toolsDirEnv = std::getenv("APR_TOOLS_DIR");
         if (toolsDirEnv)
         {
             for (const std::string& exeName : exeNames)
@@ -595,7 +595,7 @@ namespace Fio
         std::string hash = generateHash(filePath + std::to_string(page));
 
         std::filesystem::path tempDir = std::filesystem::temp_directory_path();
-        std::string tempSvg = (tempDir / ("sanyi_pdf_" + hash + ".svg")).string();
+        std::string tempSvg = (tempDir / ("apr_pdf_" + hash + ".svg")).string();
 
         // 命中缓存：该文件已经转换过，直接返回
         if (std::filesystem::exists(tempSvg))
@@ -608,7 +608,7 @@ namespace Fio
         // PostScript 格式需要两步转换：PS → PDF → SVG
         if (isPostScriptFile(filePath))
         {
-            std::string tempPdf = (tempDir / ("sanyi_ps_" + hash + ".pdf")).string();
+            std::string tempPdf = (tempDir / ("apr_ps_" + hash + ".pdf")).string();
 
             if (!std::filesystem::exists(tempPdf))
             {

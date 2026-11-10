@@ -92,7 +92,7 @@ namespace Fio
             // 使用随机后缀替代确定性哈希，防止 TOCTOU 竞争和预创建文件投毒。
             std::string randomSuffix = generateRandomSuffix();
             std::filesystem::path tempPath =
-                std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + randomSuffix + ext);
+                std::filesystem::temp_directory_path() / ("apr_" + tempPrefix + "_" + randomSuffix + ext);
 
             // 使用 exclusive create 模式，失败则重试（避免竞争条件）。
             constexpr int MAX_RETRIES = 10;
@@ -108,7 +108,7 @@ namespace Fio
                 }
                 // 文件已存在（被其他进程创建），生成新随机名重试
                 randomSuffix = generateRandomSuffix();
-                tempPath = std::filesystem::temp_directory_path() / ("sanyi_" + tempPrefix + "_" + randomSuffix + ext);
+                tempPath = std::filesystem::temp_directory_path() / ("apr_" + tempPrefix + "_" + randomSuffix + ext);
             }
             m_error = "Cannot create temp file after " + std::to_string(MAX_RETRIES) + " retries";
             m_tempPath.clear();

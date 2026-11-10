@@ -217,9 +217,9 @@ TEST(FioTypesTest, IrLayerInfoSize)
     // 若确实需要变更布局，应新增一个 POD 类型（如 IrLayerInfoV2）而不是原地改。
     //
     // 另：加工语义（是否输出、默认工艺）**刻意不放这里** ——
-    // DXF / SVG / PLT 没有这个概念，只有原生 .sy 有；
+    // DXF / SVG / PLT 没有这个概念，只有原生 .apr 有；
     // 放进通用导入 IR 会为一两种格式的便利污染所有格式的公共契约。
-    // 原生格式的加工语义走 Fio::SyLayerInfo（函数边界传递，无裸指针 ABI 约束）。
+    // 原生格式的加工语义走 Fio::AprLayerInfo（函数边界传递，无裸指针 ABI 约束）。
     constexpr size_t expectedMinSize = 256u + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(bool) + sizeof(bool);
     EXPECT_GE(sizeof(Fio::IrLayerInfo), expectedMinSize);
     // 对齐填充后不应超过 272 字节

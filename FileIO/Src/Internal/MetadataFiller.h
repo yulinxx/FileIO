@@ -3,17 +3,17 @@
 // MetadataFiller —— 元数据填充工具（FileIO 内部共享）
 //
 // 职责:
-//   1. 统一填充 SyDocument 的元数据（版本、时间、环境信息等）
+//   1. 统一填充 AprDocument 的元数据（版本、时间、环境信息等）
 //   2. 消除 NativeWriter 之间的重复代码
 //   3. 提供可扩展的元数据注入点
 //
 // 设计原则:
 //   - 纯函数式接口，无状态
-//   - 通过 SyDocument 引用直接操作，不引入额外抽象层
+//   - 通过 AprDocument 引用直接操作，不引入额外抽象层
 //   - 平台相关代码集中在此文件，便于维护
 
-#include "FileIO/SyDocument.h"
-#include "FileIO/SySerializer.h"
+#include "FileIO/AprDocument.h"
+#include "FileIO/AprSerializer.h"
 
 #include <chrono>
 #include <cstring>
@@ -264,18 +264,18 @@ namespace Fio
 #endif
         }
 
-        /// 填充 SyDocument 的标准元数据（软件信息、时间、环境信息）
+        /// 填充 AprDocument 的标准元数据（软件信息、时间、环境信息）
         ///
         /// @param doc         目标文档
-        /// @param softwareName 软件名称 (如 "SanYi CAD 2D")
+        /// @param softwareName 软件名称 (如 "April CAD 2D")
         /// @param softwareVer  软件版本 (如 "2.0.0")
         /// @param includeEnvInfo 是否填充环境溯源信息 (序列号、用户名、OS版本)
-        inline void fillMetadata(SyDocument& doc,
+        inline void fillMetadata(AprDocument& doc,
             const char* softwareName,
             const char* softwareVer,
             bool includeEnvInfo = true)
         {
-            doc.setMetadataVersion(SyFileConst::FILE_VERSION);
+            doc.setMetadataVersion(AprFileConst::FILE_VERSION);
             doc.setMetadataFileVersion(1);
             doc.setSoftwareName(softwareName);
             doc.setSoftwareVersion(softwareVer);
@@ -295,7 +295,7 @@ namespace Fio
         }
 
         /// 仅更新 modifiedTime（用于覆盖保存时不重写 createdTime）
-        inline void updateModifiedTime(SyDocument& doc)
+        inline void updateModifiedTime(AprDocument& doc)
         {
             const std::string now = currentIsoTime();
             doc.setModifiedTime(now.c_str());

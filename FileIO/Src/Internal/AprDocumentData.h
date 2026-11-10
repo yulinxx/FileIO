@@ -1,15 +1,15 @@
 #pragma once
 
-// FileIO 内部文档数据模型 —— SyDocument 的 PIMPL 内部实现
+// FileIO 内部文档数据模型 —— AprDocument 的 PIMPL 内部实现
 // 仅 FileIO.dll 内部使用，std 容器可自由使用，不跨 DLL 边界。
 //
-// C3 收口 (2026-07-31)：原 SyDocument.h 公开的所有 STL 数据成员
+// C3 收口 (2026-07-31)：原 AprDocument.h 公开的所有 STL 数据成员
 // （metadata / layers / entities / groups / hardware / entityLayerMap / warnings）
-// 内迁至此。公开头 FileIO/SyDocument.h 不再暴露任何 std 类型，
-// 字符串经 const char* 出入，图层/硬件经 POD 视图（SyLayerInfo/SyHardwareInfo）传输。
+// 内迁至此。公开头 FileIO/AprDocument.h 不再暴露任何 std 类型，
+// 字符串经 const char* 出入，图层/硬件经 POD 视图（AprLayerInfo/AprHardwareInfo）传输。
 
-#include "FileIO/SyDocument.h"
-#include "Engine/SyEntity/SyEntity.h"
+#include "FileIO/AprDocument.h"
+#include "Engine/AprEntity/AprEntity.h"
 
 #include <cstdint>
 #include <map>
@@ -62,8 +62,8 @@ namespace Fio
         uint32_t defaultProcessId = 0; // 默认工艺 ID，0 = 未指定
 
         // 与 proto LayerData.hardware_profile_id / fill_hardware_profile_id 对应。
-        // 这两个字段在 SanYiDocument.proto 里早就声明了，但 SySerializer 的写/读
-        // 路径一直没碰它们，导致图层→硬件 Profile 的绑定在 .sy 里全量丢失。
+        // 这两个字段在 AprDocument.proto 里早就声明了，但 AprSerializer 的写/读
+        // 路径一直没碰它们，导致图层→硬件 Profile 的绑定在 .apr 里全量丢失。
         int32_t hardwareProfileId = 0;       // 0 = 默认 Profile
         int32_t fillHardwareProfileId = -1;  // -1 = 未设置，回退到 hardwareProfileId
     };
@@ -100,7 +100,7 @@ namespace Fio
         PropertyMap customProperties;  // 扩展属性
     };
 
-    /// 硬件 Profile 值集（内部模型）。与公开 POD SyHardwareProfileInfo 一一对应，
+    /// 硬件 Profile 值集（内部模型）。与公开 POD AprHardwareProfileInfo 一一对应，
     /// 单位保持 HardwareProfileManager 的约定：frequency=kHz、focusOffset=mm。
     struct HardwareProfileInfo
     {
@@ -137,16 +137,16 @@ namespace Fio
         }
     };
 
-    struct SyDocumentData
+    struct AprDocumentData
     {
         DocumentMetadata metadata;
         std::vector<LayerInfo> layers;
-        std::vector<std::unique_ptr<Eg::SyEntity>> entities;
+        std::vector<std::unique_ptr<Eg::AprEntity>> entities;
 
         /// 借出图元（不拥有）。仅用于「序列化输出」路径：调用方（如 NativeWriter）
         /// 已持有图元且承诺在序列化期间存活，无需再深拷贝一份到文档里。
         /// serializeToProto 会先输出 entities，再依次输出 borrowedEntities。
-        std::vector<const Eg::SyEntity*> borrowedEntities;
+        std::vector<const Eg::AprEntity*> borrowedEntities;
 
         std::vector<GroupInfo> groups;  // 群组信息
         HardwareInfo hardware;
@@ -170,17 +170,17 @@ namespace Fio
         std::vector<std::string> warnings;
     };
 
-    // 内部访问器（friend of SyDocument，仅 DLL 内部使用）
-    inline SyDocumentData& syDocumentData(SyDocument& doc)
+    // 内部访问器（friend of AprDocument，仅 DLL 内部使用）
+    inline AprDocumentData& syDocumentData(AprDocument& doc)
     {
         if (!doc.m_data)
         {
-            doc.m_data = new SyDocumentData();
+            doc.m_data = new AprDocumentData();
         }
         return *doc.m_data;
     }
 
-    inline const SyDocumentData& syDocumentData(const SyDocument& doc)
+    inline const AprDocumentData& syDocumentData(const AprDocument& doc)
     {
         return *doc.m_data;
     }

@@ -47,7 +47,7 @@ namespace Fio
             visitor("iges", ctx);
         }
 
-        ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) override;
+        ParseResult parse(const char* filePath, VecAprEntityPtr& outEntities) override;
 
         /// 输出中立 IR（跨 DLL 安全）：解析 IGES 常见图元到 FioParseResult
         FioParseResult parseToIR(const char* filePath) override;

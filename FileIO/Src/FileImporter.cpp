@@ -14,17 +14,17 @@
 #include <filesystem>
 
 // Engine 图元 → 内部 ParsedGeometry 的转换（仅 importFile 入口使用，Parser 迁移到 IR 后可移除）
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyEllipse.h"
-#include "Engine2D/SyEntity/SyPoint.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyBezier.h"
-#include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SyText.h"
-#include "Engine2D/SyEntity/SyImage.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprEllipse.h"
+#include "Engine2D/AprEntity/AprPoint.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprBezier.h"
+#include "Engine2D/AprEntity/AprBezier2.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprText.h"
+#include "Engine2D/AprEntity/AprImage.h"
 
 namespace Fio
 {
@@ -35,7 +35,7 @@ namespace Fio
         bool hasData = false;
 
         /// 将 Engine 图元转换为内部 ParsedGeometry
-        static void convertEntity(const Eg::SyEntity* src, ParsedGeometry& out)
+        static void convertEntity(const Eg::AprEntity* src, ParsedGeometry& out)
         {
             out.sourceId = src->id;
             out.name = src->name();
@@ -43,13 +43,13 @@ namespace Fio
             out.locked = src->locked();
             // bClosed/bCCW 是 2D 实体专有字段；非 2D 实体 dynamic_cast 会失败，
             // 跳过这两个字段保持 ParsedGeometry 的默认值，避免非法向下转换。
-            if (const auto* src2d = dynamic_cast<const Eg::SyEntity2D*>(src))
+            if (const auto* src2d = dynamic_cast<const Eg::AprEntity2D*>(src))
             {
                 out.closed = src2d->bClosed;
                 out.ccw = src2d->bCCW;
             }
 
-            if (auto* line = dynamic_cast<const Eg::SyLine*>(src))
+            if (auto* line = dynamic_cast<const Eg::AprLine*>(src))
             {
                 out.type = ParsedGeometryType::Line;
                 if (line->pointRef().size() >= 2)
@@ -58,7 +58,7 @@ namespace Fio
                     out.line.end = { line->pointRef()[1].x(), line->pointRef()[1].y() };
                 }
             }
-            else if (auto* arc = dynamic_cast<const Eg::SyArc*>(src))
+            else if (auto* arc = dynamic_cast<const Eg::AprArc*>(src))
             {
                 out.type = ParsedGeometryType::Arc;
                 out.arc.center = { arc->basePoint.x(), arc->basePoint.y() };
@@ -66,13 +66,13 @@ namespace Fio
                 out.arc.startAngle = arc->dStartAngle;
                 out.arc.endAngle = arc->dEndAngle;
             }
-            else if (auto* circle = dynamic_cast<const Eg::SyCircle*>(src))
+            else if (auto* circle = dynamic_cast<const Eg::AprCircle*>(src))
             {
                 out.type = ParsedGeometryType::Circle;
                 out.circle.center = { circle->basePoint.x(), circle->basePoint.y() };
                 out.circle.radius = circle->dRadius;
             }
-            else if (auto* ellipse = dynamic_cast<const Eg::SyEllipse*>(src))
+            else if (auto* ellipse = dynamic_cast<const Eg::AprEllipse*>(src))
             {
                 out.type = ParsedGeometryType::Ellipse;
                 out.ellipse.center = { ellipse->basePoint.x(), ellipse->basePoint.y() };
@@ -82,7 +82,7 @@ namespace Fio
                 out.ellipse.startAngle = ellipse->dStartAngle;
                 out.ellipse.endAngle = ellipse->dEndAngle;
             }
-            else if (auto* poly = dynamic_cast<const Eg::SyPolygon*>(src))
+            else if (auto* poly = dynamic_cast<const Eg::AprPolygon*>(src))
             {
                 out.type = ParsedGeometryType::Polygon;
                 out.closed = true;
@@ -94,7 +94,7 @@ namespace Fio
                     out.polyline.points.push_back({ v.x(), v.y() });
                 }
             }
-            else if (auto* bezier = dynamic_cast<const Eg::SyBezier*>(src))
+            else if (auto* bezier = dynamic_cast<const Eg::AprBezier*>(src))
             {
                 out.type = ParsedGeometryType::Bezier;
                 out.bezier.start = { bezier->basePoint.x(), bezier->basePoint.y() };
@@ -102,14 +102,14 @@ namespace Fio
                 out.bezier.ctrl1 = { bezier->ptCtrl1.x(), bezier->ptCtrl1.y() };
                 out.bezier.end = { bezier->ptEnd.x(), bezier->ptEnd.y() };
             }
-            else if (auto* bezier2 = dynamic_cast<const Eg::SyBezier2*>(src))
+            else if (auto* bezier2 = dynamic_cast<const Eg::AprBezier2*>(src))
             {
                 out.type = ParsedGeometryType::Bezier2;
                 out.bezier2.start = { bezier2->basePoint.x(), bezier2->basePoint.y() };
                 out.bezier2.ctrl = { bezier2->ptCtrl.x(), bezier2->ptCtrl.y() };
                 out.bezier2.end = { bezier2->ptEnd.x(), bezier2->ptEnd.y() };
             }
-            else if (auto* nurbs = dynamic_cast<const Eg::SyNurbs*>(src))
+            else if (auto* nurbs = dynamic_cast<const Eg::AprNurbs*>(src))
             {
                 out.type = ParsedGeometryType::Nurbs;
                 out.nurbs.degree = nurbs->nDegree;
@@ -126,7 +126,7 @@ namespace Fio
                     out.nurbs.controlPoints.push_back({ p.x(), p.y() });
                 }
             }
-            else if (auto* text = dynamic_cast<const Eg::SyText*>(src))
+            else if (auto* text = dynamic_cast<const Eg::AprText*>(src))
             {
                 out.type = ParsedGeometryType::Text;
                 out.text.position = { text->basePoint.x(), text->basePoint.y() };
@@ -135,7 +135,7 @@ namespace Fio
                 out.text.fontFamily = text->fontNameStr();
                 out.text.angle = text->dRotation;
             }
-            else if (auto* img = dynamic_cast<const Eg::SyImage*>(src))
+            else if (auto* img = dynamic_cast<const Eg::AprImage*>(src))
             {
                 (void)img;
                 out.type = ParsedGeometryType::Image;
@@ -257,7 +257,7 @@ namespace Fio
             return false;
         }
 
-        VecSyEntityPtr entities;
+        VecAprEntityPtr entities;
         ParseResult result;
         try
         {

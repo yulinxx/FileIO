@@ -5,7 +5,7 @@
 
 // ----
 // ---- FileIO 使用示例 ----
-// 编译后执行 SyFileIOExample.exe（在当前目录生成两个小文件）
+// 编译后执行 AprFileIOExample.exe（在当前目录生成两个小文件）
 //
 // 演示 FileIOManager 的基本流程：
 //   格式查询 -> 写一个最小 DXF -> 导入 -> 释放图元 -> 导出
@@ -13,10 +13,10 @@
 
 int main()
 {
-    std::printf("=== SyFileIOExample ===\n");
+    std::printf("=== AprFileIOExample ===\n");
 
     // ---- 1. 写一个最小 DXF（一条 LINE） ----
-    const char* dxfPath = "SyFileIOExample.dxf";
+    const char* dxfPath = "AprFileIOExample.dxf";
     {
         std::ofstream out(dxfPath);
         out << "0\nSECTION\n2\nENTITIES\n"
@@ -35,7 +35,7 @@ int main()
 
     // ---- 3. 导入 ----
     char error[512] = {};
-    Eg::SyEntity** entities = nullptr;
+    Eg::AprEntity** entities = nullptr;
     size_t count = 0;
     if (manager.importFile(dxfPath, Fio::FileFormat::DXF,
             &entities, &count, error, sizeof(error)))
@@ -51,9 +51,9 @@ int main()
 
     // ---- 4. 导出（空图元集合） ----
     char exportError[512] = {};
-    if (manager.exportFile("SyFileIOExample_out.dxf", Fio::FileFormat::DXF,
+    if (manager.exportFile("AprFileIOExample_out.dxf", Fio::FileFormat::DXF,
             nullptr, 0, exportError, sizeof(exportError)))
-        std::printf("export ok -> SyFileIOExample_out.dxf\n");
+        std::printf("export ok -> AprFileIOExample_out.dxf\n");
     else
         std::printf("export failed: %s\n", exportError);
 

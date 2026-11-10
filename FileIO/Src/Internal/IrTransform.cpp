@@ -1,6 +1,6 @@
 #include "IrTransform.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <algorithm>
 #include <cmath>
@@ -727,7 +727,7 @@ namespace Fio
 
         case EntityType::Unknown:
             warnings.emplace_back("Entity type cannot be transformed, entity dropped");
-            SY_WARNF("[IrTransform] Cannot transform entity type %d, dropped", static_cast<int>(info.type));
+            APR_WARNF("[IrTransform] Cannot transform entity type %d, dropped", static_cast<int>(info.type));
             return false;
         }
 

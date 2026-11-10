@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package sanyi.proto;
+package apr.proto;
 
 // ============================================================
-// SanYi Document 序列化协议定义
+// April Document 序列化协议定义
 // 版本: 2
-// 用于 .sy 文件的二进制序列化/反序列化
+// 用于 .apr 文件的二进制序列化/反序列化
 //
 // 设计原则:
 //   1. 所有字段使用 proto3 语法，默认值自动处理
@@ -81,7 +81,7 @@ message DocumentMetadata {
 
     // === 作者/软件信息 ===
     string author            = 3;   // 作者名称
-    string software_name     = 4;   // 软件名称 (如 "SanYi CAD")
+    string software_name     = 4;   // 软件名称 (如 "April CAD")
     string software_version  = 5;   // 软件版本 (如 "1.0.0")
 
     // === 时间信息 (ISO 8601 格式) ===
@@ -134,7 +134,7 @@ message LayerData {
     //   - visible=false, output=true  → 不显示但要加工（模板/定位辅助线常见需求）
     //   - visible=true,  output=false → 显示但不加工（尺寸标注、参考底图）
     // v1 文件没有本字段，读取方按 proto3 默认 false 处理会**导致旧文件整体不加工**，
-    // 因此读端必须用 has 语义兜底：字段缺失时回退为 true（见 SySerializer 的迁移分支）。
+    // 因此读端必须用 has 语义兜底：字段缺失时回退为 true（见 AprSerializer 的迁移分支）。
     optional bool output    = 10;
 
     // 本图层默认使用的工艺 ID；0 表示"未指定，使用工程默认工艺"
@@ -250,7 +250,7 @@ message HardwareProfileData {
 
 // 工程级设置：不影响几何，但影响"这份图会被怎么送去加工"。
 message ProjectSettings {
-    // 机器档案引用（SANYI_MACHINE_PROFILE 的 deviceId 或档案文件名）。
+    // 机器档案引用（APR_MACHINE_PROFILE 的 deviceId 或档案文件名）。
     // 仅用于追溯"这份图是为哪台机器出的"，**不参与坐标换算** ——
     // 坐标换算的唯一依据是本机装配时的机器档案，不是文档里的这个字符串。
     string machine_profile_ref = 1;
@@ -468,7 +468,7 @@ message EntityData {
     // 兼容性说明：
     //   - 旧版本软件读新文件：protobuf 未知字段自动忽略，行为退化为"现场计算"，无影响。
     //   - 新版本软件读旧文件：字段缺失，has_cached_bbox() 为 false，同样现场计算。
-    //   - 数据正确性：.sy 的 CRC32 覆盖整个 payload，校验失败即拒绝加载，
+    //   - 数据正确性：.apr 的 CRC32 覆盖整个 payload，校验失败即拒绝加载，
     //     因此通过校验的文件其 cached_bbox 必然与几何数据来自同一次写入。
     optional BBoxData cached_bbox = 26;
 
@@ -482,7 +482,7 @@ message EntityData {
 
     // === v3 新增：图元可见性 / 锁定 ===
     // 3D 场景保存/恢复需要。旧文件缺失这两个字段时：
-    //   visible 按 true 处理（SyEntity 构造默认可见）；
+    //   visible 按 true 处理（AprEntity 构造默认可见）；
     //   locked  按 false 处理。
     // 使用 optional 是为了区分「旧文件没写」与「显式写了 false」。
     optional bool visible = 50;
@@ -497,8 +497,8 @@ message EntityData {
 
 // ---------------------------- 文档根消息 ----------------------------
 
-// .sy 文件的完整内容
-message SanYiDocument {
+// .apr 文件的完整内容
+message AprDocument {
     DocumentMetadata metadata = 1;   // 文档元信息
     repeated LayerData layers  = 2;   // 图层列表
     repeated EntityData entities = 3; // 图元列表

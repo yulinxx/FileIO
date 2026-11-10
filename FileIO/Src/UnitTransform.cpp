@@ -7,7 +7,7 @@
 #include "IrProjector.h"
 #include "IrTransform.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <cmath>
 #include <cstdint>
@@ -112,12 +112,12 @@ namespace Fio
     {
         if (result == nullptr)
         {
-            SY_ERROR("[UnitTransform] scaleParseResult: null FioParseResult");
+            APR_ERROR("[UnitTransform] scaleParseResult: null FioParseResult");
             return false;
         }
         if (!std::isfinite(scale) || scale <= 0.0)
         {
-            SY_ERRORF("[UnitTransform] scaleParseResult: invalid scale=%f", scale);
+            APR_ERRORF("[UnitTransform] scaleParseResult: invalid scale=%f", scale);
             return false;
         }
         if (std::fabs(scale - 1.0) < 1e-12)

@@ -4,7 +4,7 @@
 //
 // ParseResult/WriteResult/DxfLayerInfo 与 ILegacyParser::parse / ILegacyWriter::write
 // 携带 STL 类型，跨越 DLL 边界不安全，因此只在 FileIO.dll 内部消费。
-// VecSyEntityPtr 别名仍由公开头 IFileParser.h 提供（Main 侧使用），此处直接复用。
+// VecAprEntityPtr 别名仍由公开头 IFileParser.h 提供（Main 侧使用），此处直接复用。
 //
 // 本头文件为公共头（Include/FileIO/），供导出类（DxfParser、NativeWriter 等）
 // 的头文件 include，避免 Src/Internal 路径从公共头泄漏。
@@ -18,7 +18,7 @@
 
 namespace Eg
 {
-    struct SyEntity;
+    struct AprEntity;
 }
 
 namespace Fio
@@ -92,7 +92,7 @@ namespace Fio
     {
     public:
         virtual ~ILegacyParser() = default;
-        virtual ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) = 0;
+        virtual ParseResult parse(const char* filePath, VecAprEntityPtr& outEntities) = 0;
     };
 
     /// Legacy 写入接口（仅 DLL 内部使用）
@@ -100,6 +100,6 @@ namespace Fio
     {
     public:
         virtual ~ILegacyWriter() = default;
-        virtual WriteResult write(const char* filePath, const VecSyEntityPtr& entities) = 0;
+        virtual WriteResult write(const char* filePath, const VecAprEntityPtr& entities) = 0;
     };
 }  // namespace Fio

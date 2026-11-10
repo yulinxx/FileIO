@@ -19,7 +19,7 @@ namespace Fio
         void forEachSupportedExtension(void (*visitor)(const char*, void*), void* ctx) const override;
 
         // Legacy API（直接输出 Engine 类型，deprecated）
-        ParseResult parse(const char* filePath, VecSyEntityPtr& outEntities) override;
+        ParseResult parse(const char* filePath, VecAprEntityPtr& outEntities) override;
 
         // 新版 API（输出中立 IR，跨 DLL 安全）
         FioParseResult parseToIR(const char* filePath) override;

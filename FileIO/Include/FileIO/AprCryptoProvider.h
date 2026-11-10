@@ -11,7 +11,7 @@
 namespace Fio
 {
     // ----
-    // ---- SyCryptoProvider —— 加密策略抽象层 ----
+    // ---- AprCryptoProvider —— 加密策略抽象层 ----
     //
     // 设计模式: Strategy Pattern (策略模式)
     //   - 加密算法可插拔，不影响序列化核心逻辑
@@ -52,11 +52,11 @@ namespace Fio
     // ----
     // ---- 抽象接口 ----
 
-    class FILEIO_API ISyCryptoProvider
+    class FILEIO_API IAprCryptoProvider
     {
     public:
         // 析构在 .cpp 中定义，避免 STL 跨 DLL 边界
-        virtual ~ISyCryptoProvider();
+        virtual ~IAprCryptoProvider();
 
         /// 算法名称（buffer 模式替代 std::string 返回）
         virtual size_t algorithmName(char* buffer, size_t bufferSize) const = 0;
@@ -93,13 +93,13 @@ namespace Fio
     // ---- 默认 XOR 实现 ----
 
     /// 基于 XOR + 密钥轮转的"加密"——实质为可逆混淆，非真正加密。
-    /// 默认密钥 "SanYiDefaultKey2024" 硬编码在公共头文件中，trivially 可逆。
+    /// 默认密钥 "AprDefaultKey2024" 硬编码在公共头文件中，trivially 可逆。
     /// 仅用于防止意外修改（如配置文件误改），不提供任何安全性。
     /// 如需真正加密，请使用 AesCryptoProvider（需 OpenSSL）。
-    class FILEIO_API XorCryptoProvider : public ISyCryptoProvider
+    class FILEIO_API XorCryptoProvider : public IAprCryptoProvider
     {
     public:
-        explicit XorCryptoProvider(const char* key = "SanYiDefaultKey2024");
+        explicit XorCryptoProvider(const char* key = "AprDefaultKey2024");
 
         size_t algorithmName(char* buffer, size_t bufferSize) const override;
         CryptoResult encrypt(const uint8_t* plaintext, size_t plaintextSize) override;

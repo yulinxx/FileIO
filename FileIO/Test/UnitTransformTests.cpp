@@ -87,7 +87,7 @@ TEST(UnitTransformTest, ScalesDxfEntitiesUniformly)
     ents += "0\nLWPOLYLINE\n8\n0\n90\n3\n70\n1\n";
     ents += "10\n0.0\n20\n0.0\n10\n10.0\n20\n0.0\n10\n10.0\n20\n10.0\n";
 
-    const std::string path = writeDxf("sanyi_scale_inch.dxf", "9\n$INSUNITS\n70\n1\n", "", ents);
+    const std::string path = writeDxf("apr_scale_inch.dxf", "9\n$INSUNITS\n70\n1\n", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -128,7 +128,7 @@ TEST(UnitTransformTest, ScaleFactorOneIsNoOp)
     std::string ents;
     ents += "0\nLINE\n8\n0\n10\n1.0\n20\n2.0\n30\n0.0\n11\n3.0\n21\n4.0\n31\n0.0\n";
 
-    const std::string path = writeDxf("sanyi_scale_identity.dxf", "", "", ents);
+    const std::string path = writeDxf("apr_scale_identity.dxf", "", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -152,7 +152,7 @@ TEST(UnitTransformTest, ScalesSvgSmartLineSegments)
                        "<path d=\"M2,2 L6,2 L6,6 Z\"/>\n"
                        "</svg>\n";
 
-    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_scale_svg.svg";
+    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "apr_scale_svg.svg";
     {
         std::ofstream out(tempFile, std::ios::binary);
         ASSERT_TRUE(out.is_open());

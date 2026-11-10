@@ -8,16 +8,16 @@
 #include "IrProjector.h"
 #include "IrTransform.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyEllipse.h"
-#include "Engine2D/SyEntity/SyPoint.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SyText.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprEllipse.h"
+#include "Engine2D/AprEntity/AprPoint.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprText.h"
 #include "Ut/Vec.h"
 
 #include "drw_interface.h"
@@ -271,13 +271,13 @@ namespace Fio
 
     // DXF bulge（组码 42）= tan(包角/4)，表示「本顶点到下一顶点」这一段是圆弧。
     // 这里只做参数搬运，不在导入期细分成折线：顶点 + bulge 一起写进中立 IR，
-    // 由 Engine 的 SyPolygon 在渲染/查询时按当前缩放自适应重采样。
+    // 由 Engine 的 AprPolygon 在渲染/查询时按当前缩放自适应重采样。
     // 这样放大多少倍，圆弧就有多精细，不会像导入期烘焙那样在极端放大下露出折线。
 
     class DxfConverter : public DRW_Interface
     {
     public:
-        DxfConverter(VecSyEntityPtr& outEntities, std::vector<std::string>& warnings)
+        DxfConverter(VecAprEntityPtr& outEntities, std::vector<std::string>& warnings)
             : m_outEntities(outEntities)
             , m_warnings(warnings)
         {
@@ -313,7 +313,7 @@ namespace Fio
                 return;
             }
 
-            auto syLine = std::make_unique<Eg::SyLine>();
+            auto syLine = std::make_unique<Eg::AprLine>();
             int skippedVerts = 0;
             for (const auto& vert : data.vertlist)
             {
@@ -359,7 +359,7 @@ namespace Fio
                 return;
             }
 
-            auto sySpline = std::make_unique<Eg::SyNurbs>();
+            auto sySpline = std::make_unique<Eg::AprNurbs>();
             sySpline->nDegree = data->degree;
             sySpline->setKnotVector(data->knotslist);
             sySpline->setWeightVector(data->weightlist);
@@ -437,7 +437,7 @@ namespace Fio
                 return;
             }
 
-            auto syText = std::make_unique<Eg::SyText>();
+            auto syText = std::make_unique<Eg::AprText>();
             syText->basePoint = p;
             syText->dHeight = data.height;
             syText->setText(data.text.c_str());
@@ -519,7 +519,7 @@ namespace Fio
                 return;
             }
 
-            auto syPoint = std::make_unique<Eg::SyPoint>();
+            auto syPoint = std::make_unique<Eg::AprPoint>();
             syPoint->basePoint = p;
             applyEntityStyle(syPoint.get(), point);
             m_outEntities.push_back(std::move(syPoint));
@@ -536,7 +536,7 @@ namespace Fio
                 return;
             }
 
-            auto syLine = std::make_unique<Eg::SyLine>();
+            auto syLine = std::make_unique<Eg::AprLine>();
             syLine->addPoint(p0);
             syLine->addPoint(p1);
             syLine->basePoint = syLine->pointRef().front();
@@ -555,7 +555,7 @@ namespace Fio
                 return;
             }
 
-            auto syCircle = std::make_unique<Eg::SyCircle>();
+            auto syCircle = std::make_unique<Eg::AprCircle>();
             syCircle->basePoint = c;
             syCircle->dRadius = r;
             applyEntityStyle(syCircle.get(), circle);
@@ -573,7 +573,7 @@ namespace Fio
                 return;
             }
 
-            auto syArc = std::make_unique<Eg::SyArc>();
+            auto syArc = std::make_unique<Eg::AprArc>();
             syArc->basePoint = c;
             syArc->dRadius = r;
             syArc->dStartAngle = arc.staangle;
@@ -599,7 +599,7 @@ namespace Fio
                 return;
             }
 
-            auto syEllipse = std::make_unique<Eg::SyEllipse>();
+            auto syEllipse = std::make_unique<Eg::AprEllipse>();
             syEllipse->basePoint = c;
             syEllipse->dRadiusX = majorLen;
             syEllipse->dRadiusY = majorLen * ratio;
@@ -626,7 +626,7 @@ namespace Fio
                 return;
             }
 
-            auto syLine = std::make_unique<Eg::SyLine>();
+            auto syLine = std::make_unique<Eg::AprLine>();
             int skippedVerts = 0;
             for (const auto& vert : polyline.vertlist)
             {
@@ -673,7 +673,7 @@ namespace Fio
                 return;
             }
 
-            auto syText = std::make_unique<Eg::SyText>();
+            auto syText = std::make_unique<Eg::AprText>();
             syText->basePoint = p;
             syText->dHeight = text.height;
             syText->setText(text.text.c_str());
@@ -703,7 +703,7 @@ namespace Fio
             m_warnings.push_back(makeWarning(entityName, reason));
         }
 
-        void applyEntityStyle(Eg::SyEntity* entity, const DRW_Entity& drwEntity)
+        void applyEntityStyle(Eg::AprEntity* entity, const DRW_Entity& drwEntity)
         {
             (void)entity;
             size_t idx = m_outEntities.size();
@@ -720,7 +720,7 @@ namespace Fio
         }
 
     private:
-        VecSyEntityPtr& m_outEntities;
+        VecAprEntityPtr& m_outEntities;
         std::vector<std::string>& m_warnings;
         std::vector<DRW_Layer> m_layerDefs;
         std::map<std::string, uint32_t> m_layerColorMap;
@@ -772,11 +772,11 @@ namespace Fio
             if (const char* name = insUnitsToName(units); name != nullptr)
             {
                 m_sourceUnit = name;
-                SY_INFOF("[DxfParser] Header $INSUNITS=%d resolved to unit '%s'", units, name);
+                APR_INFOF("[DxfParser] Header $INSUNITS=%d resolved to unit '%s'", units, name);
             }
             else
             {
-                SY_INFOF("[DxfParser] Header $INSUNITS=%d is unitless or unsupported, unit left empty", units);
+                APR_INFOF("[DxfParser] Header $INSUNITS=%d is unitless or unsupported, unit left empty", units);
             }
         }
 
@@ -1374,7 +1374,7 @@ namespace Fio
         /// 读取结束后调用：报告块展开统计，便于定位「图元数量对不上」类问题
         void logBlockSummary() const
         {
-            SY_INFOF("[DxfParser] Block expansion: %zu block definitions, %zu instances, %zu expanded entities",
+            APR_INFOF("[DxfParser] Block expansion: %zu block definitions, %zu instances, %zu expanded entities",
                 m_blocks.size(),
                 m_instanceCount,
                 m_expandedCount);
@@ -1647,7 +1647,7 @@ namespace Fio
             if (depth > kMaxBlockDepth)
             {
                 warnSkip("INSERT", "block nesting too deep, expansion stopped");
-                SY_WARNF("[DxfParser] Block nesting exceeded depth %d at block '%s', stopped",
+                APR_WARNF("[DxfParser] Block nesting exceeded depth %d at block '%s', stopped",
                     kMaxBlockDepth,
                     ref.blockName.c_str());
                 return;
@@ -1658,7 +1658,7 @@ namespace Fio
             {
                 // 引用了未定义的块：AutoCAD 会当作空块，这里同样跳过但必须留痕
                 warnSkip("INSERT", "references an undefined block");
-                SY_WARNF("[DxfParser] INSERT references undefined block '%s'", ref.blockName.c_str());
+                APR_WARNF("[DxfParser] INSERT references undefined block '%s'", ref.blockName.c_str());
                 return;
             }
             const BlockDef& def = it->second;
@@ -1714,7 +1714,7 @@ namespace Fio
                 {
                     m_entityLimitWarned = true;
                     warnSkip("INSERT", "expanded entity limit reached, remaining block instances skipped");
-                    SY_WARNF("[DxfParser] Expanded entity limit %zu reached, skipping remaining block instances",
+                    APR_WARNF("[DxfParser] Expanded entity limit %zu reached, skipping remaining block instances",
                         kMaxExpandedEntities);
                 }
                 return;
@@ -1727,7 +1727,7 @@ namespace Fio
                 if (m_expandedCount >= kMaxExpandedEntities)
                 {
                     warnSkip("INSERT", "expanded entity limit reached, remaining instances skipped");
-                    SY_WARNF("[DxfParser] Expanded entity limit %zu reached, stopping block expansion",
+                    APR_WARNF("[DxfParser] Expanded entity limit %zu reached, stopping block expansion",
                         kMaxExpandedEntities);
                     return;
                 }
@@ -1967,7 +1967,7 @@ namespace Fio
             {
                 ++dropped;
                 warnings.push_back(makeWarning("SPLINE", "degenerate spline dropped before parse"));
-                SY_WARNF("[DxfParser] Skip SPLINE: degenerate spline dropped before parse");
+                APR_WARNF("[DxfParser] Skip SPLINE: degenerate spline dropped before parse");
             }
             else
             {
@@ -2079,7 +2079,7 @@ namespace Fio
 
     FioParseResult DxfParser::parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
     {
-        SY_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath ? filePath : "(null path)");
+        APR_INFOF("[DxfParser] parseToIR START: filePath=%s", filePath ? filePath : "(null path)");
         const auto startTime = std::chrono::steady_clock::now();
 
         // 图元 / 图层 / 群组 / 扩展数据的缓冲区统一由 IrPublisher 持有（每线程一份），
@@ -2092,7 +2092,7 @@ namespace Fio
         std::string content;
         if (!readFileBytes(filePath, content))
         {
-            SY_ERRORF("[DxfParser] parseToIR: Cannot open file: %s", filePath);
+            APR_ERRORF("[DxfParser] parseToIR: Cannot open file: %s", filePath);
             return FioParseResult{};
         }
         sanitizeDxfBytes(content);
@@ -2101,7 +2101,7 @@ namespace Fio
         TempFileCopy tempCopy(content, filePath, "dxf");
         if (!tempCopy.isValid())
         {
-            SY_ERRORF("[DxfParser] parseToIR: Temp file copy failed: %s", tempCopy.error().c_str());
+            APR_ERRORF("[DxfParser] parseToIR: Temp file copy failed: %s", tempCopy.error().c_str());
             return FioParseResult{};
         }
 
@@ -2113,7 +2113,7 @@ namespace Fio
 
             if (!readResult)
             {
-                SY_ERRORF("[DxfParser] parseToIR: libdxfrw read failed: %s", filePath);
+                APR_ERRORF("[DxfParser] parseToIR: libdxfrw read failed: %s", filePath);
                 return FioParseResult{};
             }
 
@@ -2144,7 +2144,7 @@ namespace Fio
             const auto elapsedMs =
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime)
                     .count();
-            SY_INFOF("[DxfParser] parseToIR END: %u entities, %u layers, %u groups, %u warnings, unit='%s', %lld ms",
+            APR_INFOF("[DxfParser] parseToIR END: %u entities, %u layers, %u groups, %u warnings, unit='%s', %lld ms",
                 result.entityCount,
                 result.layerCount,
                 result.groupCount,
@@ -2155,25 +2155,25 @@ namespace Fio
         }
         catch (const std::exception& ex)
         {
-            SY_CRITICALF("[DxfParser] parseToIR exception: %s - %s", filePath, ex.what());
+            APR_CRITICALF("[DxfParser] parseToIR exception: %s - %s", filePath, ex.what());
             return FioParseResult{};
         }
         catch (...)
         {
-            SY_CRITICALF("[DxfParser] parseToIR unknown exception: %s", filePath);
+            APR_CRITICALF("[DxfParser] parseToIR unknown exception: %s", filePath);
             return FioParseResult{};
         }
     }
 
-    ParseResult DxfParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
+    ParseResult DxfParser::parse(const char* filePath, VecAprEntityPtr& outEntities)
     {
-        SY_INFOF("[DxfParser] parse START: filePath=%s", filePath);
+        APR_INFOF("[DxfParser] parse START: filePath=%s", filePath);
         std::vector<std::string> warnings;
 
         std::string content;
         if (!readFileBytes(filePath, content))
         {
-            SY_ERRORF("[DxfParser] parse: Cannot open file: %s", filePath);
+            APR_ERRORF("[DxfParser] parse: Cannot open file: %s", filePath);
             return ParseResult::fail(std::string("Cannot open file: ") + filePath);
         }
         sanitizeDxfBytes(content);
@@ -2183,7 +2183,7 @@ namespace Fio
 
         if (!tempCopy.isValid())
         {
-            SY_ERRORF("[DxfParser] Temp file copy failed: %s", tempCopy.error().c_str());
+            APR_ERRORF("[DxfParser] Temp file copy failed: %s", tempCopy.error().c_str());
             return ParseResult::fail(tempCopy.error());
         }
 
@@ -2197,7 +2197,7 @@ namespace Fio
 
             if (!readResult)
             {
-                SY_ERRORF("[DxfParser] libdxfrw read failed: %s", filePath);
+                APR_ERRORF("[DxfParser] libdxfrw read failed: %s", filePath);
                 return ParseResult::fail(std::string("Failed to read DXF file: ") + filePath);
             }
 
@@ -2222,17 +2222,17 @@ namespace Fio
             result.entityLayerMap = converter.getEntityLayerMap();
             result.entityColorMap = converter.getEntityColorMap();
 
-            SY_INFOF("[DxfParser] parse END: success, entities=%zu, layers=%zu", entityCount, layerCount);
+            APR_INFOF("[DxfParser] parse END: success, entities=%zu, layers=%zu", entityCount, layerCount);
             return result;
         }
         catch (const std::exception& ex)
         {
-            SY_CRITICALF("[DxfParser] Parse exception: %s - %s", filePath, ex.what());
+            APR_CRITICALF("[DxfParser] Parse exception: %s - %s", filePath, ex.what());
             return ParseResult::fail(std::string("Exception during DXF parsing: ") + ex.what(), warnings);
         }
         catch (...)
         {
-            SY_CRITICALF("[DxfParser] Parse unknown exception: %s", filePath);
+            APR_CRITICALF("[DxfParser] Parse unknown exception: %s", filePath);
             return ParseResult::fail(std::string("Unknown exception during DXF parsing"), warnings);
         }
     }

@@ -9,7 +9,7 @@
 能读懂 `Include/FileIO/FioTypes.h`。
 
 
-导出侧仍然直接吃 `Eg::SyEntity`（`Writers/` 里靠 `dynamic_cast` 分派子类），这是已知
+导出侧仍然直接吃 `Eg::AprEntity`（`Writers/` 里靠 `dynamic_cast` 分派子类），这是已知
 技术债，见 [§11 分期计划](#11-分期计划)。
 
 ---
@@ -18,11 +18,11 @@
 
 ```
 FileIO/
-├── CMakeLists.txt                # 独立构建入口（project(SanYiFileIO)）
+├── CMakeLists.txt                # 独立构建入口（project(AprFileIO)）
 ├── README.md                     # 本文件
 └── FileIO/                       # 库本体
-    ├── CMakeLists.txt            # sanyi_add_shared_library(FileIO)
-    ├── Proto/SanYiDocument.proto # 原生格式（.sy/.syx）的 protobuf schema
+    ├── CMakeLists.txt            # apr_add_shared_library(FileIO)
+    ├── Proto/AprDocument.proto # 原生格式（.apr/.apr3d）的 protobuf schema
     ├── Include/FileIO/           # 公开头文件（唯一对外契约）
     │   ├── FioTypes.h            # ★ 中立 IR：EntityType / IrLayerInfo / IrGroupInfo
     │   │                         #   / EntityInfo / BinaryBlob / FioParseResult
@@ -36,8 +36,8 @@ FileIO/
     │   ├── FileIOManager.h       # 门面：存盘 / 打开 / 导入 / 导出
     │   ├── FileImporter.h        # C 风格导入入口（含 ExportBlob/FreeBlob）
     │   ├── ImageUtils.h          # 位图解码 / 像素-物理单位换算
-    │   ├── SySerializer.h        # protobuf 序列化核心
-    │   ├── SyDocument.h / SyDocument3D.h
+    │   ├── AprSerializer.h        # protobuf 序列化核心
+    │   ├── AprDocument.h / AprDocument3D.h
     │   ├── Parsers/              # 各格式解析器头
     │   └── Writers/              # 各格式写出器头
     ├── Src/
@@ -48,7 +48,7 @@ FileIO/
     │   │   ├── FileIOInternal.h     # 向后兼容 wrapper → ILegacyTypes.h
     │   │   ├── FileIOUtils.h        # TempFileCopy / generateHash（内部工具）
     │   │   ├── MetadataFiller.h
-    │   │   └── SyDocumentData.h
+    │   │   └── AprDocumentData.h
     │   ├── Parsers/              # 10 个解析实现（自注册）
     │   ├── Writers/              # 5 个写出实现
     │   └── *.cpp                 # 工厂 / 门面 / 序列化 / 图像工具
@@ -89,7 +89,7 @@ FileIO/
    └──────────────────────────────────────────────┘
            │  FioParseResult（纯 POD，只读借用）
            ▼  ── DLL 边界 ──────────────────────────
-   FioEntityConverter（Engine3D） → SyEntity / SyMeshEntity
+   FioEntityConverter（Engine3D） → AprEntity / AprMeshEntity
            │
            ▼
    ImportService → SceneManager + LayerManager + GroupManager
@@ -190,7 +190,7 @@ Mesh3D / 折线顶点四条分支都经过它。
 | STEP | `.stp` `.step` | `StepParser` | GeoModelCore（可选，底层 OCC） | 未启用时返回失败 |
 | OBJ | `.obj` | `ObjParser` | 无 | 见 §5.4 |
 | STL | `.stl` | `StlParser` | 无 | ASCII / 二进制自动识别 |
-| 原生 2D/3D | `.sy` `.syx` | `NativeParser` | protobuf-lite | 构造时传 FileFormat 区分 |
+| 原生 2D/3D | `.apr` `.apr3d` | `NativeParser` | protobuf-lite | 构造时传 FileFormat 区分 |
 
 `FormatRegistry` 另外注册了 `BMP` / `PNG`（供扩展名识别与文件对话框过滤），
 但工厂里**没有**对应 parser：位图解码走导出函数 `Fio::loadImageToRgba()`
@@ -201,7 +201,7 @@ Mesh3D / 折线顶点四条分支都经过它。
 
 ### 4.2 导出（`FileWriterFactory::initDefaults`）
 
-DXF（手写文本，不经 libdxfrw）、SVG、PLT、IGES(`.igs`)、`.sy`、`.syx`。
+DXF（手写文本，不经 libdxfrw）、SVG、PLT、IGES(`.igs`)、`.apr`、`.apr3d`。
 圆/圆弧/椭圆在写出时按固定段数离散（一般 20 段，椭圆 40 段）。
 
 ---
@@ -354,13 +354,13 @@ PDF 用 `pdftocairo`（Poppler）；AI 分两种——PDF 基的 AI 走 `pdftoca
 PS 基的老 AI 需要 Ghostscript（`gswin64c`）。外部工具缺失时解析失败并给出提示，
 不会崩溃。这是唯一依赖**外部可执行文件**的路径，部署时需随包提供或要求系统安装。
 
-### 5.8 原生格式（.sy / .syx）
+### 5.8 原生格式（.apr / .apr3d）
 
-protobuf-lite + `Proto/SanYiDocument.proto`，2D/3D 共用 `NativeParser` / `NativeWriter`
+protobuf-lite + `Proto/AprDocument.proto`，2D/3D 共用 `NativeParser` / `NativeWriter`
 （构造时传 `FileFormat::Native` 或 `Native3D`）。
 
 **原生格式不走中立 IR**：protobuf 文档直接反序列化成 Engine 图元，中间没有 IR 表达，
-`NativeParser` 因此没有实现 `parseToIR`，`.sy` / `.syx` 导入走 `importFile` 旧路径
+`NativeParser` 因此没有实现 `parseToIR`，`.apr` / `.apr3d` 导入走 `importFile` 旧路径
 （`ImportReaderBase::readViaLegacy`，会打一条 WARN 说明"无 IR、不还原图层/群组"）。
 后续计划见 §11 P1「Native 迁移到 `Engine/Persistence`」。
 落到 `IFileParser::parseToIR` 默认实现的格式会打一条 ERROR（`[IFileParser] parseToIR not
@@ -380,7 +380,7 @@ implemented for format=...`），不再静默返回空结果。
 **群组只单向记录成员关系**：图元记 `groupSourceId`，`IrGroupInfo` 只记 `parentSourceId`，
 不存成员列表。理由是与 `layerSourceId` 同构、双向存储不一致时无裁决依据、
 少一处越界校验点。IR 侧已保证 id 稠密、缺父降级为顶层并告警、成环打断并告警；
-`ImportService` 侧再用 `SyGroup::wouldCreateCycle()` 兜底一次
+`ImportService` 侧再用 `AprGroup::wouldCreateCycle()` 兜底一次
 （群组 id 不复用 IR 的 `sourceId`，因为它与运行时 `EntityId` 空间会撞车）。
 
 **`IrPublisher` 侧的图层/群组闸门**（`addLayer` / `addGroup`，所有走 IR 的解析器共享）：
@@ -464,7 +464,7 @@ END 至少给出图元数与耗时；提前 return 的分支一律要写明原�
 | 依赖 | 获取方式 | 用途 | 缺失后果 |
 |---|---|---|---|
 | libdxfrw | 仓内源码 `ThirdParty/libdxfrw`，随 FileIO 编译 | DXF 解析 | 无法构建 |
-| protobuf-lite | vcpkg `find_package(protobuf CONFIG REQUIRED)` | `.sy`/`.syx` | 无法构建 |
+| protobuf-lite | vcpkg `find_package(protobuf CONFIG REQUIRED)` | `.apr`/`.apr3d` | 无法构建 |
 | NanoSVG | vcpkg `find_package(NanoSVG CONFIG REQUIRED)` | SVG 解析 | 无法构建 |
 | stb (stb_image) | vcpkg `find_package(Stb REQUIRED)` | 位图解码 | 无法构建 |
 | libwebp | vcpkg `find_package(WebP CONFIG REQUIRED)` | webp 解码 | 无法构建 |
@@ -506,7 +506,7 @@ Utility / Log ──> EngineCommon ──> Engine2D ──> Engine3D ──> Fil
 ```
 
 `Main` / `UI` / `Renderx` 一概不参与。兄弟模块的测试目标由独立入口的
-`sanyi_only_own_tests(FILEIO)` 声明裁剪掉——只有 FileIO 自己的测试会被生成。
+`apr_only_own_tests(FILEIO)` 声明裁剪掉——只有 FileIO 自己的测试会被生成。
 `Engine2D`/`Engine3D` 只被 `Writers/` 用于 `dynamic_cast` 具体图元子类——
 导出侧也切到 IR 之后，依赖闭包可以缩到 `Utility + Log`。
 
@@ -522,7 +522,7 @@ GTest 缺失时 `BUILD_TESTS` 会被自动降级为 OFF（只编库仍然成功�
 - `DxfEntityTests.cpp`（12）—— bulge 正负号、闭合标志、OCS→WCS、`$INSUNITS`、
   SOLID 角点顺序、拟合点 SPLINE 降级、HATCH 告警
 - `Obj3DTests.cpp`（10）—— OBJ 分段/群组/负索引/三角化 + ASCII STL 回归
-- `SySerializerTests.cpp`（30）、`FileIOUtilityTests.cpp`（31）、
+- `AprSerializerTests.cpp`（30）、`FileIOUtilityTests.cpp`（31）、
   `FileIORegressionTests.cpp`（26）、`FioTypesTests.cpp`（18）、`FileImportTests.cpp`（15）
 
 `Test/CMakeLists.txt` 直接把 `../Src/Internal/IrProjector.cpp` 编进测试可执行文件：
@@ -604,7 +604,7 @@ factory.destroyParser(parser);
 
 已完成（P0，框架 + 主链路）：中立 IR 与内存契约、`IrPublisher` 单点发布、
 `IrProjector` 投影与 id 规范化、`IrTransform` 仿射层、DXF 块展开与图元覆盖、
-OBJ 接入 FileIO、STL 去重复实现、群组通道端到端（解析 → IR → 转换 → `SyGroup`）、
+OBJ 接入 FileIO、STL 去重复实现、群组通道端到端（解析 → IR → 转换 → `AprGroup`）、
 extensionBlob 越界校验、独立构建 + 163 条 ctest 用例。
 转换层已下移到 `Engine/3D/Src/Import/FioEntityConverter.cpp`（`Eg::FioEntityConverter`），
 `Engine/3D` 里重复的 `StlLoader`/`ObjLoader` 已删除，UI3D 的 OBJ/STL 导入改走本 DLL。
@@ -635,7 +635,7 @@ PLT 格式改进：
 - SVG：圆弧/椭圆回拟合、`<g>` → `IrGroupInfo` 落地、`transform=` 走 `IrXform`。
   （「一条子路径聚合成一个图元」与「直线段识别」已完成，见 §5.3。）
 - DXF：`HATCH` 边界轮廓（至少取外边界）、`IMAGE` 落地为 `EntityType::Image`。
-- Native（`.sy`）迁移到 `Engine/Persistence`。
+- Native（`.apr`）迁移到 `Engine/Persistence`。
 - 把 `_fileio_add_sibling()` 与 DLL 拷贝块上提到 `CMake/StandaloneInit.cmake`，
   各模块独立入口共用。
 
@@ -644,7 +644,7 @@ PLT 格式改进：
 
 - 导出侧改吃 IR，去掉 `Writers/` 对 Engine2D/Engine3D 的 `dynamic_cast` 依赖，
   依赖闭包缩到 `Utility + Log`。
-- `Fio::VecSyEntityPtr` 从公开头文件移除（现存的 ABI 技术债）。
+- `Fio::VecAprEntityPtr` 从公开头文件移除（现存的 ABI 技术债）。
 - 写出侧曲线离散段数改为按弦高误差自适应，替换当前固定 20/40 段。
 - Linux/macOS 上跑一次完整构建与 ctest。
 

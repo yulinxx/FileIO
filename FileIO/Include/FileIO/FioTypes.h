@@ -20,10 +20,10 @@
 //      导出宏只保留在类（FileIOManager / IFileParser / FormatRegistry 等）和自由函数上。
 //
 // 目标架构：
-//   FileIO（解析器） → ParseData（中立 IR） → Engine（SyEntity 转换）
+//   FileIO（解析器） → ParseData（中立 IR） → Engine（AprEntity 转换）
 //
 // 已知技术债：
-//   VecSyEntityPtr（IFileParser.h）直接暴露 Engine 类型，将逐步迁移到 ParseData 体系。
+//   VecAprEntityPtr（IFileParser.h）直接暴露 Engine 类型，将逐步迁移到 ParseData 体系。
 // ----
 
 namespace Fio
@@ -74,9 +74,9 @@ namespace Fio
     ///
     /// 另：这里**刻意不放**加工语义（是否输出、默认工艺）——
     /// DXF / SVG / PLT 这些外来格式根本没有这个概念，
-    /// 只有原生 .sy 格式有。把它塞进通用导入 IR 是为一两种格式的便利
+    /// 只有原生 .apr 格式有。把它塞进通用导入 IR 是为一两种格式的便利
     /// 污染所有格式的公共契约。原生格式的加工语义走
-    /// `Fio::SyLayerInfo`（函数边界传递，不受裸指针 ABI 约束）。
+    /// `Fio::AprLayerInfo`（函数边界传递，不受裸指针 ABI 约束）。
     struct IrLayerInfo
     {
         uint32_t sourceId = 0;
@@ -290,7 +290,7 @@ namespace Fio
     ///
     /// 使用方式：
     ///   1. 解析器填充 entities[] 和 layers[]
-    ///   2. 调用方（Main 项目）通过 FioEntityConverter 将 EntityInfo 转为 SyEntity
+    ///   2. 调用方（Main 项目）通过 FioEntityConverter 将 EntityInfo 转为 AprEntity
     ///
     /// **内存契约（重要）**：
     ///   entities / layers / extensionBlob.data 三个指针均指向 FileIO.dll 内部的

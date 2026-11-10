@@ -2,7 +2,7 @@
 
 #include "FileIO/FileIOAPI.h"
 #include "FileIO/FileFormat.h"
-#include "FileIO/SyDocument.h"
+#include "FileIO/AprDocument.h"
 #include "FileIO/FioTypes.h"
 
 #include <cstddef>
@@ -12,13 +12,13 @@
 
 namespace Fio
 {
-    class ISyCryptoProvider;
+    class IAprCryptoProvider;
 
     // ----
-    // ---- SySerializer —— 文档序列化/反序列化核心 ----
+    // ---- AprSerializer —— 文档序列化/反序列化核心 ----
     //
     // 职责:
-    //   1. SyDocument ↔ Protobuf 消息互转
+    //   1. AprDocument ↔ Protobuf 消息互转
     //   2. Protobuf 消息 ↔ 二进制数据 互转
     //   3. 文件格式解析和生成（Magic Header + 版本 + 加密检测）
     //
@@ -67,13 +67,13 @@ namespace Fio
 
     // ----
     // ---- 文件格式常量 ----
-    namespace SyFileConst
+    namespace AprFileConst
     {
-        /// 文件魔数: "SYPB" (SY ProtoBinary) - 2D 格式
-        constexpr const char MAGIC_SY[4] = { 'S', 'Y', 'P', 'B' };
+        /// 文件魔数: "APRB" (APR ProtoBinary) - 2D 格式
+        constexpr const char MAGIC_APR[4] = { 'A', 'P', 'R', 'B' };
 
-        /// 文件魔数: "SXPB" (SYX ProtoBinary) - 3D 格式
-        constexpr const char MAGIC_SYX[4] = { 'S', 'X', 'P', 'B' };
+        /// 文件魔数: "AP3D" (APR 3D ProtoBinary) - 3D 格式
+        constexpr const char MAGIC_APR3D[4] = { 'A', 'P', '3', 'D' };
 
         /// 当前文件格式版本
         constexpr uint32_t FILE_VERSION = 1;
@@ -86,52 +86,52 @@ namespace Fio
 
         /// 加密标志位
         constexpr uint32_t FLAG_ENCRYPTED = 0x01;
-    }  // namespace SyFileConst
+    }  // namespace AprFileConst
 
     // ----
     // ---- 序列化器 ----
 
-    class FILEIO_API SySerializer
+    class FILEIO_API AprSerializer
     {
     public:
-        SySerializer();
-        ~SySerializer();
+        AprSerializer();
+        ~AprSerializer();
 
         // 禁止拷贝，允许移动
-        SySerializer(const SySerializer&) = delete;
-        SySerializer& operator=(const SySerializer&) = delete;
-        SySerializer(SySerializer&&) noexcept;
-        SySerializer& operator=(SySerializer&&) noexcept;
+        AprSerializer(const AprSerializer&) = delete;
+        AprSerializer& operator=(const AprSerializer&) = delete;
+        AprSerializer(AprSerializer&&) noexcept;
+        AprSerializer& operator=(AprSerializer&&) noexcept;
 
         // ---- 加密配置 ----
 
         /// 设置加密提供者（接管所有权），传入 nullptr 禁用加密
-        void setCryptoProvider(ISyCryptoProvider* provider);
+        void setCryptoProvider(IAprCryptoProvider* provider);
 
         /// 是否有加密提供者
         bool hasCrypto() const;
 
         // ---- 文件级操作 ----
 
-        /// 将文档保存到 .sy 文件
+        /// 将文档保存到 .apr 文件
         /// @param filePath 文件路径（UTF-8）
         /// @param doc      文档数据
         /// @param encrypt  是否加密 (需要先 setCryptoProvider)
         SerializeResult saveToFile(const char* filePath,
-            const SyDocument& doc,
+            const AprDocument& doc,
             bool encrypt = false,
             SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr,
             SerializeProgressCallback progressCb = nullptr,
             void* progressCtx = nullptr);
 
-        /// 将文档保存到 .sy/.syx 文件（格式感知版本）
+        /// 将文档保存到 .apr/.apr3d 文件（格式感知版本）
         /// @param filePath 文件路径（UTF-8）
         /// @param doc      文档数据
         /// @param encrypt  是否加密
-        /// @param fmt      目标格式，决定魔数选择（Native→SYPB, Native3D→SXPB）
+        /// @param fmt      目标格式，决定魔数选择（Native→APRB, Native3D→AP3D）
         SerializeResult saveToFile(const char* filePath,
-            const SyDocument& doc,
+            const AprDocument& doc,
             bool encrypt,
             FileFormat fmt,
             SerializeWarningCallback warningCb = nullptr,
@@ -139,11 +139,11 @@ namespace Fio
             SerializeProgressCallback progressCb = nullptr,
             void* progressCtx = nullptr);
 
-        /// 从 .sy 文件加载文档
+        /// 从 .apr 文件加载文档
         /// @param filePath 文件路径（UTF-8）
         /// @param doc      [出参] 文档数据
         SerializeResult loadFromFile(const char* filePath,
-            SyDocument& doc,
+            AprDocument& doc,
             SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
 
@@ -152,7 +152,7 @@ namespace Fio
         /// 将文档序列化为内存中的二进制数据
         /// @param doc 文档数据
         /// @param out 输出块（调用方提供缓冲区；out->data 为 nullptr 时仅查询大小）
-        SerializeResult serializeToMemory(const SyDocument& doc,
+        SerializeResult serializeToMemory(const AprDocument& doc,
             BinaryBlobOut* out,
             SerializeWarningCallback warningCb = nullptr,
             void* warningCtx = nullptr);
@@ -161,21 +161,21 @@ namespace Fio
         /// @param in  序列化后的二进制数据
         /// @param doc [出参] 文档数据
         SerializeResult deserializeFromMemory(
-            BinaryBlob in, SyDocument& doc, SerializeWarningCallback warningCb = nullptr, void* warningCtx = nullptr);
+            BinaryBlob in, AprDocument& doc, SerializeWarningCallback warningCb = nullptr, void* warningCtx = nullptr);
 
         // ---- 工具方法 ----
 
         /// 获取当前文件格式版本
         static uint32_t fileVersion();
 
-        /// 根据文件头魔数判断是否为有效的 .sy 文件
-        static bool isValidSyFile(const uint8_t* header, size_t headerSize);
+        /// 根据文件头魔数判断是否为有效的 .apr 文件
+        static bool isValidAprFile(const uint8_t* header, size_t headerSize);
 
-        /// 根据文件头魔数判断是否为有效的 .syx 文件
-        static bool isValidSyxFile(const uint8_t* header, size_t headerSize);
+        /// 根据文件头魔数判断是否为有效的 .apr3d 文件
+        static bool isValidApr3DFile(const uint8_t* header, size_t headerSize);
 
     private:
-        struct SySerializerImpl;
-        SySerializerImpl* m_impl;
+        struct AprSerializerImpl;
+        AprSerializerImpl* m_impl;
     };
 }  // namespace Fio

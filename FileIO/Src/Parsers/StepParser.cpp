@@ -1,7 +1,7 @@
 #include "FileIO/Parsers/StepParser.h"
 #include "IrProjector.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -26,7 +26,7 @@ namespace Fio
     // ========================================================================
     FioParseResult StepParser::parseToIR(const char* filePath)
     {
-        SY_INFOF("[StepParser] parseToIR START: %s", filePath ? filePath : "");
+        APR_INFOF("[StepParser] parseToIR START: %s", filePath ? filePath : "");
 
         // 统一缓冲区管理（与 DxfParser/StlParser 一致）
         IrPublisher& pub = IrPublisher::threadLocal();
@@ -34,7 +34,7 @@ namespace Fio
 
         if (!filePath || !std::filesystem::exists(std::filesystem::u8path(filePath)))
         {
-            SY_ERRORF("[StepParser] parseToIR: file not found: %s", filePath ? filePath : "");
+            APR_ERRORF("[StepParser] parseToIR: file not found: %s", filePath ? filePath : "");
             return FioParseResult{};
         }
 
@@ -49,14 +49,14 @@ namespace Fio
             {
                 char errBuf[1024] = {};
                 model.lastStepIoError(errBuf, sizeof(errBuf));
-                SY_ERRORF("[StepParser] parseToIR: STEP ReadFile failed: %s err=%s", filePath, errBuf);
+                APR_ERRORF("[StepParser] parseToIR: STEP ReadFile failed: %s err=%s", filePath, errBuf);
                 return FioParseResult{};
             }
 
             const auto shape = model.getShape();
             if (!shape || shape->isNull())
             {
-                SY_WARNF("[StepParser] parseToIR: STEP shape is empty: %s", filePath);
+                APR_WARNF("[StepParser] parseToIR: STEP shape is empty: %s", filePath);
                 return FioParseResult{};
             }
 
@@ -81,7 +81,7 @@ namespace Fio
             int32_t skippedFaceCount = 0;
             int32_t planeCount = 0;
             int32_t closedLoopCount = 0;
-            const char* envSwitch = std::getenv("SANYI_STEP_CONTOUR");
+            const char* envSwitch = std::getenv("APR_STEP_CONTOUR");
             const bool contourEnabled = !(envSwitch != nullptr && std::strcmp(envSwitch, "0") == 0);
 
             if (contourEnabled)
@@ -129,7 +129,7 @@ namespace Fio
                 }
                 if (!usedContour)
                 {
-                    SY_WARNF("[StepParser] contour extract fallback: code=%d msg=%s skipped=%d open=%d planes=%d",
+                    APR_WARNF("[StepParser] contour extract fallback: code=%d msg=%s skipped=%d open=%d planes=%d",
                         static_cast<int>(contourResult.status.code), contourResult.status.message,
                         skippedFaceCount, openWireCount, planeCount);
                 }
@@ -140,7 +140,7 @@ namespace Fio
                 const auto polylines = GeoModelCore::GmcProjection::projectTopView(*shape);
                 if (polylines.empty())
                 {
-                    SY_WARNF("[StepParser] parseToIR: no projectable edges: %s", filePath);
+                    APR_WARNF("[StepParser] parseToIR: no projectable edges: %s", filePath);
                     return FioParseResult{};
                 }
 
@@ -163,19 +163,19 @@ namespace Fio
             }
             else
             {
-                SY_INFOF("[StepParser] contour extract: planes=%d closedLoops=%d openWires=%d skippedFaces=%d",
+                APR_INFOF("[StepParser] contour extract: planes=%d closedLoops=%d openWires=%d skippedFaces=%d",
                     planeCount, closedLoopCount, openWireCount, skippedFaceCount);
             }
 
             if (pub.entities().empty())
             {
-                SY_WARNF("[StepParser] parseToIR: no usable 2D geometry: %s", filePath);
+                APR_WARNF("[StepParser] parseToIR: no usable 2D geometry: %s", filePath);
                 return FioParseResult{};
             }
 
             const auto t1 = std::chrono::steady_clock::now();
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-            SY_INFOF("[StepParser] parseToIR END: %u entities (%lld ms): %s",
+            APR_INFOF("[StepParser] parseToIR END: %u entities (%lld ms): %s",
                 static_cast<uint32_t>(pub.entities().size()),
                 static_cast<long long>(ms),
                 filePath);
@@ -183,16 +183,16 @@ namespace Fio
         }
         catch (const std::exception& ex)
         {
-            SY_CRITICALF("[StepParser] parseToIR exception: %s - %s", filePath, ex.what());
+            APR_CRITICALF("[StepParser] parseToIR exception: %s - %s", filePath, ex.what());
             return FioParseResult{};
         }
         catch (...)
         {
-            SY_CRITICALF("[StepParser] parseToIR unknown exception: %s", filePath);
+            APR_CRITICALF("[StepParser] parseToIR unknown exception: %s", filePath);
             return FioParseResult{};
         }
 #else
-        SY_WARN("[StepParser] parseToIR: STEP import unavailable (rebuild with BUILD_GEOMODELCORE=ON and "
+        APR_WARN("[StepParser] parseToIR: STEP import unavailable (rebuild with BUILD_GEOMODELCORE=ON and "
                 "GMC_ENABLE_STEP_IO)");
         return FioParseResult{};
 #endif

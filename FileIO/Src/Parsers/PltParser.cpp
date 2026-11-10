@@ -7,7 +7,7 @@
 #include "FileIO/Parsers/PltHpglInterpreter.h"
 #include "IrProjector.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <fstream>
 #include <sstream>
@@ -68,7 +68,7 @@ namespace Fio
 
     FioParseResult PltParser::parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
     {
-        SY_INFOF("[PltParser] parseToIR START: %s", filePath ? filePath : "");
+        APR_INFOF("[PltParser] parseToIR START: %s", filePath ? filePath : "");
 
         // 统一缓冲区管理（与 DxfParser/StlParser 一致）
         IrPublisher& pub = IrPublisher::threadLocal();
@@ -76,7 +76,7 @@ namespace Fio
 
         if (!filePath)
         {
-            SY_ERROR("[PltParser] parseToIR: null filePath");
+            APR_ERROR("[PltParser] parseToIR: null filePath");
             return FioParseResult{};
         }
 
@@ -84,7 +84,7 @@ namespace Fio
         std::ifstream file(fsPath, std::ios::binary);
         if (!file)
         {
-            SY_ERRORF("[PltParser] parseToIR: cannot open PLT file: %s", filePath);
+            APR_ERRORF("[PltParser] parseToIR: cannot open PLT file: %s", filePath);
             return FioParseResult{};
         }
 
@@ -102,7 +102,7 @@ namespace Fio
 
             if (bytesRead == 0)
             {
-                SY_ERRORF("[PltParser] parseToIR: PLT file is empty: %s", filePath);
+                APR_ERRORF("[PltParser] parseToIR: PLT file is empty: %s", filePath);
                 return FioParseResult{};
             }
 
@@ -126,7 +126,7 @@ namespace Fio
 
             if (likelyBinary)
             {
-                SY_ERRORF("[PltParser] parseToIR: binary content detected (nullByte=%d, nonPrintable=%d/%ld), "
+                APR_ERRORF("[PltParser] parseToIR: binary content detected (nullByte=%d, nonPrintable=%d/%ld), "
                           "binary DMPL not supported: %s",
                     hasNullByte ? 1 : 0,
                     nonPrintable,
@@ -241,22 +241,22 @@ namespace Fio
         }
         catch (const std::exception& ex)
         {
-            SY_CRITICALF("[PltParser] parseToIR exception: %s - %s", filePath, ex.what());
+            APR_CRITICALF("[PltParser] parseToIR exception: %s - %s", filePath, ex.what());
             return FioParseResult{};
         }
         catch (...)
         {
-            SY_CRITICALF("[PltParser] parseToIR unknown exception: %s", filePath);
+            APR_CRITICALF("[PltParser] parseToIR unknown exception: %s", filePath);
             return FioParseResult{};
         }
 
         if (pub.entities().empty())
         {
-            SY_WARNF("[PltParser] parseToIR: no entities produced: %s", filePath);
+            APR_WARNF("[PltParser] parseToIR: no entities produced: %s", filePath);
             return FioParseResult{};
         }
 
-        SY_INFOF("[PltParser] parseToIR END: %u entities, %u warnings: %s",
+        APR_INFOF("[PltParser] parseToIR END: %u entities, %u warnings: %s",
             static_cast<uint32_t>(pub.entities().size()),
             static_cast<uint32_t>(pub.warnings().size()),
             filePath);

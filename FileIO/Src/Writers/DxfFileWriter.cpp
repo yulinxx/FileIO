@@ -1,15 +1,15 @@
 #include "FileIO/Writers/DxfFileWriter.h"
 
-#include "Engine/Layer/SyLayer.h"
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyEllipse.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyBezier.h"
-#include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SySmartLine.h"
+#include "Engine/Layer/AprLayer.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprEllipse.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprBezier.h"
+#include "Engine2D/AprEntity/AprBezier2.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprSmartLine.h"
 
 #include "drw_objects.h"
 
@@ -53,9 +53,9 @@ namespace Fio
         }
 
         /// 图元所属图层名；无图层或空名时落到 DXF 约定的默认图层 "0"
-        const char* layerNameOf(const Eg::SyEntity* entity)
+        const char* layerNameOf(const Eg::AprEntity* entity)
         {
-            const Eg::SyLayer* layer = entity != nullptr ? entity->layer() : nullptr;
+            const Eg::AprLayer* layer = entity != nullptr ? entity->layer() : nullptr;
             const char* name = layer != nullptr ? layer->getName() : nullptr;
             return (name != nullptr && name[0] != '\0') ? name : "0";
         }
@@ -100,12 +100,12 @@ namespace Fio
         ///
         /// 颜色只在「实体色与所属图层色不同」时才写：一致时保持 BYLAYER 语义，
         /// 这样文件回到软件里后改图层颜色仍能带动这些图元。
-        void writeEntityHeader(std::ostream& out, const std::string& type, const Eg::SyEntity* entity)
+        void writeEntityHeader(std::ostream& out, const std::string& type, const Eg::AprEntity* entity)
         {
             writePair(out, 0, type);
             writePair(out, 8, layerNameOf(entity));
 
-            const Eg::SyLayer* layer = entity != nullptr ? entity->layer() : nullptr;
+            const Eg::AprLayer* layer = entity != nullptr ? entity->layer() : nullptr;
             if (layer == nullptr || entity->getColor() != layer->getColor())
             {
                 writeTrueColor(out, entity->getColor());
@@ -116,7 +116,7 @@ namespace Fio
         ///
         /// 只导出「有图元在用」的图层：写出器只拿得到图元列表、拿不到 LayerManager，
         /// 所以空图层不会出现在导出结果里（往返时这一点是有损的，已在图层文档中记录）。
-        void writeLayerTable(std::ostream& out, const VecSyEntityPtr& entities)
+        void writeLayerTable(std::ostream& out, const VecAprEntityPtr& entities)
         {
             // 用 map 而不是 unordered_map：输出顺序稳定，同一份文档导出字节可复现
             std::map<std::string, Ut::Color> layers;
@@ -126,7 +126,7 @@ namespace Fio
                 {
                     continue;
                 }
-                const Eg::SyLayer* layer = entity->layer();
+                const Eg::AprLayer* layer = entity->layer();
                 layers.emplace(layerNameOf(entity.get()), layer != nullptr ? layer->getColor() : Ut::Color::Black());
             }
 
@@ -170,7 +170,7 @@ namespace Fio
         return copyToBuffer(buffer, bufferSize, "dxf");
     }
 
-    WriteResult DxfFileWriter::write(const char* filePath, const VecSyEntityPtr& entities)
+    WriteResult DxfFileWriter::write(const char* filePath, const VecAprEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -214,7 +214,7 @@ namespace Fio
             {
             case Eg::EType::LINE:
             {
-                const auto* line = static_cast<const Eg::SyLine*>(entity.get());
+                const auto* line = static_cast<const Eg::AprLine*>(entity.get());
                 if (line->pointRef().size() < 2)
                 {
                     break;
@@ -235,7 +235,7 @@ namespace Fio
             }
             case Eg::EType::CIRCLE:
             {
-                const auto* circle = static_cast<const Eg::SyCircle*>(entity.get());
+                const auto* circle = static_cast<const Eg::AprCircle*>(entity.get());
                 writeEntityHeader(out, "CIRCLE", entity.get());
                 writePair(out, 10, circle->basePoint.x());
                 writePair(out, 20, circle->basePoint.y());
@@ -246,7 +246,7 @@ namespace Fio
             }
             case Eg::EType::ARC:
             {
-                const auto* arc = static_cast<const Eg::SyArc*>(entity.get());
+                const auto* arc = static_cast<const Eg::AprArc*>(entity.get());
                 writeEntityHeader(out, "ARC", entity.get());
                 writePair(out, 10, arc->basePoint.x());
                 writePair(out, 20, arc->basePoint.y());
@@ -259,7 +259,7 @@ namespace Fio
             }
             case Eg::EType::ELLIPSE:
             {
-                const auto* ellipse = static_cast<const Eg::SyEllipse*>(entity.get());
+                const auto* ellipse = static_cast<const Eg::AprEllipse*>(entity.get());
                 writeEntityHeader(out, "ELLIPSE", entity.get());
                 writePair(out, 10, ellipse->basePoint.x());
                 writePair(out, 20, ellipse->basePoint.y());
@@ -273,7 +273,7 @@ namespace Fio
             }
             case Eg::EType::POLYGON:
             {
-                const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
+                const auto* polygon = static_cast<const Eg::AprPolygon*>(entity.get());
                 const auto& verts = polygon->vertices();
                 if (verts.size() < 2)
                 {
@@ -304,7 +304,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER:
             {
-                const auto* bezier = static_cast<const Eg::SyBezier*>(entity.get());
+                const auto* bezier = static_cast<const Eg::AprBezier*>(entity.get());
                 writeEntityHeader(out, "LWPOLYLINE", entity.get());
                 constexpr int kSegCount = 20;
                 writePair(out, 90, kSegCount + 1);
@@ -325,7 +325,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER2:
             {
-                const auto* bezier2 = static_cast<const Eg::SyBezier2*>(entity.get());
+                const auto* bezier2 = static_cast<const Eg::AprBezier2*>(entity.get());
                 writeEntityHeader(out, "LWPOLYLINE", entity.get());
                 constexpr int kSegCount = 20;
                 writePair(out, 90, kSegCount + 1);
@@ -346,7 +346,7 @@ namespace Fio
             }
             case Eg::EType::SPLINE:
             {
-                const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
+                const auto* spline = static_cast<const Eg::AprNurbs*>(entity.get());
                 if (spline->controlPointCount() < 2)
                 {
                     break;
@@ -367,7 +367,7 @@ namespace Fio
             }
             case Eg::EType::SMARTLINE:
             {
-                const auto* smartLine = static_cast<const Eg::SySmartLine*>(entity.get());
+                const auto* smartLine = static_cast<const Eg::AprSmartLine*>(entity.get());
                 for (size_t si = 0; si < smartLine->segmentCount(); ++si)
                 {
                     const auto* seg = smartLine->segment(si);
@@ -379,7 +379,7 @@ namespace Fio
                     {
                     case Eg::EType::LINE:
                     {
-                        const auto* ln = static_cast<const Eg::SyLine*>(seg);
+                        const auto* ln = static_cast<const Eg::AprLine*>(seg);
                         if (ln->pointRef().size() < 2)
                         {
                             break;
@@ -398,7 +398,7 @@ namespace Fio
                     }
                     case Eg::EType::ARC:
                     {
-                        const auto* arc = static_cast<const Eg::SyArc*>(seg);
+                        const auto* arc = static_cast<const Eg::AprArc*>(seg);
                         writeEntityHeader(out, "ARC", entity.get());
                         writePair(out, 10, arc->basePoint.x());
                         writePair(out, 20, arc->basePoint.y());
@@ -410,7 +410,7 @@ namespace Fio
                     }
                     case Eg::EType::CIRCLE:
                     {
-                        const auto* circle = static_cast<const Eg::SyCircle*>(seg);
+                        const auto* circle = static_cast<const Eg::AprCircle*>(seg);
                         writeEntityHeader(out, "CIRCLE", entity.get());
                         writePair(out, 10, circle->basePoint.x());
                         writePair(out, 20, circle->basePoint.y());

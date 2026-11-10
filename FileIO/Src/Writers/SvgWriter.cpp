@@ -1,15 +1,15 @@
 ﻿#include "FileIO/Writers/SvgWriter.h"
 
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyEllipse.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyBezier.h"
-#include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SySmartLine.h"
-#include "Engine/Layer/SyLayer.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprEllipse.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprBezier.h"
+#include "Engine2D/AprEntity/AprBezier2.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprSmartLine.h"
+#include "Engine/Layer/AprLayer.h"
 
 #include "Ut/BBox2d.h"
 #include "Ut/Color.h"
@@ -56,7 +56,7 @@ namespace Fio
         return copyToBuffer(buffer, bufferSize, "svg");
     }
 
-    WriteResult SvgWriter::write(const char* filePath, const VecSyEntityPtr& entities)
+    WriteResult SvgWriter::write(const char* filePath, const VecAprEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -105,7 +105,7 @@ namespace Fio
             {
             case Eg::EType::LINE:
             {
-                const auto* line = static_cast<const Eg::SyLine*>(entity.get());
+                const auto* line = static_cast<const Eg::AprLine*>(entity.get());
                 if (line->pointRef().size() < 2)
                 {
                     break;
@@ -122,7 +122,7 @@ namespace Fio
             }
             case Eg::EType::CIRCLE:
             {
-                const auto* circle = static_cast<const Eg::SyCircle*>(entity.get());
+                const auto* circle = static_cast<const Eg::AprCircle*>(entity.get());
                 body << "<circle " << attrs << " cx=\"" << (circle->basePoint.x() + offsetX) << '"' << " cy=\""
                      << (offsetY - circle->basePoint.y()) << '"' << " r=\"" << circle->dRadius << "\"/>\n";
                 ++exported;
@@ -130,7 +130,7 @@ namespace Fio
             }
             case Eg::EType::ARC:
             {
-                const auto* arc = static_cast<const Eg::SyArc*>(entity.get());
+                const auto* arc = static_cast<const Eg::AprArc*>(entity.get());
                 const double sweep = arc->dEndAngle - arc->dStartAngle;
                 const int largeArc = std::abs(sweep) > M_PI ? 1 : 0;
                 const double sx = arc->basePoint.x() + arc->dRadius * std::cos(arc->dStartAngle);
@@ -151,7 +151,7 @@ namespace Fio
             }
             case Eg::EType::ELLIPSE:
             {
-                const auto* ellipse = static_cast<const Eg::SyEllipse*>(entity.get());
+                const auto* ellipse = static_cast<const Eg::AprEllipse*>(entity.get());
                 body << "<ellipse " << attrs << " cx=\"" << (ellipse->basePoint.x() + offsetX) << '"' << " cy=\""
                      << (offsetY - ellipse->basePoint.y()) << '"' << " rx=\"" << ellipse->dRadiusX << '"' << " ry=\""
                      << ellipse->dRadiusY << '"' << " transform=\"rotate(" << (-ellipse->dRotation * 180.0 / M_PI) << ' '
@@ -161,7 +161,7 @@ namespace Fio
             }
             case Eg::EType::POLYGON:
             {
-                const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
+                const auto* polygon = static_cast<const Eg::AprPolygon*>(entity.get());
                 // 带 bulge 的 DXF 折线先按 0.01 世界单位弦高展开；
                 // 直接输出控制顶点会把圆弧写成直线弦。
                 const std::vector<Ut::Vec2d> verts =
@@ -186,7 +186,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER:
             {
-                const auto* bezier = static_cast<const Eg::SyBezier*>(entity.get());
+                const auto* bezier = static_cast<const Eg::AprBezier*>(entity.get());
                 body << "<path " << attrs << " d=\"M " << (bezier->basePoint.x() + offsetX) << ' '
                      << (offsetY - bezier->basePoint.y()) << " C " << (bezier->ptCtrl0.x() + offsetX) << ' '
                      << (offsetY - bezier->ptCtrl0.y()) << ' ' << (bezier->ptCtrl1.x() + offsetX) << ' '
@@ -197,7 +197,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER2:
             {
-                const auto* bezier2 = static_cast<const Eg::SyBezier2*>(entity.get());
+                const auto* bezier2 = static_cast<const Eg::AprBezier2*>(entity.get());
                 constexpr int kSegCount = 20;
                 std::ostringstream d;
                 d.imbue(std::locale::classic());
@@ -218,7 +218,7 @@ namespace Fio
             }
             case Eg::EType::SPLINE:
             {
-                const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
+                const auto* spline = static_cast<const Eg::AprNurbs*>(entity.get());
                 if (spline->controlPointCount() < 2)
                 {
                     break;
@@ -242,7 +242,7 @@ namespace Fio
             }
             case Eg::EType::SMARTLINE:
             {
-                const auto* smartLine = static_cast<const Eg::SySmartLine*>(entity.get());
+                const auto* smartLine = static_cast<const Eg::AprSmartLine*>(entity.get());
                 for (size_t si = 0; si < smartLine->segmentCount(); ++si)
                 {
                     const auto* seg = smartLine->segment(si);
@@ -254,7 +254,7 @@ namespace Fio
                     {
                     case Eg::EType::LINE:
                     {
-                        const auto* ln = static_cast<const Eg::SyLine*>(seg);
+                        const auto* ln = static_cast<const Eg::AprLine*>(seg);
                         if (ln->pointRef().size() < 2)
                         {
                             break;
@@ -269,7 +269,7 @@ namespace Fio
                     }
                     case Eg::EType::ARC:
                     {
-                        const auto* arc = static_cast<const Eg::SyArc*>(seg);
+                        const auto* arc = static_cast<const Eg::AprArc*>(seg);
                         const double sweep = arc->dEndAngle - arc->dStartAngle;
                         const int largeArc = std::abs(sweep) > M_PI ? 1 : 0;
                         const double sx = arc->basePoint.x() + arc->dRadius * std::cos(arc->dStartAngle);
@@ -284,7 +284,7 @@ namespace Fio
                     }
                     case Eg::EType::CIRCLE:
                     {
-                        const auto* circle = static_cast<const Eg::SyCircle*>(seg);
+                        const auto* circle = static_cast<const Eg::AprCircle*>(seg);
                         body << "<circle " << attrs << " cx=\"" << (circle->basePoint.x() + offsetX) << '"' << " cy=\""
                              << (offsetY - circle->basePoint.y()) << '"' << " r=\"" << circle->dRadius << "\"/>\n";
                         break;

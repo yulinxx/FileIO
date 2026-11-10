@@ -13,11 +13,11 @@ set(VERSION_PATCH 0)
 set(PROJECT_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 
 # --- 路径 ---
-if(NOT SANYI_ROOT)
-    get_filename_component(SANYI_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+if(NOT APR_ROOT)
+    get_filename_component(APR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 endif()
-include("${SANYI_ROOT}/CMake/SanYiPaths.cmake")
-include("${SANYI_ROOT}/CMake/Utils.cmake")
+include("${APR_ROOT}/CMake/AprPaths.cmake")
+include("${APR_ROOT}/CMake/Utils.cmake")
 
 # --- 源文件 ---
 # 先于 protobuf_generate 收集,因为需要先创建 target
@@ -28,15 +28,15 @@ file(GLOB_RECURSE LIB_SOURCES CONFIGURE_DEPENDS
 )
 
 file(GLOB_RECURSE LIB_DXFRW_SOURCES CONFIGURE_DEPENDS
-    "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/*.cpp"
+    "${APR_THIRDPARTY_DIR}/libdxfrw/src/*.cpp"
 )
 
 file(GLOB_RECURSE LIB_HEADERS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/*.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/Include/*.hpp"
 )
-list(FILTER LIB_SOURCES EXCLUDE REGEX "${SANYI_SOURCE_EXCLUDE_REGEX}")
-list(FILTER LIB_HEADERS EXCLUDE REGEX "${SANYI_HEADER_EXCLUDE_REGEX}")
+list(FILTER LIB_SOURCES EXCLUDE REGEX "${APR_SOURCE_EXCLUDE_REGEX}")
+list(FILTER LIB_HEADERS EXCLUDE REGEX "${APR_HEADER_EXCLUDE_REGEX}")
 
 # --- 第三方依赖 ---
 # 必需性由根 CMakeLists 的 vcpkg 预检统一把关（CMake/VcpkgPreflight.cmake）：
@@ -70,12 +70,12 @@ set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Proto")
 set(PROTO_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/Generated/Proto")
 file(MAKE_DIRECTORY ${PROTO_GEN_DIR})
 
-set(PROTO_FILE "${PROTO_DIR}/SanYiDocument.proto")
+set(PROTO_FILE "${PROTO_DIR}/AprDocument.proto")
 
 # --- 统一入口创建 DLL ---
 # 注意: source_group 已在统一入口内部处理(外部文件自动归入 External 组),
 # libdxfrw 第三方源码将被自动归类,无需在此手动分组。
-sanyi_add_shared_library(${LIB_NAME}
+apr_add_shared_library(${LIB_NAME}
     FOLDER "${LIB_FOLDER}"
     DESCRIPTION "${LIB_DESCRIPTION}"
     EXPORT_MACRO "${LIB_EXPORT_MACRO}"
@@ -87,18 +87,18 @@ sanyi_add_shared_library(${LIB_NAME}
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${SANYI_THIRDPARTY_DIR}/libdxfrw/include"
-        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src"
-        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/intern"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/include"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/src"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/src/intern"
         "${PROTO_GEN_DIR}"
         "${Stb_INCLUDE_DIR}"
         "${NANOSVG_INCLUDE_DIR}"
-        "${SANYI_ENGINE_COMMON_DIR}/Include"
-        "${SANYI_ENGINE_COMMON_DIR}/Include/Engine"
+        "${APR_ENGINE_COMMON_DIR}/Include"
+        "${APR_ENGINE_COMMON_DIR}/Include/Engine"
     PRIVATE_INCLUDE_DIRS
-        "${SANYI_ENGINE_2D_DIR}/Include"
-        "${SANYI_ENGINE_2D_DIR}/Include/Engine2D"
-        "${SANYI_ENGINE_3D_DIR}/Include"
+        "${APR_ENGINE_2D_DIR}/Include"
+        "${APR_ENGINE_2D_DIR}/Include/Engine2D"
+        "${APR_ENGINE_3D_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Src/Internal"
         ${WebP_INCLUDE_DIRS}
         ${TIFF_INCLUDE_DIRS}
@@ -131,7 +131,7 @@ protobuf_generate(
 
 # 暴露 protobuf 生成目录给下游目标（如 MainTests 需要直接编译 .pb.cc）
 set_target_properties(${LIB_NAME} PROPERTIES
-    INTERFACE_SANYI_PROTO_GEN_DIR "${PROTO_GEN_DIR}"
+    INTERFACE_APR_PROTO_GEN_DIR "${PROTO_GEN_DIR}"
 )
 
 # --- 可选模块条件块 ---
@@ -151,7 +151,7 @@ endif()
 
 # --- 单元测试 ---
 
-sanyi_module_tests_enabled(FILEIO _fileio_tests)
+apr_module_tests_enabled(FILEIO _fileio_tests)
 if(_fileio_tests)
     enable_testing()
     find_package(GTest CONFIG REQUIRED)
@@ -165,19 +165,19 @@ message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}(${CMAKE_SYSTEM_PROCESSOR})")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "----------------------------------------")
 
-sanyi_export_imported_target(${LIB_NAME}
+apr_export_imported_target(${LIB_NAME}
     LIB_NAME "${LIB_NAME}"
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${SANYI_THIRDPARTY_DIR}/libdxfrw/include"
-        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src"
-        "${SANYI_THIRDPARTY_DIR}/libdxfrw/src/intern"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/include"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/src"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/src/intern"
         "${PROTO_GEN_DIR}"
         "${Stb_INCLUDE_DIR}"
         "${NANOSVG_INCLUDE_DIR}"
-        "${SANYI_ENGINE_COMMON_DIR}/Include"
-        "${SANYI_ENGINE_COMMON_DIR}/Include/Engine"
+        "${APR_ENGINE_COMMON_DIR}/Include"
+        "${APR_ENGINE_COMMON_DIR}/Include/Engine"
     INTERFACE_LINK_LIBRARIES
         EngineCommon::EngineCommon
         protobuf::libprotobuf-lite

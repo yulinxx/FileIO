@@ -1,14 +1,14 @@
 ﻿#include "FileIO/Writers/UgWriter.h"
 
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyEllipse.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyBezier.h"
-#include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SySmartLine.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprEllipse.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprBezier.h"
+#include "Engine2D/AprEntity/AprBezier2.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprSmartLine.h"
 
 #ifndef _USE_MATH_DEFINES
     #define _USE_MATH_DEFINES
@@ -135,7 +135,7 @@ namespace Fio
         }
 
         // 添加图元到 IGES 输出
-        void addEntityToIges(std::ostream& out, const Eg::SyEntity* entity, int& dirSeq, int& paramSeq)
+        void addEntityToIges(std::ostream& out, const Eg::AprEntity* entity, int& dirSeq, int& paramSeq)
         {
             if (!entity)
             {
@@ -146,7 +146,7 @@ namespace Fio
             {
             case Eg::EType::LINE:
             {
-                const auto* line = static_cast<const Eg::SyLine*>(entity);
+                const auto* line = static_cast<const Eg::AprLine*>(entity);
                 if (line->pointRef().size() < 2)
                 {
                     break;
@@ -167,7 +167,7 @@ namespace Fio
             }
             case Eg::EType::CIRCLE:
             {
-                const auto* circle = static_cast<const Eg::SyCircle*>(entity);
+                const auto* circle = static_cast<const Eg::AprCircle*>(entity);
                 // IGES 圆 = 圆弧(102) + 圆弧数据(100)
                 // 参数: DE序号, 圆弧数量=1, 圆弧类型
                 std::ostringstream params;
@@ -184,7 +184,7 @@ namespace Fio
             }
             case Eg::EType::ARC:
             {
-                const auto* arc = static_cast<const Eg::SyArc*>(entity);
+                const auto* arc = static_cast<const Eg::AprArc*>(entity);
                 std::ostringstream params;
                 params << ",0,2,1,0,"
                        << "1,100,1,"
@@ -198,7 +198,7 @@ namespace Fio
             }
             case Eg::EType::ELLIPSE:
             {
-                const auto* ellipse = static_cast<const Eg::SyEllipse*>(entity);
+                const auto* ellipse = static_cast<const Eg::AprEllipse*>(entity);
                 std::ostringstream params;
                 params << ",0," << igesDouble(ellipse->basePoint.x()) << "," << igesDouble(ellipse->basePoint.y())
                        << "," << igesDouble(0.0) << "," << igesDouble(ellipse->dRadiusX * std::cos(ellipse->dRotation))
@@ -212,7 +212,7 @@ namespace Fio
             }
             case Eg::EType::POLYGON:
             {
-                const auto* polygon = static_cast<const Eg::SyPolygon*>(entity);
+                const auto* polygon = static_cast<const Eg::AprPolygon*>(entity);
                 // 带 bulge 的折线先展开成自适应圆弧折线，否则 IGES 里会退化成直线弦。
                 const std::vector<Ut::Vec2d> verts =
                     polygon->hasBulges() ? polygon->outline(0.01) : polygon->vertices();
@@ -236,7 +236,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER:
             {
-                const auto* bezier = static_cast<const Eg::SyBezier*>(entity);
+                const auto* bezier = static_cast<const Eg::AprBezier*>(entity);
                 // 二阶贝塞尔(20) → IGES 样条(126) 通过离散化
                 constexpr int kSegCount = 20;
                 std::ostringstream params;
@@ -259,7 +259,7 @@ namespace Fio
             }
             case Eg::EType::BEZIER2:
             {
-                const auto* bezier2 = static_cast<const Eg::SyBezier2*>(entity);
+                const auto* bezier2 = static_cast<const Eg::AprBezier2*>(entity);
                 constexpr int kSegCount = 20;
                 std::ostringstream params;
                 params << "," << kSegCount << ",0,0,1,0,0,3," << kSegCount + 1;
@@ -282,7 +282,7 @@ namespace Fio
             }
             case Eg::EType::SPLINE:
             {
-                const auto* spline = static_cast<const Eg::SyNurbs*>(entity);
+                const auto* spline = static_cast<const Eg::AprNurbs*>(entity);
                 if (spline->controlPointCount() < 2)
                 {
                     break;
@@ -304,7 +304,7 @@ namespace Fio
             }
             case Eg::EType::SMARTLINE:
             {
-                const auto* smartLine = static_cast<const Eg::SySmartLine*>(entity);
+                const auto* smartLine = static_cast<const Eg::AprSmartLine*>(entity);
                 for (size_t si = 0; si < smartLine->segmentCount(); ++si)
                 {
                     addEntityToIges(out, smartLine->segment(si), dirSeq, paramSeq);
@@ -355,7 +355,7 @@ namespace Fio
         return copyToBuffer(buffer, bufferSize, "igs");
     }
 
-    WriteResult UgWriter::write(const char* filePath, const VecSyEntityPtr& entities)
+    WriteResult UgWriter::write(const char* filePath, const VecAprEntityPtr& entities)
     {
         if (entities.empty())
         {
@@ -409,7 +409,7 @@ namespace Fio
         // G 段
         {
             std::ostringstream gLine;
-            gLine << "1H,1HSanYi CAD,1HIGES,17,7,2,,1.0,2,0.00001,200.0,"
+            gLine << "1H,1HApr CAD,1HIGES,17,7,2,,1.0,2,0.00001,200.0,"
                   << "100000,0.00001,0.0,1.0,0.01,1H,0.0,0.0;";
 
             // 参数区域需要填到72字符
@@ -461,7 +461,7 @@ namespace Fio
         // G 段
         {
             std::ostringstream line;
-            line << "1H,1HSanYi CAD,1HIGES,17,7,2,,1.0,2,0.00001,200.0,"
+            line << "1H,1HApr CAD,1HIGES,17,7,2,,1.0,2,0.00001,200.0,"
                  << "100000,0.00001,0.0,1.0,0.01,1H,0.0,0.0;";
             std::string s = line.str();
             while (static_cast<int>(s.size()) < 72)
@@ -494,7 +494,7 @@ namespace Fio
                 {
                 case Eg::EType::LINE:
                 {
-                    const auto* line = static_cast<const Eg::SyLine*>(entity.get());
+                    const auto* line = static_cast<const Eg::AprLine*>(entity.get());
                     if (line->pointRef().size() < 2)
                     {
                         break;
@@ -514,7 +514,7 @@ namespace Fio
                 }
                 case Eg::EType::CIRCLE:
                 {
-                    const auto* circle = static_cast<const Eg::SyCircle*>(entity.get());
+                    const auto* circle = static_cast<const Eg::AprCircle*>(entity.get());
                     std::ostringstream params;
                     params << ",0,2,1,0,"
                            << "1,100,1,"
@@ -528,7 +528,7 @@ namespace Fio
                 }
                 case Eg::EType::ARC:
                 {
-                    const auto* arc = static_cast<const Eg::SyArc*>(entity.get());
+                    const auto* arc = static_cast<const Eg::AprArc*>(entity.get());
                     std::ostringstream params;
                     params << ",0,2,1,0,"
                            << "1,100,1,"
@@ -542,7 +542,7 @@ namespace Fio
                 }
                 case Eg::EType::ELLIPSE:
                 {
-                    const auto* ellipse = static_cast<const Eg::SyEllipse*>(entity.get());
+                    const auto* ellipse = static_cast<const Eg::AprEllipse*>(entity.get());
                     std::ostringstream params;
                     params << ",0," << igesDouble(ellipse->basePoint.x()) << "," << igesDouble(ellipse->basePoint.y())
                            << "," << igesDouble(0.0) << ","
@@ -557,7 +557,7 @@ namespace Fio
                 }
                 case Eg::EType::POLYGON:
                 {
-                    const auto* polygon = static_cast<const Eg::SyPolygon*>(entity.get());
+                    const auto* polygon = static_cast<const Eg::AprPolygon*>(entity.get());
                     const std::vector<Ut::Vec2d> verts =
                         polygon->hasBulges() ? polygon->outline(0.01) : polygon->vertices();
                     if (verts.size() < 2)
@@ -580,7 +580,7 @@ namespace Fio
                 }
                 case Eg::EType::BEZIER:
                 {
-                    const auto* bezier = static_cast<const Eg::SyBezier*>(entity.get());
+                    const auto* bezier = static_cast<const Eg::AprBezier*>(entity.get());
                     constexpr int kSegCount = 20;
                     std::ostringstream params;
                     params << "," << kSegCount << ",0,0,1,0,0,3," << kSegCount + 1;
@@ -603,7 +603,7 @@ namespace Fio
                 }
                 case Eg::EType::BEZIER2:
                 {
-                    const auto* bezier2 = static_cast<const Eg::SyBezier2*>(entity.get());
+                    const auto* bezier2 = static_cast<const Eg::AprBezier2*>(entity.get());
                     constexpr int kSegCount = 20;
                     std::ostringstream params;
                     params << "," << kSegCount << ",0,0,1,0,0,3," << kSegCount + 1;
@@ -626,7 +626,7 @@ namespace Fio
                 }
                 case Eg::EType::SPLINE:
                 {
-                    const auto* spline = static_cast<const Eg::SyNurbs*>(entity.get());
+                    const auto* spline = static_cast<const Eg::AprNurbs*>(entity.get());
                     if (spline->controlPointCount() < 2)
                     {
                         break;
@@ -648,7 +648,7 @@ namespace Fio
                 }
                 case Eg::EType::SMARTLINE:
                 {
-                    const auto* smartLine = static_cast<const Eg::SySmartLine*>(entity.get());
+                    const auto* smartLine = static_cast<const Eg::AprSmartLine*>(entity.get());
                     for (size_t si = 0; si < smartLine->segmentCount(); ++si)
                     {
                         const auto* seg = smartLine->segment(si);
@@ -662,7 +662,7 @@ namespace Fio
                         {
                         case Eg::EType::LINE:
                         {
-                            const auto* ln = static_cast<const Eg::SyLine*>(seg);
+                            const auto* ln = static_cast<const Eg::AprLine*>(seg);
                             if (ln->pointRef().size() < 2)
                             {
                                 break;
@@ -681,7 +681,7 @@ namespace Fio
                         }
                         case Eg::EType::ARC:
                         {
-                            const auto* arc = static_cast<const Eg::SyArc*>(seg);
+                            const auto* arc = static_cast<const Eg::AprArc*>(seg);
                             std::ostringstream params;
                             params << ",0,2,1,0,"
                                    << "1,100,1,"
@@ -694,7 +694,7 @@ namespace Fio
                         }
                         case Eg::EType::CIRCLE:
                         {
-                            const auto* circle = static_cast<const Eg::SyCircle*>(seg);
+                            const auto* circle = static_cast<const Eg::AprCircle*>(seg);
                             std::ostringstream params;
                             params << ",0,2,1,0,"
                                    << "1,100,1,"

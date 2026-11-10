@@ -6,7 +6,7 @@
 
 #include "IrProjector.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <fstream>
 #include <sstream>
@@ -45,18 +45,18 @@ namespace Fio
 
         if (!filePath || !*filePath)
         {
-            SY_ERROR("[StlParser] parseToIR: null or empty file path");
+            APR_ERROR("[StlParser] parseToIR: null or empty file path");
             return result;
         }
 
-        SY_INFOF("[StlParser] parseToIR START: filePath=%s", filePath);
+        APR_INFOF("[StlParser] parseToIR START: filePath=%s", filePath);
         const auto startTime = std::chrono::steady_clock::now();
 
         std::filesystem::path fsPath = std::filesystem::u8path(filePath);
         std::ifstream file(fsPath, std::ios::binary | std::ios::ate);
         if (!file.is_open())
         {
-            SY_ERRORF("[StlParser] parseToIR: cannot open file: %s", filePath);
+            APR_ERRORF("[StlParser] parseToIR: cannot open file: %s", filePath);
             return result;
         }
 
@@ -65,7 +65,7 @@ namespace Fio
 
         if (fileSize < 15)
         {
-            SY_ERRORF("[StlParser] parseToIR: file too small to be STL (%lld bytes): %s",
+            APR_ERRORF("[StlParser] parseToIR: file too small to be STL (%lld bytes): %s",
                 static_cast<long long>(fileSize),
                 filePath);
             return result;
@@ -74,7 +74,7 @@ namespace Fio
         std::vector<uint8_t> data(static_cast<size_t>(fileSize));
         if (!file.read(reinterpret_cast<char*>(data.data()), fileSize))
         {
-            SY_ERRORF(
+            APR_ERRORF(
                 "[StlParser] parseToIR: read failed at %lld bytes: %s", static_cast<long long>(fileSize), filePath);
             return result;
         }
@@ -104,7 +104,7 @@ namespace Fio
             {
                 // 声明数量超限且长度也对不上：可能是被截断的超大二进制文件，留个告警便于排查。
                 // 不在此 return——仍给 ASCII 分支一个机会，由它决定是否有 facet 可解析。
-                SY_WARNF("[StlParser] Binary STL header claims %u triangles (limit %u), falling back to ASCII probe",
+                APR_WARNF("[StlParser] Binary STL header claims %u triangles (limit %u), falling back to ASCII probe",
                     count,
                     MAX_STL_TRIANGLES);
             }
@@ -243,7 +243,7 @@ namespace Fio
                         // 此处加守卫：超出 3 个顶点时跳过，防止栈溢出。
                         if (vertRead >= 3)
                         {
-                            SY_WARNF("[StlParser] ASCII STL: facet vertex count exceeds 3 (vertRead=%d), skipping "
+                            APR_WARNF("[StlParser] ASCII STL: facet vertex count exceeds 3 (vertRead=%d), skipping "
                                      "extra vertex",
                                 vertRead);
                             continue;
@@ -311,7 +311,7 @@ namespace Fio
         if (triangleCount == 0)
         {
             // 二进制探测与 ASCII 探测都没拿到 facet：文件既不是合法二进制 STL，也没有可解析的 ASCII facet
-            SY_ERRORF("[StlParser] parseToIR: no triangle parsed (neither binary nor ASCII layout matched, %lld "
+            APR_ERRORF("[StlParser] parseToIR: no triangle parsed (neither binary nor ASCII layout matched, %lld "
                       "bytes): %s",
                 static_cast<long long>(fileSize),
                 filePath);
@@ -345,12 +345,12 @@ namespace Fio
         const uint32_t offset = pub.appendBlob(vertices.data(), vertBytes);
         if (offset == IrPublisher::kInvalidOffset)
         {
-            SY_ERRORF("[StlParser] Mesh data too large for IR extension blob: %s", filePath);
+            APR_ERRORF("[StlParser] Mesh data too large for IR extension blob: %s", filePath);
             return FioParseResult{};
         }
         if (pub.appendBlob(normals.data(), normBytes) == IrPublisher::kInvalidOffset)
         {
-            SY_ERRORF("[StlParser] Normal data too large for IR extension blob: %s", filePath);
+            APR_ERRORF("[StlParser] Normal data too large for IR extension blob: %s", filePath);
             return FioParseResult{};
         }
         info.extensionDataOffset = offset;
@@ -360,7 +360,7 @@ namespace Fio
 
         const auto elapsedMs =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
-        SY_INFOF("[StlParser] parseToIR END: 1 mesh entity, %u triangles, %u vertices, %zu blob bytes, %lld ms: %s",
+        APR_INFOF("[StlParser] parseToIR END: 1 mesh entity, %u triangles, %u vertices, %zu blob bytes, %lld ms: %s",
             triangleCount,
             info.meshVertCount,
             static_cast<size_t>(info.extensionDataSize),

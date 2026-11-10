@@ -23,7 +23,7 @@ using DxfTest::writeDxf;
 TEST(DxfBlockTest, BlockDefinitionEntitiesDoNotLeakIntoModelSpace)
 {
     // 只有块定义、没有任何 INSERT：模型空间应当一个图元都没有
-    const std::string path = writeDxf("sanyi_dxf_block_unused.dxf", blockWithLine("UNUSED"), "");
+    const std::string path = writeDxf("apr_dxf_block_unused.dxf", blockWithLine("UNUSED"), "");
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -35,7 +35,7 @@ TEST(DxfBlockTest, BlockDefinitionEntitiesDoNotLeakIntoModelSpace)
 
 TEST(DxfBlockTest, InsertInstantiatesTranslatedEntitiesInsideGroup)
 {
-    const std::string path = writeDxf("sanyi_dxf_block_insert.dxf", blockWithLine("BLK"), insertOf("BLK", 100.0, 50.0));
+    const std::string path = writeDxf("apr_dxf_block_insert.dxf", blockWithLine("BLK"), insertOf("BLK", 100.0, 50.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -61,7 +61,7 @@ TEST(DxfBlockTest, InsertAppliesBasePointScaleAndRotation)
     // 基点 (10,0)：块内直线 (0,0)-(10,0) 先平移成 (-10,0)-(0,0)
     // 再 2 倍缩放 → (-20,0)-(0,0)，再旋转 90° → (0,-20)-(0,0)，最后平移到 (5,5)
     const std::string path = writeDxf(
-        "sanyi_dxf_block_xform.dxf", blockWithLine("BLK", 10.0, 0.0), insertOf("BLK", 5.0, 5.0, 2.0, 2.0, 90.0));
+        "apr_dxf_block_xform.dxf", blockWithLine("BLK", 10.0, 0.0), insertOf("BLK", 5.0, 5.0, 2.0, 2.0, 90.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -80,7 +80,7 @@ TEST(DxfBlockTest, InsertArrayProducesSingleGroup)
 {
     // 2 列 x 3 行，列距 20、行距 30
     const std::string path = writeDxf(
-        "sanyi_dxf_block_array.dxf", blockWithLine("BLK"), insertOf("BLK", 0.0, 0.0, 1.0, 1.0, 0.0, 2, 3, 20.0, 30.0));
+        "apr_dxf_block_array.dxf", blockWithLine("BLK"), insertOf("BLK", 0.0, 0.0, 1.0, 1.0, 0.0, 2, 3, 20.0, 30.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -116,7 +116,7 @@ TEST(DxfBlockTest, NestedBlockFormsGroupHierarchy)
     blocks += insertOf("INNER", 5.0, 0.0);
     blocks += "0\nENDBLK\n";
 
-    const std::string path = writeDxf("sanyi_dxf_block_nested.dxf", blocks, insertOf("OUTER", 1000.0, 0.0));
+    const std::string path = writeDxf("apr_dxf_block_nested.dxf", blocks, insertOf("OUTER", 1000.0, 0.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -137,7 +137,7 @@ TEST(DxfBlockTest, NestedBlockFormsGroupHierarchy)
 
 TEST(DxfBlockTest, InsertOfUndefinedBlockWarnsAndProducesNothing)
 {
-    const std::string path = writeDxf("sanyi_dxf_block_missing.dxf", "", insertOf("NOPE", 0.0, 0.0));
+    const std::string path = writeDxf("apr_dxf_block_missing.dxf", "", insertOf("NOPE", 0.0, 0.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -153,7 +153,7 @@ TEST(DxfBlockTest, ModelSpaceEntitiesStillImportAlongsideBlocks)
     std::string entities = insertOf("BLK", 0.0, 0.0);
     entities += "0\nCIRCLE\n8\n0\n10\n7.0\n20\n8.0\n30\n0.0\n40\n3.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_block_mixed.dxf", blockWithLine("BLK"), entities);
+    const std::string path = writeDxf("apr_dxf_block_mixed.dxf", blockWithLine("BLK"), entities);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -190,7 +190,7 @@ TEST(DxfBlockTest, MirroredInsertKeepsCircleAsCircle)
     blocks += "0\nCIRCLE\n8\n0\n10\n4.0\n20\n0.0\n30\n0.0\n40\n2.0\n";
     blocks += "0\nENDBLK\n";
 
-    const std::string path = writeDxf("sanyi_dxf_block_mirror.dxf", blocks, insertOf("CIR", 0.0, 0.0, -1.0, 1.0));
+    const std::string path = writeDxf("apr_dxf_block_mirror.dxf", blocks, insertOf("CIR", 0.0, 0.0, -1.0, 1.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -209,7 +209,7 @@ TEST(DxfBlockTest, NonUniformScaleTurnsCircleIntoEllipse)
     blocks += "0\nCIRCLE\n8\n0\n10\n0.0\n20\n0.0\n30\n0.0\n40\n2.0\n";
     blocks += "0\nENDBLK\n";
 
-    const std::string path = writeDxf("sanyi_dxf_block_ellipse.dxf", blocks, insertOf("CIR", 0.0, 0.0, 3.0, 1.0));
+    const std::string path = writeDxf("apr_dxf_block_ellipse.dxf", blocks, insertOf("CIR", 0.0, 0.0, 3.0, 1.0));
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;

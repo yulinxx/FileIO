@@ -5,7 +5,7 @@
 #include "FileIO/Writers/PltWriter.h"
 #include "FileIO/Writers/NativeWriter.h"
 #include "FileIO/Writers/UgWriter.h"
-#include "Engine/SyEntity/SyEntity.h"
+#include "Engine/AprEntity/AprEntity.h"
 
 #include <map>
 #include <string>
@@ -119,20 +119,20 @@ namespace Fio
             },
             "igs");
 
-        // 2D 原生格式 (.sy) —— 统一 NativeWriter，传入 FileFormat::Native
+        // 2D 原生格式 (.apr) —— 统一 NativeWriter，传入 FileFormat::Native
         registerWriter(
             FileFormat::Native,
             []() -> IFileWriter* {
                 return new NativeWriter(FileFormat::Native);
             },
-            "sy");
+            "apr");
 
-        // 3D 原生格式 (.syx) —— 统一 NativeWriter，传入 FileFormat::Native3D
+        // 3D 原生格式 (.apr3d) —— 统一 NativeWriter，传入 FileFormat::Native3D
         registerWriter(
             FileFormat::Native3D,
             []() -> IFileWriter* {
                 return new NativeWriter(FileFormat::Native3D);
             },
-            "syx");
+            "apr3d");
     }
 }  // namespace Fio

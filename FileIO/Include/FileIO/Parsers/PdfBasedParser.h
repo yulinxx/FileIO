@@ -4,7 +4,7 @@
 #include "FileIO/Parsers/PdfToSvgConverter.h"
 #include "FileIO/Parsers/SvgParser.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <cstring>
 #include <cstdio>
@@ -56,18 +56,18 @@ namespace Fio
             formatName(fmtNameBuf, sizeof(fmtNameBuf));
             const char* path = filePath ? filePath : "(null path)";
 
-            SY_INFOF("[PdfBasedParser:%s] parseToIR START: %s", fmtNameBuf, path);
+            APR_INFOF("[PdfBasedParser:%s] parseToIR START: %s", fmtNameBuf, path);
 
             if (!filePath || !std::filesystem::exists(filePath))
             {
-                SY_ERRORF("[PdfBasedParser:%s] File not found: %s", fmtNameBuf, path);
+                APR_ERRORF("[PdfBasedParser:%s] File not found: %s", fmtNameBuf, path);
                 return FioParseResult{};
             }
 
             // 子类自定义格式校验（PDF 只检查 PDF，AI 还检查 PostScript）
             if (!isValidSourceFormat(filePath))
             {
-                SY_ERRORF("[PdfBasedParser:%s] Format validation failed: %s", fmtNameBuf, path);
+                APR_ERRORF("[PdfBasedParser:%s] Format validation failed: %s", fmtNameBuf, path);
                 return FioParseResult{};
             }
 
@@ -75,17 +75,17 @@ namespace Fio
             if (!PdfToSvgConverter::isPdftocairoAvailable())
             {
                 std::string hint = PdfToSvgConverter::getInstallHint();
-                SY_ERRORF("[PdfBasedParser:%s] pdftocairo not found: %s", fmtNameBuf, hint.c_str());
+                APR_ERRORF("[PdfBasedParser:%s] pdftocairo not found: %s", fmtNameBuf, hint.c_str());
                 return FioParseResult{};
             }
-            SY_INFOF("[PdfBasedParser:%s] pdftocairo available", fmtNameBuf);
+            APR_INFOF("[PdfBasedParser:%s] pdftocairo available", fmtNameBuf);
 
             // AI 文件如果是 PS 格式还需要 GhostScript（由子类返回提示）
             {
                 std::string extraError = extraToolCheckError(filePath);
                 if (!extraError.empty())
                 {
-                    SY_ERRORF("[PdfBasedParser:%s] Extra tool check failed: %s", fmtNameBuf, extraError.c_str());
+                    APR_ERRORF("[PdfBasedParser:%s] Extra tool check failed: %s", fmtNameBuf, extraError.c_str());
                     return FioParseResult{};
                 }
             }
@@ -94,10 +94,10 @@ namespace Fio
             std::string tempSvg = PdfToSvgConverter::convertToTempSvg(filePath, 1);
             if (tempSvg.empty())
             {
-                SY_ERRORF("[PdfBasedParser:%s] PDF->SVG conversion failed: %s", fmtNameBuf, path);
+                APR_ERRORF("[PdfBasedParser:%s] PDF->SVG conversion failed: %s", fmtNameBuf, path);
                 return FioParseResult{};
             }
-            SY_INFOF("[PdfBasedParser:%s] PDF->SVG conversion completed: %s", fmtNameBuf, tempSvg.c_str());
+            APR_INFOF("[PdfBasedParser:%s] PDF->SVG conversion completed: %s", fmtNameBuf, tempSvg.c_str());
 
             // 委托给 SvgParser 解析
             SvgParser svgParser;
@@ -116,7 +116,7 @@ namespace Fio
             if (result.entityCount == 0)
             {
                 // 中间 SVG 解析不出图元：多为矢量内容被光栅化（扫描件 / 位图 PDF），这类文件本工具链无法导入
-                SY_WARNF("[PdfBasedParser:%s] parseToIR END: no entity from intermediate SVG (%s), %lld ms: %s",
+                APR_WARNF("[PdfBasedParser:%s] parseToIR END: no entity from intermediate SVG (%s), %lld ms: %s",
                     fmtNameBuf,
                     tempSvg.c_str(),
                     static_cast<long long>(elapsed),
@@ -124,7 +124,7 @@ namespace Fio
                 return result;
             }
 
-            SY_INFOF("[PdfBasedParser:%s] parseToIR END: %u entities, %u layers, %u warnings, %lld ms: %s",
+            APR_INFOF("[PdfBasedParser:%s] parseToIR END: %u entities, %u layers, %u warnings, %lld ms: %s",
                 fmtNameBuf,
                 result.entityCount,
                 result.layerCount,

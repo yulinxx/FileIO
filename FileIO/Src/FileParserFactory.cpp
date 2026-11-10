@@ -1,7 +1,7 @@
 #include "FileIO/FileParserFactory.h"
 #include "FileIO/IFileParser.h"
 #include "FileIO/FormatRegistry.h"
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <map>
 #include <string>
@@ -43,7 +43,7 @@ namespace Fio
             return it->second();
         }
 
-        SY_WARNF("[FileParserFactory] No parser registered for format=%d (%zu format(s) registered)",
+        APR_WARNF("[FileParserFactory] No parser registered for format=%d (%zu format(s) registered)",
             static_cast<int>(format),
             m_impl->m_creators.size());
         return nullptr;
@@ -53,7 +53,7 @@ namespace Fio
     {
         if (!parser)
         {
-            SY_DEBUG("[FileParserFactory] destroyParser called with nullptr");
+            APR_DEBUG("[FileParserFactory] destroyParser called with nullptr");
             return;
         }
         delete parser;

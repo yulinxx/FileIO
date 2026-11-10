@@ -10,13 +10,13 @@ cmake_minimum_required(VERSION 4.3)
 #
 #   1) 复用仓库统一配置，不自己手搓一套，避免与主工程漂移：
 #        ../Config.cmake               —— vcpkg / Qt 路径、MSVC 运行库、模块开关
-#        ../CMake/StandaloneInit.cmake —— SANYI_ROOT、编译选项、GTest 查找、兄弟模块拉入
+#        ../CMake/StandaloneInit.cmake —— APR_ROOT、编译选项、GTest 查找、兄弟模块拉入
 #      与 Utility / Log / License / Nesting 的独立入口保持同一套写法。
 #
-#   2) 可脱离主程序单独编译：需要的兄弟 DLL 由 sanyi_add_sibling() 按依赖顺序
+#   2) 可脱离主程序单独编译：需要的兄弟 DLL 由 apr_add_sibling() 按依赖顺序
 #      逐个拉进来构建，Main / UI / Renderx 一概不参与。
 #
-#   3) 兄弟 DLL 的测试目标在独立构建时关闭（sanyi_only_own_tests）：只关心
+#   3) 兄弟 DLL 的测试目标在独立构建时关闭（apr_only_own_tests）：只关心
 #      FileIO 自己的测试，不顺带编出 Engine2D / Engine3D 的整套测试。
 #
 # 当前依赖闭包（自下而上）：
@@ -36,14 +36,14 @@ cmake_minimum_required(VERSION 4.3)
 include(${CMAKE_CURRENT_LIST_DIR}/../Config.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/../CMake/StandaloneInit.cmake)
 
-project(SanYiFileIO
+project(AprFileIO
     VERSION 1.0.0
-    DESCRIPTION "SanYi CAD File I/O Library (Import / Export / Save)"
+    DESCRIPTION "April CAD File I/O Library (Import / Export / Save)"
     LANGUAGES CXX
 )
 
 # MSVC 的 /W4 等选项必须在 project() 之后才能正确判定编译器
-sanyi_setup_compiler_options()
+apr_setup_compiler_options()
 
 # 示例目标仅存在于独立构建（内层不负责 Example）
 option(BUILD_FILEIO_EXAMPLE "Build FileIO usage example" ON)
@@ -52,16 +52,16 @@ option(BUILD_FILEIO_EXAMPLE "Build FileIO usage example" ON)
 # 先声明本构建树的测试模块范围、再探测 GTest（缺失时把唯一总开关降级为 OFF），
 # 两步都必须发生在拉入兄弟模块之前，否则兄弟内层的 find_package(GTest REQUIRED)
 # 会在降级前硬失败。
-sanyi_only_own_tests(FILEIO)
-sanyi_finalize_tests()
+apr_only_own_tests(FILEIO)
+apr_finalize_tests()
 
 # 严格按依赖顺序：Utility / Log 是叶子，Engine2D 依赖 EngineCommon，Engine3D 依赖 Engine2D。
-# 硬依赖，缺了没有降级空间 —— sanyi_add_sibling 默认 FATAL_ERROR。
-sanyi_add_sibling(Utility      "${SANYI_UTILITY_DIR}")
-sanyi_add_sibling(Log          "${SANYI_LOG_DIR}")
-sanyi_add_sibling(EngineCommon "${SANYI_ENGINE_COMMON_DIR}")
-sanyi_add_sibling(Engine2D     "${SANYI_ENGINE_2D_DIR}")
-sanyi_add_sibling(Engine3D     "${SANYI_ENGINE_3D_DIR}")
+# 硬依赖，缺了没有降级空间 —— apr_add_sibling 默认 FATAL_ERROR。
+apr_add_sibling(Utility      "${APR_UTILITY_DIR}")
+apr_add_sibling(Log          "${APR_LOG_DIR}")
+apr_add_sibling(EngineCommon "${APR_ENGINE_COMMON_DIR}")
+apr_add_sibling(Engine2D     "${APR_ENGINE_2D_DIR}")
+apr_add_sibling(Engine3D     "${APR_ENGINE_3D_DIR}")
 
 # 内层：创建 FileIO DLL、挂载测试（BUILD_TESTS 时）、输出状态。
 # 测试子目录只由内层挂载，这里不再重复添加 —— 两处添加同一目录会导致 target 重定义。

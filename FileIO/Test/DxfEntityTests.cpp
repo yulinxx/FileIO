@@ -8,7 +8,7 @@
 #include "DxfTestUtils.h"
 #include "FileIO/Parsers/DxfParser.h"
 #include "FileIO/Writers/DxfFileWriter.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
 
 #include <algorithm>
 #include <cmath>
@@ -46,7 +46,7 @@ TEST(DxfEntityTest, LwPolylineClosedFlagBecomesPolygon)
     ents += "0\nLWPOLYLINE\n8\n0\n90\n3\n70\n1\n";
     ents += "10\n0.0\n20\n0.0\n10\n10.0\n20\n0.0\n10\n10.0\n20\n10.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_lwpl_closed.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_lwpl_closed.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -63,7 +63,7 @@ TEST(DxfEntityTest, LwPolylineOpenStaysPolyline)
     ents += "0\nLWPOLYLINE\n8\n0\n90\n3\n70\n0\n";
     ents += "10\n0.0\n20\n0.0\n10\n10.0\n20\n0.0\n10\n10.0\n20\n10.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_lwpl_open.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_lwpl_open.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -83,7 +83,7 @@ TEST(DxfEntityTest, BulgeIsPreservedInIrWithoutTessellation)
     ents += "10\n0.0\n20\n0.0\n42\n1.0\n";
     ents += "10\n10.0\n20\n0.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_bulge.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_bulge.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -116,7 +116,7 @@ TEST(DxfEntityTest, NegativeBulgeIsPreservedWithSign)
     ents += "10\n0.0\n20\n0.0\n42\n-1.0\n";
     ents += "10\n10.0\n20\n0.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_bulge_neg.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_bulge_neg.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -134,15 +134,15 @@ TEST(DxfEntityTest, NegativeBulgeIsPreservedWithSign)
 TEST(DxfEntityTest, BulgeRoundTripsThroughDxfWriter)
 {
     // 导出必须写组码 42，否则再导入时圆弧会退化成直线弦。
-    auto poly = std::make_unique<Eg::SyPolygon>();
+    auto poly = std::make_unique<Eg::AprPolygon>();
     poly->bClosed = false;
     poly->setVerticesWithBulges({ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0) }, { 1.0, 0.0 });
 
-    Fio::VecSyEntityPtr entities;
+    Fio::VecAprEntityPtr entities;
     entities.push_back(std::move(poly));
 
     const std::string path =
-        (std::filesystem::temp_directory_path() / "sanyi_dxf_bulge_roundtrip.dxf").string();
+        (std::filesystem::temp_directory_path() / "apr_dxf_bulge_roundtrip.dxf").string();
     Fio::DxfFileWriter writer;
     const Fio::WriteResult wr = writer.write(path.c_str(), entities);
     ASSERT_TRUE(wr.success) << wr.errorMessage;
@@ -176,7 +176,7 @@ TEST(DxfEntityTest, NegativeExtrusionMirrorsBulgeDirection)
     ents += "10\n10.0\n20\n0.0\n";
     ents += "210\n0.0\n220\n0.0\n230\n-1.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_bulge_ocs_mirror.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_bulge_ocs_mirror.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -202,7 +202,7 @@ TEST(DxfEntityTest, NegativeExtrusionMirrorsCircleCenter)
     std::string ents;
     ents += "0\nCIRCLE\n8\n0\n10\n7.0\n20\n3.0\n30\n0.0\n40\n2.0\n210\n0.0\n220\n0.0\n230\n-1.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_ocs_circle.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_ocs_circle.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -220,7 +220,7 @@ TEST(DxfEntityTest, PositiveExtrusionLeavesCoordinatesUntouched)
     std::string ents;
     ents += "0\nCIRCLE\n8\n0\n10\n7.0\n20\n3.0\n30\n0.0\n40\n2.0\n210\n0.0\n220\n0.0\n230\n1.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_ocs_normal.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_ocs_normal.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -234,7 +234,7 @@ TEST(DxfEntityTest, InsUnitsIsReportedAsSourceUnit)
 {
     // $INSUNITS=1 表示英寸；早先 addHeader 是空实现，sourceUnit 永远为空
     const std::string header = "9\n$INSUNITS\n70\n1\n";
-    const std::string path = writeDxf("sanyi_dxf_units_inch.dxf", header, "", "");
+    const std::string path = writeDxf("apr_dxf_units_inch.dxf", header, "", "");
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -246,7 +246,7 @@ TEST(DxfEntityTest, InsUnitsIsReportedAsSourceUnit)
 TEST(DxfEntityTest, InsUnitsMillimetreIsRecognised)
 {
     const std::string header = "9\n$INSUNITS\n70\n4\n";
-    const std::string path = writeDxf("sanyi_dxf_units_mm.dxf", header, "", "");
+    const std::string path = writeDxf("apr_dxf_units_mm.dxf", header, "", "");
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -258,7 +258,7 @@ TEST(DxfEntityTest, InsUnitsMillimetreIsRecognised)
 TEST(DxfEntityTest, UnitlessInsUnitsLeavesUnitEmpty)
 {
     const std::string header = "9\n$INSUNITS\n70\n0\n";
-    const std::string path = writeDxf("sanyi_dxf_units_none.dxf", header, "", "");
+    const std::string path = writeDxf("apr_dxf_units_none.dxf", header, "", "");
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -278,7 +278,7 @@ TEST(DxfEntityTest, SolidBecomesClosedQuadWithCorrectedVertexOrder)
     ents += "12\n0.0\n22\n10.0\n32\n0.0\n";
     ents += "13\n10.0\n23\n10.0\n33\n0.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_solid.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_solid.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -306,7 +306,7 @@ TEST(DxfEntityTest, FitPointSplineDegradesToPolylineWithWarning)
     ents += "11\n5.0\n21\n5.0\n31\n0.0\n";
     ents += "11\n10.0\n21\n0.0\n31\n0.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_spline_fit.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_spline_fit.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -324,7 +324,7 @@ TEST(DxfEntityTest, UnsupportedEntityLeavesWarningInsteadOfSilentDrop)
     std::string ents;
     ents += "0\nHATCH\n8\n0\n10\n0.0\n20\n0.0\n30\n0.0\n2\nSOLID\n70\n1\n91\n0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_hatch.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_hatch.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -348,7 +348,7 @@ TEST(DxfEntityTest, ControlPointSplineBecomesNurbs)
     ents += "10\n10.0\n20\n0.0\n";
     ents += "10\n15.0\n20\n10.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_spline_ctrl.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_spline_ctrl.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -395,7 +395,7 @@ TEST(DxfEntityTest, DegenerateSplineIsSkippedButRestOfFileSurvives)
     ents += "10\n10.0\n20\n0.0\n";
     ents += "0\nLINE\n8\n0\n10\n0.0\n20\n0.0\n30\n0.0\n11\n10.0\n21\n0.0\n31\n0.0\n";
 
-    const std::string path = writeDxf("sanyi_dxf_spline_degenerate.dxf", "", ents);
+    const std::string path = writeDxf("apr_dxf_spline_degenerate.dxf", "", ents);
     ASSERT_FALSE(path.empty());
 
     Fio::DxfParser parser;
@@ -411,7 +411,7 @@ TEST(DxfEntityTest, EntitiesOnlyDxfWithoutHeaderIsParsed)
     // 只有 ENTITIES 段、没有 HEADER/TABLES/BLOCKS 的极简 DXF：
     // 现场导出的图纸里这类文件很常见，不能因为少了表格段就整份读不出图元。
     const std::filesystem::path path =
-        std::filesystem::temp_directory_path() / "sanyi_dxf_entities_only.dxf";
+        std::filesystem::temp_directory_path() / "apr_dxf_entities_only.dxf";
     {
         std::ofstream out(path, std::ios::binary);
         ASSERT_TRUE(out.good());

@@ -1,12 +1,12 @@
-#include "FileIO/SySerializer.h"
-#include "SyEntitySerializer.h"
-#include "SyDocumentData.h"
+#include "FileIO/AprSerializer.h"
+#include "AprEntitySerializer.h"
+#include "AprDocumentData.h"
 #include "ColorArgbUtils.h"
 
-#include "FileIO/SyCryptoProvider.h"
-#include "SanYiDocument.pb.h"
-#include "Engine/Layer/SyLayer.h"
-#include "Log/SyLogger.h"
+#include "FileIO/AprCryptoProvider.h"
+#include "AprDocument.pb.h"
+#include "Engine/Layer/AprLayer.h"
+#include "Log/AprLogger.h"
 
 #include <algorithm>
 #include <atomic>
@@ -21,8 +21,8 @@
 
 namespace Fio
 {
-    // 显式前向声明，确保 ISyCryptoProvider 在此作用域内可见
-    class ISyCryptoProvider;
+    // 显式前向声明，确保 IAprCryptoProvider 在此作用域内可见
+    class IAprCryptoProvider;
 
     namespace
     {
@@ -61,8 +61,8 @@ namespace Fio
         // unity build 会把多个 cpp 合并进同一翻译单元，各写一份会重复定义。
 
         void toProtoProperties(const PropertyMap& props,
-            sanyi::proto::SanYiDocument& /*doc*/,
-            google::protobuf::RepeatedPtrField<sanyi::proto::PropertyEntry>* entries)
+            apr::proto::AprDocument& /*doc*/,
+            google::protobuf::RepeatedPtrField<apr::proto::PropertyEntry>* entries)
         {
             for (const auto& kv : props)
             {
@@ -72,7 +72,7 @@ namespace Fio
             }
         }
 
-        PropertyMap fromProtoProperties(const google::protobuf::RepeatedPtrField<sanyi::proto::PropertyEntry>& entries)
+        PropertyMap fromProtoProperties(const google::protobuf::RepeatedPtrField<apr::proto::PropertyEntry>& entries)
         {
             PropertyMap props;
             for (const auto& entry : entries)
@@ -82,10 +82,10 @@ namespace Fio
             return props;
         }
 
-        bool serializeToProto(const SyDocument& doc, std::vector<uint8_t>& out, std::string* errorMessage = nullptr)
+        bool serializeToProto(const AprDocument& doc, std::vector<uint8_t>& out, std::string* errorMessage = nullptr)
         {
             const auto& docData = syDocumentData(doc);
-            sanyi::proto::SanYiDocument protoDoc;
+            apr::proto::AprDocument protoDoc;
 
             {
                 auto* meta = protoDoc.mutable_metadata();
@@ -221,18 +221,18 @@ namespace Fio
                     continue;
                 }
                 auto* e = protoDoc.add_entities();
-                SyEntitySerializer::serializeEntity(*entity, e);
+                AprEntitySerializer::serializeEntity(*entity, e);
             }
 
             // 借出图元（不拥有）：直接序列化，不深拷贝
-            for (const Eg::SyEntity* entity : docData.borrowedEntities)
+            for (const Eg::AprEntity* entity : docData.borrowedEntities)
             {
                 if (!entity)
                 {
                     continue;
                 }
                 auto* e = protoDoc.add_entities();
-                SyEntitySerializer::serializeEntity(*entity, e);
+                AprEntitySerializer::serializeEntity(*entity, e);
             }
 
             if (!docData.groups.empty())
@@ -293,10 +293,10 @@ namespace Fio
             return protoDoc.SerializeToArray(out.data(), static_cast<int>(byteSize));
         }
 
-        bool deserializeFromProto(const uint8_t* data, size_t size, SyDocument& doc, std::string* errorMessage = nullptr)
+        bool deserializeFromProto(const uint8_t* data, size_t size, AprDocument& doc, std::string* errorMessage = nullptr)
         {
             auto& docData = syDocumentData(doc);
-            sanyi::proto::SanYiDocument protoDoc;
+            apr::proto::AprDocument protoDoc;
             if (size > static_cast<size_t>(INT32_MAX) || !protoDoc.ParseFromArray(data, static_cast<int>(size)))
             {
                 if (errorMessage)
@@ -433,7 +433,7 @@ namespace Fio
             for (int i = 0; i < protoDoc.entities_size(); ++i)
             {
                 const auto& ed = protoDoc.entities(i);
-                std::unique_ptr<Eg::SyEntity> entity = SyEntitySerializer::deserializeEntity(ed);
+                std::unique_ptr<Eg::AprEntity> entity = AprEntitySerializer::deserializeEntity(ed);
 
                 if (!entity)
                 {
@@ -486,7 +486,7 @@ namespace Fio
         }
 
         /// 将 docData.warnings 逐条通过回调输出（回调为空时忽略）
-        void emitWarnings(const SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
+        void emitWarnings(const AprDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
         {
             const auto& docData = syDocumentData(doc);
             if (!warningCb)
@@ -500,40 +500,40 @@ namespace Fio
         }
     }  // namespace
 
-    // SySerializer 的 PIMPL 实现
-    struct SySerializer::SySerializerImpl
+    // AprSerializer 的 PIMPL 实现
+    struct AprSerializer::AprSerializerImpl
     {
     public:
-        SySerializerImpl() = default;
+        AprSerializerImpl() = default;
 
-        ~SySerializerImpl()
+        ~AprSerializerImpl()
         {
             delete m_cryptoProvider;
         }
 
-        SySerializerImpl(const SySerializerImpl&) = delete;
-        SySerializerImpl& operator=(const SySerializerImpl&) = delete;
+        AprSerializerImpl(const AprSerializerImpl&) = delete;
+        AprSerializerImpl& operator=(const AprSerializerImpl&) = delete;
 
-        ISyCryptoProvider* m_cryptoProvider = nullptr;
+        IAprCryptoProvider* m_cryptoProvider = nullptr;
     };
 
-    SySerializer::SySerializer()
-        : m_impl(new SySerializerImpl())
+    AprSerializer::AprSerializer()
+        : m_impl(new AprSerializerImpl())
     {
     }
 
-    SySerializer::~SySerializer()
+    AprSerializer::~AprSerializer()
     {
         delete m_impl;
     }
 
-    SySerializer::SySerializer(SySerializer&& other) noexcept
+    AprSerializer::AprSerializer(AprSerializer&& other) noexcept
         : m_impl(other.m_impl)
     {
         other.m_impl = nullptr;
     }
 
-    SySerializer& SySerializer::operator=(SySerializer&& other) noexcept
+    AprSerializer& AprSerializer::operator=(AprSerializer&& other) noexcept
     {
         if (this != &other)
         {
@@ -544,19 +544,19 @@ namespace Fio
         return *this;
     }
 
-    void SySerializer::setCryptoProvider(ISyCryptoProvider* provider)
+    void AprSerializer::setCryptoProvider(IAprCryptoProvider* provider)
     {
         delete m_impl->m_cryptoProvider;
         m_impl->m_cryptoProvider = provider;
     }
 
-    bool SySerializer::hasCrypto() const
+    bool AprSerializer::hasCrypto() const
     {
         return m_impl && m_impl->m_cryptoProvider != nullptr;
     }
 
-    SerializeResult SySerializer::saveToFile(const char* filePath,
-        const SyDocument& doc,
+    SerializeResult AprSerializer::saveToFile(const char* filePath,
+        const AprDocument& doc,
         bool encrypt,
         SerializeWarningCallback warningCb,
         void* warningCtx,
@@ -567,8 +567,8 @@ namespace Fio
         return saveToFile(filePath, doc, encrypt, FileFormat::Native, warningCb, warningCtx, progressCb, progressCtx);
     }
 
-    SerializeResult SySerializer::saveToFile(const char* filePath,
-        const SyDocument& doc,
+    SerializeResult AprSerializer::saveToFile(const char* filePath,
+        const AprDocument& doc,
         bool encrypt,
         FileFormat fmt,
         SerializeWarningCallback /*warningCb*/,
@@ -592,7 +592,7 @@ namespace Fio
         emitProgress(0.0f, "serializing");
 
         // 根据目标格式选择魔数
-        const char* magic = (fmt == FileFormat::Native3D) ? SyFileConst::MAGIC_SYX : SyFileConst::MAGIC_SY;
+        const char* magic = (fmt == FileFormat::Native3D) ? AprFileConst::MAGIC_APR3D : AprFileConst::MAGIC_APR;
 
         std::vector<uint8_t> protoData;
         std::string serializeError;
@@ -621,7 +621,7 @@ namespace Fio
             }
             finalData.assign(encResult.data, encResult.data + encResult.dataSize);
             m_impl->m_cryptoProvider->freeCryptoData(encResult.data);
-            flags |= SyFileConst::FLAG_ENCRYPTED;
+            flags |= AprFileConst::FLAG_ENCRYPTED;
         }
 
         emitProgress(0.7f, "checksum");
@@ -631,13 +631,13 @@ namespace Fio
         // 直接分三段写出：header(16) + payload + crc(4)。
         // 不再额外分配 HEADER+payload+FOOTER 的整块缓冲并把 payload 再 memcpy 一遍，
         // 大文件下省掉一次与 payload 等大的内存分配和拷贝。
-        uint8_t header[SyFileConst::HEADER_SIZE] = { 0 };
+        uint8_t header[AprFileConst::HEADER_SIZE] = { 0 };
         std::memcpy(header, magic, 4);
 
-        header[4] = static_cast<uint8_t>(SyFileConst::FILE_VERSION & 0xFF);
-        header[5] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 8) & 0xFF);
-        header[6] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 16) & 0xFF);
-        header[7] = static_cast<uint8_t>((SyFileConst::FILE_VERSION >> 24) & 0xFF);
+        header[4] = static_cast<uint8_t>(AprFileConst::FILE_VERSION & 0xFF);
+        header[5] = static_cast<uint8_t>((AprFileConst::FILE_VERSION >> 8) & 0xFF);
+        header[6] = static_cast<uint8_t>((AprFileConst::FILE_VERSION >> 16) & 0xFF);
+        header[7] = static_cast<uint8_t>((AprFileConst::FILE_VERSION >> 24) & 0xFF);
 
         header[8] = static_cast<uint8_t>(flags & 0xFF);
         header[9] = static_cast<uint8_t>((flags >> 8) & 0xFF);
@@ -649,7 +649,7 @@ namespace Fio
         header[14] = static_cast<uint8_t>((finalData.size() >> 16) & 0xFF);
         header[15] = static_cast<uint8_t>((finalData.size() >> 24) & 0xFF);
 
-        uint8_t footer[SyFileConst::FOOTER_SIZE];
+        uint8_t footer[AprFileConst::FOOTER_SIZE];
         footer[0] = static_cast<uint8_t>(crc & 0xFF);
         footer[1] = static_cast<uint8_t>((crc >> 8) & 0xFF);
         footer[2] = static_cast<uint8_t>((crc >> 16) & 0xFF);
@@ -730,8 +730,8 @@ namespace Fio
         return SerializeResult::ok();
     }
 
-    SerializeResult SySerializer::loadFromFile(
-        const char* filePath, SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
+    SerializeResult AprSerializer::loadFromFile(
+        const char* filePath, AprDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
     {
         doc.clear();
 
@@ -747,9 +747,9 @@ namespace Fio
         }
 
         const auto fileSize = static_cast<size_t>(in.tellg());
-        if (fileSize < SyFileConst::HEADER_SIZE + SyFileConst::FOOTER_SIZE)
+        if (fileSize < AprFileConst::HEADER_SIZE + AprFileConst::FOOTER_SIZE)
         {
-            return SerializeResult::fail("File too small to be a valid .sy file");
+            return SerializeResult::fail("File too small to be a valid .apr file");
         }
 
         in.seekg(0);
@@ -765,15 +765,15 @@ namespace Fio
         uint32_t flags = 0;
         uint32_t dataLen = 0;
 
-        // 两种魔数都要认。保存侧按目标格式写 SYPB（2D）/ SXPB（3D，含 2D+3D 混合文档），
-        // 而旧实现只接受 SYPB —— 结果是所有 SXPB 文件保存后再也打不开。
-        if (fileBuffer.size() >= SyFileConst::HEADER_SIZE)
+        // 两种魔数都要认。保存侧按目标格式写 APRB（2D）/ AP3D（3D，含 2D+3D 混合文档），
+        // 而旧实现只接受 APRB —— 结果是所有 AP3D 文件保存后再也打不开。
+        if (fileBuffer.size() >= AprFileConst::HEADER_SIZE)
         {
-            if (std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SY, 4) == 0)
+            if (std::memcmp(fileBuffer.data(), AprFileConst::MAGIC_APR, 4) == 0)
             {
                 headerValid = true;
             }
-            else if (std::memcmp(fileBuffer.data(), SyFileConst::MAGIC_SYX, 4) == 0)
+            else if (std::memcmp(fileBuffer.data(), AprFileConst::MAGIC_APR3D, 4) == 0)
             {
                 headerValid = true;
                 is3DContainer = true;
@@ -792,34 +792,34 @@ namespace Fio
 
         if (!headerValid)
         {
-            return SerializeResult::fail("Invalid .sy file header (wrong magic)");
+            return SerializeResult::fail("Invalid .apr file header (wrong magic)");
         }
 
-        if (version != SyFileConst::FILE_VERSION)
+        if (version != AprFileConst::FILE_VERSION)
         {
             syDocumentData(doc).warnings.push_back("File version mismatch: expected " +
-                std::to_string(SyFileConst::FILE_VERSION) + ", got " + std::to_string(version));
+                std::to_string(AprFileConst::FILE_VERSION) + ", got " + std::to_string(version));
         }
 
         if (is3DContainer)
         {
-            SY_DEBUGF("[SySerializer] loadFromFile: 3D container (SXPB), path=%s", filePath);
+            APR_DEBUGF("[AprSerializer] loadFromFile: 3D container (AP3D), path=%s", filePath);
         }
 
         // 必须用 64 位相加：dataLen 是 uint32_t，`dataLen + HEADER + FOOTER` 在 32 位域内
         // 会回绕 —— 构造 dataLen=0xFFFFFFFF 的文件头即可通过此检查，随后 CRC 计算
         // 按 4GB 长度越界读取缓冲区。
         const uint64_t totalNeeded =
-            static_cast<uint64_t>(dataLen) + SyFileConst::HEADER_SIZE + SyFileConst::FOOTER_SIZE;
+            static_cast<uint64_t>(dataLen) + AprFileConst::HEADER_SIZE + AprFileConst::FOOTER_SIZE;
         if (totalNeeded > static_cast<uint64_t>(fileSize))
         {
             return SerializeResult::fail("Corrupted file: data size exceeds file size");
         }
 
-        const uint8_t* dataPtr = fileBuffer.data() + SyFileConst::HEADER_SIZE;
+        const uint8_t* dataPtr = fileBuffer.data() + AprFileConst::HEADER_SIZE;
 
         const uint32_t expectedCrc = computeCrc32(dataPtr, dataLen);
-        const size_t crcOffset = SyFileConst::HEADER_SIZE + dataLen;
+        const size_t crcOffset = AprFileConst::HEADER_SIZE + dataLen;
         const uint32_t storedCrc = static_cast<uint32_t>(fileBuffer[crcOffset + 0]) |
             (static_cast<uint32_t>(fileBuffer[crcOffset + 1]) << 8) |
             (static_cast<uint32_t>(fileBuffer[crcOffset + 2]) << 16) |
@@ -837,7 +837,7 @@ namespace Fio
 
         // 优化: 非加密文件直接使用 fileBuffer 中的 payload，避免冗余拷贝
         // 加密文件需要解密后的独立缓冲区
-        if (flags & SyFileConst::FLAG_ENCRYPTED)
+        if (flags & AprFileConst::FLAG_ENCRYPTED)
         {
             if (!m_impl->m_cryptoProvider)
             {
@@ -876,8 +876,8 @@ namespace Fio
         return SerializeResult::ok();
     }
 
-    SerializeResult SySerializer::serializeToMemory(
-        const SyDocument& doc, BinaryBlobOut* out, SerializeWarningCallback /*warningCb*/, void* /*warningCtx*/)
+    SerializeResult AprSerializer::serializeToMemory(
+        const AprDocument& doc, BinaryBlobOut* out, SerializeWarningCallback /*warningCb*/, void* /*warningCtx*/)
     {
         std::vector<uint8_t> data;
         std::string serializeError;
@@ -907,8 +907,8 @@ namespace Fio
         return SerializeResult::ok();
     }
 
-    SerializeResult SySerializer::deserializeFromMemory(
-        BinaryBlob in, SyDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
+    SerializeResult AprSerializer::deserializeFromMemory(
+        BinaryBlob in, AprDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
     {
         doc.clear();
         std::string parseError;
@@ -921,26 +921,26 @@ namespace Fio
         return SerializeResult::ok();
     }
 
-    uint32_t SySerializer::fileVersion()
+    uint32_t AprSerializer::fileVersion()
     {
-        return SyFileConst::FILE_VERSION;
+        return AprFileConst::FILE_VERSION;
     }
 
-    bool SySerializer::isValidSyFile(const uint8_t* header, size_t headerSize)
+    bool AprSerializer::isValidAprFile(const uint8_t* header, size_t headerSize)
     {
         if (!header || headerSize < 4)
         {
             return false;
         }
-        return std::memcmp(header, SyFileConst::MAGIC_SY, 4) == 0;
+        return std::memcmp(header, AprFileConst::MAGIC_APR, 4) == 0;
     }
 
-    bool SySerializer::isValidSyxFile(const uint8_t* header, size_t headerSize)
+    bool AprSerializer::isValidApr3DFile(const uint8_t* header, size_t headerSize)
     {
         if (!header || headerSize < 4)
         {
             return false;
         }
-        return std::memcmp(header, SyFileConst::MAGIC_SYX, 4) == 0;
+        return std::memcmp(header, AprFileConst::MAGIC_APR3D, 4) == 0;
     }
 }  // namespace Fio

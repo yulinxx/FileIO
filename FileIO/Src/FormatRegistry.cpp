@@ -16,9 +16,9 @@ namespace Fio
         const char* const kStepExts[] = { "stp", "step" };
         const char* const kPdfExts[] = { "pdf" };
         const char* const kAiExts[] = { "ai" };
-        const char* const kNativeExts[] = { "sy" };
-        // 3D 原生格式同时接受 .sy3d（UI 默认保存后缀）与 .syx（历史后缀）
-        const char* const kNative3DExts[] = { "syx", "sy3d" };
+        const char* const kNativeExts[] = { "apr" };
+        // 3D 原生格式后缀
+        const char* const kNative3DExts[] = { "apr3d" };
         const char* const kBmpExts[] = { "bmp" };
         const char* const kPngExts[] = { "png" };
         const char* const kObjExts[] = { "obj" };
@@ -106,8 +106,8 @@ namespace Fio
         m_impl->registerFormat(FileFormat::STEP, "STEP Files", kStepExts, 2);
         m_impl->registerFormat(FileFormat::PDF, "PDF Files", kPdfExts, 1);
         m_impl->registerFormat(FileFormat::AI, "AI Files", kAiExts, 1);
-        m_impl->registerFormat(FileFormat::Native, "SanYi 2D Files", kNativeExts, 1);
-        m_impl->registerFormat(FileFormat::Native3D, "SanYi 3D Files", kNative3DExts, 2);
+        m_impl->registerFormat(FileFormat::Native, "April 2D Files", kNativeExts, 1);
+        m_impl->registerFormat(FileFormat::Native3D, "April 3D Files", kNative3DExts, 2);
         m_impl->registerFormat(FileFormat::BMP, "BMP Files", kBmpExts, 1);
         m_impl->registerFormat(FileFormat::PNG, "PNG Files", kPngExts, 1);
         m_impl->registerFormat(FileFormat::OBJ, "OBJ Files", kObjExts, 1);

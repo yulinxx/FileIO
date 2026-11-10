@@ -47,7 +47,7 @@ namespace
 TEST(ObjParserTest, SingleTriangleProducesOneMeshWithoutGroups)
 {
     const std::string obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
-    const std::string path = writeText("sanyi_obj_tri.obj", obj);
+    const std::string path = writeText("apr_obj_tri.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -65,7 +65,7 @@ TEST(ObjParserTest, SingleTriangleProducesOneMeshWithoutGroups)
 TEST(ObjParserTest, MeshBlobLayoutMatchesVerticesThenNormals)
 {
     const std::string obj = "v 0 0 0\nv 2 0 0\nv 0 2 0\nf 1 2 3\n";
-    const std::string path = writeText("sanyi_obj_layout.obj", obj);
+    const std::string path = writeText("apr_obj_layout.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -90,7 +90,7 @@ TEST(ObjParserTest, ObjectsBecomeTopLevelGroups)
     obj += "o PartA\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
     obj += "o PartB\nv 5 0 0\nv 6 0 0\nv 5 1 0\nf 4 5 6\n";
 
-    const std::string path = writeText("sanyi_obj_objects.obj", obj);
+    const std::string path = writeText("apr_obj_objects.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -113,7 +113,7 @@ TEST(ObjParserTest, MaterialSwitchCreatesChildGroupUnderObject)
     obj += "usemtl Steel\nf 1 2 3\n";
     obj += "usemtl Copper\nf 2 4 3\n";
 
-    const std::string path = writeText("sanyi_obj_mtl.obj", obj);
+    const std::string path = writeText("apr_obj_mtl.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -133,7 +133,7 @@ TEST(ObjParserTest, MaterialSwitchCreatesChildGroupUnderObject)
 TEST(ObjParserTest, QuadFaceIsTriangulated)
 {
     const std::string obj = "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3 4\n";
-    const std::string path = writeText("sanyi_obj_quad.obj", obj);
+    const std::string path = writeText("apr_obj_quad.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -148,7 +148,7 @@ TEST(ObjParserTest, NegativeIndicesAreResolvedRelativeToCurrentCount)
 {
     // -1/-2/-3 指向最近读入的三个顶点
     const std::string obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1\n";
-    const std::string path = writeText("sanyi_obj_negidx.obj", obj);
+    const std::string path = writeText("apr_obj_negidx.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -165,7 +165,7 @@ TEST(ObjParserTest, ExplicitNormalsArePreserved)
     obj += "vn 0 1 0\n";
     obj += "f 1//1 2//1 3//1\n";
 
-    const std::string path = writeText("sanyi_obj_normals.obj", obj);
+    const std::string path = writeText("apr_obj_normals.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -184,7 +184,7 @@ TEST(ObjParserTest, ExplicitNormalsArePreserved)
 TEST(ObjParserTest, OutOfRangeIndexIsSkippedWithWarning)
 {
     const std::string obj = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 99\nf 1 2 3\n";
-    const std::string path = writeText("sanyi_obj_badidx.obj", obj);
+    const std::string path = writeText("apr_obj_badidx.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -198,7 +198,7 @@ TEST(ObjParserTest, OutOfRangeIndexIsSkippedWithWarning)
 TEST(ObjParserTest, FileWithoutFacesFailsCleanly)
 {
     const std::string obj = "v 0 0 0\nv 1 0 0\n";
-    const std::string path = writeText("sanyi_obj_nofaces.obj", obj);
+    const std::string path = writeText("apr_obj_nofaces.obj", obj);
     ASSERT_FALSE(path.empty());
 
     Fio::ObjParser parser;
@@ -219,7 +219,7 @@ TEST(StlParserTest, AsciiStlStillParsesAfterBufferUnification)
     stl += "endloop\nendfacet\n";
     stl += "endsolid test\n";
 
-    const std::string path = writeText("sanyi_stl_ascii.stl", stl);
+    const std::string path = writeText("apr_stl_ascii.stl", stl);
     ASSERT_FALSE(path.empty());
 
     Fio::StlParser parser;

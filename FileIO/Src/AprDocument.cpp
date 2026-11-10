@@ -1,31 +1,31 @@
-#include "FileIO/SyDocument.h"
-#include "SyDocumentData.h"
+#include "FileIO/AprDocument.h"
+#include "AprDocumentData.h"
 #include "ColorArgbUtils.h"
 
-#include "Engine/SyEntity/SyEntity.h"
+#include "Engine/AprEntity/AprEntity.h"
 
 #include <cstring>
 #include <utility>
 
 namespace Fio
 {
-    SyDocument::SyDocument()
-        : m_data(new SyDocumentData())
+    AprDocument::AprDocument()
+        : m_data(new AprDocumentData())
     {
     }
 
-    SyDocument::~SyDocument()
+    AprDocument::~AprDocument()
     {
         delete m_data;
     }
 
-    SyDocument::SyDocument(SyDocument&& other) noexcept
+    AprDocument::AprDocument(AprDocument&& other) noexcept
         : m_data(other.m_data)
     {
         other.m_data = nullptr;
     }
 
-    SyDocument& SyDocument::operator=(SyDocument&& other) noexcept
+    AprDocument& AprDocument::operator=(AprDocument&& other) noexcept
     {
         if (this != &other)
         {
@@ -37,203 +37,203 @@ namespace Fio
         return *this;
     }
 
-    void SyDocument::clear()
+    void AprDocument::clear()
     {
         if (m_data)
         {
-            *m_data = SyDocumentData();
+            *m_data = AprDocumentData();
         }
         else
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
     }
 
-    bool SyDocument::isValid() const
+    bool AprDocument::isValid() const
     {
         return m_data && (!m_data->entities.empty() || !m_data->borrowedEntities.empty() || !m_data->layers.empty());
     }
 
     // ---- 元数据 ----
 
-    int32_t SyDocument::metadataVersion() const
+    int32_t AprDocument::metadataVersion() const
     {
         return m_data ? m_data->metadata.version : 0;
     }
 
-    void SyDocument::setMetadataVersion(int32_t version)
+    void AprDocument::setMetadataVersion(int32_t version)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.version = version;
     }
 
-    int32_t SyDocument::metadataFileVersion() const
+    int32_t AprDocument::metadataFileVersion() const
     {
         return m_data ? m_data->metadata.fileVersion : 0;
     }
 
-    void SyDocument::setMetadataFileVersion(int32_t fileVersion)
+    void AprDocument::setMetadataFileVersion(int32_t fileVersion)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.fileVersion = fileVersion;
     }
 
-    const char* SyDocument::author() const
+    const char* AprDocument::author() const
     {
         return m_data ? m_data->metadata.author.c_str() : "";
     }
 
-    void SyDocument::setAuthor(const char* author)
+    void AprDocument::setAuthor(const char* author)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.author = author ? author : "";
     }
 
-    const char* SyDocument::softwareName() const
+    const char* AprDocument::softwareName() const
     {
         return m_data ? m_data->metadata.softwareName.c_str() : "";
     }
 
-    void SyDocument::setSoftwareName(const char* name)
+    void AprDocument::setSoftwareName(const char* name)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.softwareName = name ? name : "";
     }
 
-    const char* SyDocument::softwareVersion() const
+    const char* AprDocument::softwareVersion() const
     {
         return m_data ? m_data->metadata.softwareVersion.c_str() : "";
     }
 
-    void SyDocument::setSoftwareVersion(const char* version)
+    void AprDocument::setSoftwareVersion(const char* version)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.softwareVersion = version ? version : "";
     }
 
-    const char* SyDocument::createdTime() const
+    const char* AprDocument::createdTime() const
     {
         return m_data ? m_data->metadata.createdTime.c_str() : "";
     }
 
-    void SyDocument::setCreatedTime(const char* time)
+    void AprDocument::setCreatedTime(const char* time)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.createdTime = time ? time : "";
     }
 
-    const char* SyDocument::modifiedTime() const
+    const char* AprDocument::modifiedTime() const
     {
         return m_data ? m_data->metadata.modifiedTime.c_str() : "";
     }
 
-    void SyDocument::setModifiedTime(const char* time)
+    void AprDocument::setModifiedTime(const char* time)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.modifiedTime = time ? time : "";
     }
 
-    const char* SyDocument::operatingSystem() const
+    const char* AprDocument::operatingSystem() const
     {
         return m_data ? m_data->metadata.operatingSystem.c_str() : "";
     }
 
-    void SyDocument::setOperatingSystem(const char* os)
+    void AprDocument::setOperatingSystem(const char* os)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.operatingSystem = os ? os : "";
     }
 
-    const char* SyDocument::description() const
+    const char* AprDocument::description() const
     {
         return m_data ? m_data->metadata.description.c_str() : "";
     }
 
-    void SyDocument::setDescription(const char* desc)
+    void AprDocument::setDescription(const char* desc)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.description = desc ? desc : "";
     }
 
     // ---- 环境溯源信息 ----
 
-    const char* SyDocument::serialNumber() const
+    const char* AprDocument::serialNumber() const
     {
         return m_data ? m_data->metadata.serialNumber.c_str() : "";
     }
 
-    void SyDocument::setSerialNumber(const char* serial)
+    void AprDocument::setSerialNumber(const char* serial)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.serialNumber = serial ? serial : "";
     }
 
-    const char* SyDocument::computerUsername() const
+    const char* AprDocument::computerUsername() const
     {
         return m_data ? m_data->metadata.computerUsername.c_str() : "";
     }
 
-    void SyDocument::setComputerUsername(const char* username)
+    void AprDocument::setComputerUsername(const char* username)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.computerUsername = username ? username : "";
     }
 
-    const char* SyDocument::osVersion() const
+    const char* AprDocument::osVersion() const
     {
         return m_data ? m_data->metadata.osVersion.c_str() : "";
     }
 
-    void SyDocument::setOsVersion(const char* version)
+    void AprDocument::setOsVersion(const char* version)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.osVersion = version ? version : "";
     }
 
     // ---- 图层 ----
 
-    size_t SyDocument::layerCount() const
+    size_t AprDocument::layerCount() const
     {
         return m_data ? m_data->layers.size() : 0;
     }
 
-    bool SyDocument::getLayerAt(size_t index, SyLayerInfo& out) const
+    bool AprDocument::getLayerAt(size_t index, AprLayerInfo& out) const
     {
         if (!m_data || index >= m_data->layers.size())
         {
@@ -252,11 +252,11 @@ namespace Fio
         return true;
     }
 
-    void SyDocument::addLayer(const SyLayerInfo& layer)
+    void AprDocument::addLayer(const AprLayerInfo& layer)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
 
         LayerInfo l;
@@ -270,7 +270,7 @@ namespace Fio
         m_data->layers.push_back(std::move(l));
     }
 
-    void SyDocument::clearLayers()
+    void AprDocument::clearLayers()
     {
         if (m_data)
         {
@@ -280,28 +280,28 @@ namespace Fio
 
     // ---- 完整图层表 / 硬件 Profile 值集 ----
     //
-    // 老 POD SyLayerInfo 是冻结的跨 DLL ABI，不能加字段；完整往返改走
-    // SyLayerDetailInfo。读端对老字段沿用同一套兜底语义（alpha=0 → 不透明），
+    // 老 POD AprLayerInfo 是冻结的跨 DLL ABI，不能加字段；完整往返改走
+    // AprLayerDetailInfo。读端对老字段沿用同一套兜底语义（alpha=0 → 不透明），
     // 避免新结构体引入第二套默认值。
 
     namespace
     {
-        // 名字带 sanyiSyDocument 前缀：FileIO 也开 unity build，同一 TU 里
+        // 名字带 aprAprDocument 前缀：FileIO 也开 unity build，同一 TU 里
         // 多个匿名命名空间的同名辅助函数会互相重定义。
-        void sanyiSyDocumentCopyLayerName(char (&dst)[256], const std::string& src)
+        void aprAprDocumentCopyLayerName(char (&dst)[256], const std::string& src)
         {
             std::strncpy(dst, src.c_str(), sizeof(dst) - 1);
             dst[sizeof(dst) - 1] = '\0';
         }
 
-        void sanyiSyDocumentCopyProfileName(char (&dst)[128], const std::string& src)
+        void aprAprDocumentCopyProfileName(char (&dst)[128], const std::string& src)
         {
             std::strncpy(dst, src.c_str(), sizeof(dst) - 1);
             dst[sizeof(dst) - 1] = '\0';
         }
     }  // namespace
 
-    bool SyDocument::getLayerDetailAt(size_t index, SyLayerDetailInfo& out) const
+    bool AprDocument::getLayerDetailAt(size_t index, AprLayerDetailInfo& out) const
     {
         if (!m_data || index >= m_data->layers.size())
         {
@@ -310,7 +310,7 @@ namespace Fio
 
         const auto& l = m_data->layers[index];
         out.id = l.id;
-        sanyiSyDocumentCopyLayerName(out.name, l.name);
+        aprAprDocumentCopyLayerName(out.name, l.name);
         out.color = detail::normalizeLegacyArgb(l.color);
         out.visible = l.visible;
         out.locked = l.locked;
@@ -324,11 +324,11 @@ namespace Fio
         return true;
     }
 
-    void SyDocument::addLayerDetail(const SyLayerDetailInfo& layer)
+    void AprDocument::addLayerDetail(const AprLayerDetailInfo& layer)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
 
         LayerInfo l;
@@ -347,12 +347,12 @@ namespace Fio
         m_data->layers.push_back(std::move(l));
     }
 
-    size_t SyDocument::hardwareProfileCount() const
+    size_t AprDocument::hardwareProfileCount() const
     {
         return m_data ? m_data->hardwareProfiles.size() : 0;
     }
 
-    bool SyDocument::getHardwareProfileAt(size_t index, SyHardwareProfileInfo& out) const
+    bool AprDocument::getHardwareProfileAt(size_t index, AprHardwareProfileInfo& out) const
     {
         if (!m_data || index >= m_data->hardwareProfiles.size())
         {
@@ -361,7 +361,7 @@ namespace Fio
 
         const auto& p = m_data->hardwareProfiles[index];
         out.id = p.id;
-        sanyiSyDocumentCopyProfileName(out.name, p.name);
+        aprAprDocumentCopyProfileName(out.name, p.name);
         out.power = p.power;
         out.speed = p.speed;
         out.frequency = p.frequency;
@@ -370,11 +370,11 @@ namespace Fio
         return true;
     }
 
-    void SyDocument::addHardwareProfile(const SyHardwareProfileInfo& profile)
+    void AprDocument::addHardwareProfile(const AprHardwareProfileInfo& profile)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
 
         HardwareProfileInfo p;
@@ -388,7 +388,7 @@ namespace Fio
         m_data->hardwareProfiles.push_back(std::move(p));
     }
 
-    void SyDocument::clearHardwareProfiles()
+    void AprDocument::clearHardwareProfiles()
     {
         if (m_data)
         {
@@ -398,12 +398,12 @@ namespace Fio
 
     // ---- 工艺 ----
 
-    size_t SyDocument::processCount() const
+    size_t AprDocument::processCount() const
     {
         return m_data ? m_data->processes.size() : 0;
     }
 
-    bool SyDocument::getProcessAt(size_t index, SyProcessInfo& out) const
+    bool AprDocument::getProcessAt(size_t index, AprProcessInfo& out) const
     {
         if (!m_data || index >= m_data->processes.size())
         {
@@ -417,7 +417,7 @@ namespace Fio
         out.order = p.order;
         out.output = p.output;
 
-        SyProcessParamsInfo& params = out.params;
+        AprProcessParamsInfo& params = out.params;
         params.enabled = p.paramsEnabled;
         params.powerPercent = p.powerPercent;
         params.speedMmPerSec = p.speedMmPerSec;
@@ -434,11 +434,11 @@ namespace Fio
         return true;
     }
 
-    void SyDocument::addProcess(const SyProcessInfo& process)
+    void AprDocument::addProcess(const AprProcessInfo& process)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
 
         ProcessInfo p;
@@ -447,7 +447,7 @@ namespace Fio
         p.order = process.order;
         p.output = process.output;
 
-        const SyProcessParamsInfo& src = process.params;
+        const AprProcessParamsInfo& src = process.params;
         p.paramsEnabled = src.enabled;
         p.powerPercent = src.powerPercent;
         p.speedMmPerSec = src.speedMmPerSec;
@@ -465,7 +465,7 @@ namespace Fio
         m_data->processes.push_back(std::move(p));
     }
 
-    void SyDocument::clearProcesses()
+    void AprDocument::clearProcesses()
     {
         if (m_data)
         {
@@ -473,7 +473,7 @@ namespace Fio
         }
     }
 
-    bool SyDocument::getProcessTargetLayers(
+    bool AprDocument::getProcessTargetLayers(
         uint32_t processId, uint32_t* outLayerIds, size_t capacity, size_t* outCount) const
     {
         if (!m_data)
@@ -514,56 +514,56 @@ namespace Fio
         return false;
     }
 
-    const char* SyDocument::machineProfileRef() const
+    const char* AprDocument::machineProfileRef() const
     {
         return m_data ? m_data->machineProfileRef.c_str() : "";
     }
 
-    void SyDocument::setMachineProfileRef(const char* ref)
+    void AprDocument::setMachineProfileRef(const char* ref)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->machineProfileRef = ref ? ref : "";
     }
 
-    uint32_t SyDocument::defaultProcessId() const
+    uint32_t AprDocument::defaultProcessId() const
     {
         return m_data ? m_data->defaultProcessId : 0;
     }
 
-    void SyDocument::setDefaultProcessId(uint32_t processId)
+    void AprDocument::setDefaultProcessId(uint32_t processId)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->defaultProcessId = processId;
     }
 
-    int32_t SyDocument::documentUnits() const
+    int32_t AprDocument::documentUnits() const
     {
         return m_data ? m_data->metadata.units : 0;
     }
 
-    void SyDocument::setDocumentUnits(int32_t units)
+    void AprDocument::setDocumentUnits(int32_t units)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->metadata.units = units;
     }
 
     // ---- 图元 ----
 
-    size_t SyDocument::entityCount() const
+    size_t AprDocument::entityCount() const
     {
         return m_data ? m_data->entities.size() : 0;
     }
 
-    Eg::SyEntity* SyDocument::entityAt(size_t index) const
+    Eg::AprEntity* AprDocument::entityAt(size_t index) const
     {
         if (!m_data || index >= m_data->entities.size())
         {
@@ -572,25 +572,25 @@ namespace Fio
         return m_data->entities[index].get();
     }
 
-    void SyDocument::addEntity(Eg::SyEntity* entity)
+    void AprDocument::addEntity(Eg::AprEntity* entity)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->entities.emplace_back(entity);
     }
 
-    void SyDocument::addBorrowedEntity(const Eg::SyEntity* entity)
+    void AprDocument::addBorrowedEntity(const Eg::AprEntity* entity)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
         m_data->borrowedEntities.push_back(entity);
     }
 
-    void SyDocument::clearEntities()
+    void AprDocument::clearEntities()
     {
         if (m_data)
         {
@@ -601,12 +601,12 @@ namespace Fio
 
     // ---- 群组 ----
 
-    size_t SyDocument::groupCount() const
+    size_t AprDocument::groupCount() const
     {
         return m_data ? m_data->groups.size() : 0;
     }
 
-    bool SyDocument::getGroupAt(size_t index, SyGroupInfo& out) const
+    bool AprDocument::getGroupAt(size_t index, AprGroupInfo& out) const
     {
         if (!m_data || index >= m_data->groups.size())
         {
@@ -623,7 +623,7 @@ namespace Fio
 
     // ---- 图元-图层/群组映射 ----
 
-    uint32_t SyDocument::entityLayerId(uint64_t entityId) const
+    uint32_t AprDocument::entityLayerId(uint64_t entityId) const
     {
         if (!m_data)
         {
@@ -633,7 +633,7 @@ namespace Fio
         return it != m_data->entityLayerMap.end() ? it->second : 0;
     }
 
-    uint64_t SyDocument::entityGroupId(uint64_t entityId) const
+    uint64_t AprDocument::entityGroupId(uint64_t entityId) const
     {
         // 从群组的 entityIds 反向查找
         if (!m_data)
@@ -655,7 +655,7 @@ namespace Fio
 
     // ---- 硬件 ----
 
-    void SyDocument::getHardware(SyHardwareInfo& out) const
+    void AprDocument::getHardware(AprHardwareInfo& out) const
     {
         if (!m_data)
         {
@@ -672,11 +672,11 @@ namespace Fio
         out.workAreaHeight = h.workAreaHeight;
     }
 
-    void SyDocument::setHardware(const SyHardwareInfo& hardware)
+    void AprDocument::setHardware(const AprHardwareInfo& hardware)
     {
         if (!m_data)
         {
-            m_data = new SyDocumentData();
+            m_data = new AprDocumentData();
         }
 
         auto& h = m_data->hardware;

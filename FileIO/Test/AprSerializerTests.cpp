@@ -1,6 +1,6 @@
 /**
- * @file SySerializerTests.cpp
- * @brief SySerializer 回归测试 — 文件级序列化/反序列化
+ * @file AprSerializerTests.cpp
+ * @brief AprSerializer 回归测试 — 文件级序列化/反序列化
  *
  * 覆盖：
  *   - 内存级序列化/反序列化闭环（BinaryBlob/BinaryBlobOut）
@@ -16,18 +16,18 @@
 
 #include <gtest/gtest.h>
 
-#include "FileIO/SySerializer.h"
-#include "FileIO/SyDocument.h"
+#include "FileIO/AprSerializer.h"
+#include "FileIO/AprDocument.h"
 
-// SyDocument 使用 std::unique_ptr<Eg::SyEntity>，需要完整类型定义
-#include "Engine/SyEntity/SyEntity.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyFillRegion.h"
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SySmartLine.h"
+// AprDocument 使用 std::unique_ptr<Eg::AprEntity>，需要完整类型定义
+#include "Engine/AprEntity/AprEntity.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprFillRegion.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprSmartLine.h"
 
-// 内部文档数据：测试需要构造带填充色的图层（公开 SyLayerInfo 无 fillColor 字段）
-#include "SyDocumentData.h"
+// 内部文档数据：测试需要构造带填充色的图层（公开 AprLayerInfo 无 fillColor 字段）
+#include "AprDocumentData.h"
 #include "Ut/Color.h"
 
 #include <cstring>
@@ -38,7 +38,7 @@ using namespace Fio;
 namespace
 {
     // 序列化辅助：查询大小 → 分配 → 写入，返回完整数据
-    SerializeResult serializeDoc(SySerializer& s, const SyDocument& doc, std::vector<uint8_t>& out)
+    SerializeResult serializeDoc(AprSerializer& s, const AprDocument& doc, std::vector<uint8_t>& out)
     {
         BinaryBlobOut query;
         auto r = s.serializeToMemory(doc, &query);
@@ -51,7 +51,7 @@ namespace
         return s.serializeToMemory(doc, &blobOut);
     }
 
-    SerializeResult deserializeDoc(SySerializer& s, const std::vector<uint8_t>& data, SyDocument& doc)
+    SerializeResult deserializeDoc(AprSerializer& s, const std::vector<uint8_t>& data, AprDocument& doc)
     {
         BinaryBlob in{ const_cast<uint8_t*>(data.data()), data.size() };
         return s.deserializeFromMemory(in, doc);
@@ -60,110 +60,110 @@ namespace
 
 // ==================== 文件魔数校验 ====================
 
-TEST(SySerializerTest, MagicHeaderConstants)
+TEST(AprSerializerTest, MagicHeaderConstants)
 {
     // 验证魔数常量正确
-    EXPECT_EQ(SyFileConst::MAGIC_SY[0], 'S');
-    EXPECT_EQ(SyFileConst::MAGIC_SY[1], 'Y');
-    EXPECT_EQ(SyFileConst::MAGIC_SY[2], 'P');
-    EXPECT_EQ(SyFileConst::MAGIC_SY[3], 'B');
+    EXPECT_EQ(AprFileConst::MAGIC_APR[0], 'A');
+    EXPECT_EQ(AprFileConst::MAGIC_APR[1], 'P');
+    EXPECT_EQ(AprFileConst::MAGIC_APR[2], 'R');
+    EXPECT_EQ(AprFileConst::MAGIC_APR[3], 'B');
 
-    EXPECT_EQ(SyFileConst::MAGIC_SYX[0], 'S');
-    EXPECT_EQ(SyFileConst::MAGIC_SYX[1], 'X');
-    EXPECT_EQ(SyFileConst::MAGIC_SYX[2], 'P');
-    EXPECT_EQ(SyFileConst::MAGIC_SYX[3], 'B');
+    EXPECT_EQ(AprFileConst::MAGIC_APR3D[0], 'A');
+    EXPECT_EQ(AprFileConst::MAGIC_APR3D[1], 'P');
+    EXPECT_EQ(AprFileConst::MAGIC_APR3D[2], '3');
+    EXPECT_EQ(AprFileConst::MAGIC_APR3D[3], 'D');
 }
 
-TEST(SySerializerTest, FileVersion)
+TEST(AprSerializerTest, FileVersion)
 {
     // 文件版本号必须稳定，跨版本兼容
-    EXPECT_EQ(SySerializer::fileVersion(), SyFileConst::FILE_VERSION);
+    EXPECT_EQ(AprSerializer::fileVersion(), AprFileConst::FILE_VERSION);
 }
 
-TEST(SySerializerTest, HeaderSize)
+TEST(AprSerializerTest, HeaderSize)
 {
     // 头部大小 = magic(4) + version(4) + flags(4) + data_len(4)
-    EXPECT_EQ(SyFileConst::HEADER_SIZE, 16u);
+    EXPECT_EQ(AprFileConst::HEADER_SIZE, 16u);
 }
 
-TEST(SySerializerTest, FooterSize)
+TEST(AprSerializerTest, FooterSize)
 {
     // 尾部 CRC32 大小
-    EXPECT_EQ(SyFileConst::FOOTER_SIZE, 4u);
+    EXPECT_EQ(AprFileConst::FOOTER_SIZE, 4u);
 }
 
 // ==================== 魔数识别 ====================
 
-TEST(SySerializerTest, IsValidSyFile_Valid)
+TEST(AprSerializerTest, IsValidAprFile_Valid)
 {
-    const uint8_t header[] = { 'S', 'Y', 'P', 'B' };
-    EXPECT_TRUE(SySerializer::isValidSyFile(header, sizeof(header)));
+    const uint8_t header[] = { 'A', 'P', 'R', 'B' };
+    EXPECT_TRUE(AprSerializer::isValidAprFile(header, sizeof(header)));
 }
 
-TEST(SySerializerTest, IsValidSyFile_Invalid)
+TEST(AprSerializerTest, IsValidAprFile_Invalid)
 {
     const uint8_t header[] = { 'X', 'X', 'X', 'X' };
-    EXPECT_FALSE(SySerializer::isValidSyFile(header, sizeof(header)));
+    EXPECT_FALSE(AprSerializer::isValidAprFile(header, sizeof(header)));
 }
 
-TEST(SySerializerTest, IsValidSyFile_TooShort)
+TEST(AprSerializerTest, IsValidAprFile_TooShort)
 {
-    const uint8_t header[] = { 'S', 'Y' };
-    EXPECT_FALSE(SySerializer::isValidSyFile(header, sizeof(header)));
+    const uint8_t header[] = { 'A', 'P' };
+    EXPECT_FALSE(AprSerializer::isValidAprFile(header, sizeof(header)));
 }
 
-TEST(SySerializerTest, IsValidSyFile_Empty)
+TEST(AprSerializerTest, IsValidAprFile_Empty)
 {
-    EXPECT_FALSE(SySerializer::isValidSyFile(nullptr, 0));
+    EXPECT_FALSE(AprSerializer::isValidAprFile(nullptr, 0));
 }
 
-TEST(SySerializerTest, IsValidSyxFile_Valid)
+TEST(AprSerializerTest, IsValidApr3DFile_Valid)
 {
-    const uint8_t header[] = { 'S', 'X', 'P', 'B' };
-    EXPECT_TRUE(SySerializer::isValidSyxFile(header, sizeof(header)));
+    const uint8_t header[] = { 'A', 'P', '3', 'D' };
+    EXPECT_TRUE(AprSerializer::isValidApr3DFile(header, sizeof(header)));
 }
 
-TEST(SySerializerTest, IsValidSyxFile_Invalid)
+TEST(AprSerializerTest, IsValidApr3DFile_Invalid)
 {
-    const uint8_t header[] = { 'S', 'Y', 'P', 'B' };  // SY 魔数不是 SYX
-    EXPECT_FALSE(SySerializer::isValidSyxFile(header, sizeof(header)));
+    const uint8_t header[] = { 'A', 'P', 'R', 'B' };  // 2D 魔数不是 3D 魔数
+    EXPECT_FALSE(AprSerializer::isValidApr3DFile(header, sizeof(header)));
 }
 
 // ==================== 构造/析构 ====================
 
-TEST(SySerializerTest, DefaultConstruction)
+TEST(AprSerializerTest, DefaultConstruction)
 {
-    SySerializer serializer;
+    AprSerializer serializer;
     EXPECT_FALSE(serializer.hasCrypto());
 }
 
-TEST(SySerializerTest, MoveConstruction)
+TEST(AprSerializerTest, MoveConstruction)
 {
-    SySerializer a;
-    SySerializer b = std::move(a);
+    AprSerializer a;
+    AprSerializer b = std::move(a);
     EXPECT_FALSE(b.hasCrypto());
 }
 
 // ==================== 加密配置 ====================
 
-TEST(SySerializerTest, SetCryptoProviderNull)
+TEST(AprSerializerTest, SetCryptoProviderNull)
 {
-    SySerializer serializer;
+    AprSerializer serializer;
     serializer.setCryptoProvider(nullptr);
     EXPECT_FALSE(serializer.hasCrypto());
 }
 
 // ==================== 内存序列化/反序列化闭环 ====================
 
-TEST(SySerializerTest, SerializeDeserializeEmptyDocument)
+TEST(AprSerializerTest, SerializeDeserializeEmptyDocument)
 {
     // 空文档的序列化/反序列化闭环
-    SyDocument doc;
+    AprDocument doc;
     doc.setAuthor("TestAuthor");
-    doc.setSoftwareName("SanYiCAD");
+    doc.setSoftwareName("April");
     doc.setMetadataVersion(1);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
 
     auto saveResult = serializeDoc(serializer, doc, data);
@@ -171,22 +171,22 @@ TEST(SySerializerTest, SerializeDeserializeEmptyDocument)
     EXPECT_FALSE(data.empty());
 
     // 反序列化
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
     EXPECT_STREQ(loadedDoc.author(), "TestAuthor");
-    EXPECT_STREQ(loadedDoc.softwareName(), "SanYiCAD");
+    EXPECT_STREQ(loadedDoc.softwareName(), "April");
     EXPECT_EQ(loadedDoc.metadataVersion(), 1);
 }
 
-TEST(SySerializerTest, SerializeDeserializeWithLayers)
+TEST(AprSerializerTest, SerializeDeserializeWithLayers)
 {
     // 含图层的文档序列化/反序列化闭环
-    SyDocument doc;
+    AprDocument doc;
     doc.setAuthor("Test");
 
-    SyLayerInfo layer;
+    AprLayerInfo layer;
     layer.id = 1;
     std::strcpy(layer.name, "Default");
     // ARGB：高 8 位为 alpha，这里用不透明红验证颜色往返
@@ -195,18 +195,18 @@ TEST(SySerializerTest, SerializeDeserializeWithLayers)
     layer.locked = false;
     doc.addLayer(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
 
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
     ASSERT_EQ(loadedDoc.layerCount(), 1u);
-    SyLayerInfo loadedLayer;
+    AprLayerInfo loadedLayer;
     ASSERT_TRUE(loadedDoc.getLayerAt(0, loadedLayer));
     EXPECT_EQ(loadedLayer.id, 1u);
     EXPECT_STREQ(loadedLayer.name, "Default");
@@ -215,34 +215,34 @@ TEST(SySerializerTest, SerializeDeserializeWithLayers)
     EXPECT_FALSE(loadedLayer.locked);
 }
 
-TEST(SySerializerTest, SerializeDeserializeWithMetadata)
+TEST(AprSerializerTest, SerializeDeserializeWithMetadata)
 {
     // 完整元数据的序列化/反序列化闭环
-    SyDocument doc;
+    AprDocument doc;
     doc.setMetadataVersion(2);
     doc.setMetadataFileVersion(5);
     doc.setAuthor("Developer");
-    doc.setSoftwareName("SanYiCAD");
+    doc.setSoftwareName("April");
     doc.setSoftwareVersion("1.0.0");
     doc.setCreatedTime("2026-07-30T10:00:00Z");
     doc.setModifiedTime("2026-07-30T12:00:00Z");
     doc.setOperatingSystem("Windows");
     doc.setDescription("Test document");
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
 
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
     EXPECT_EQ(loadedDoc.metadataVersion(), 2);
     EXPECT_EQ(loadedDoc.metadataFileVersion(), 5);
     EXPECT_STREQ(loadedDoc.author(), "Developer");
-    EXPECT_STREQ(loadedDoc.softwareName(), "SanYiCAD");
+    EXPECT_STREQ(loadedDoc.softwareName(), "April");
     EXPECT_STREQ(loadedDoc.softwareVersion(), "1.0.0");
     EXPECT_STREQ(loadedDoc.createdTime(), "2026-07-30T10:00:00Z");
     EXPECT_STREQ(loadedDoc.modifiedTime(), "2026-07-30T12:00:00Z");
@@ -250,11 +250,11 @@ TEST(SySerializerTest, SerializeDeserializeWithMetadata)
     EXPECT_STREQ(loadedDoc.description(), "Test document");
 }
 
-TEST(SySerializerTest, SerializeDeserializeWithHardwareInfo)
+TEST(AprSerializerTest, SerializeDeserializeWithHardwareInfo)
 {
     // 含硬件信息的文档序列化/反序列化闭环
-    SyDocument doc;
-    SyHardwareInfo hw;
+    AprDocument doc;
+    AprHardwareInfo hw;
     std::strcpy(hw.laserType, "CO2");
     std::strcpy(hw.controllerModel, "RDC6445");
     hw.maxPower = 100.0;
@@ -262,17 +262,17 @@ TEST(SySerializerTest, SerializeDeserializeWithHardwareInfo)
     hw.workAreaHeight = 800.0;
     doc.setHardware(hw);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
 
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
-    SyHardwareInfo loadedHw;
+    AprHardwareInfo loadedHw;
     loadedDoc.getHardware(loadedHw);
     EXPECT_STREQ(loadedHw.laserType, "CO2");
     EXPECT_STREQ(loadedHw.controllerModel, "RDC6445");
@@ -283,36 +283,36 @@ TEST(SySerializerTest, SerializeDeserializeWithHardwareInfo)
 
 // ==================== SMARTLINE 读写往返 ====================
 
-TEST(SySerializerTest, SmartLineRoundTrip)
+TEST(AprSerializerTest, SmartLineRoundTrip)
 {
     // SMARTLINE 曾是唯一没有持久化分支的 2D 图元：保存后重新打开整条丢失。
     // 这里验证类型、段数、段内坐标与 ID 都能还原。
-    SyDocument doc;
-    auto smart = std::make_unique<Eg::SySmartLine>();
-    auto line1 = std::make_unique<Eg::SyLine>(std::vector<Ut::Vec2d>{ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0) });
-    auto line2 = std::make_unique<Eg::SyLine>(std::vector<Ut::Vec2d>{ Ut::Vec2d(20.0, 5.0), Ut::Vec2d(30.0, 5.0) });
+    AprDocument doc;
+    auto smart = std::make_unique<Eg::AprSmartLine>();
+    auto line1 = std::make_unique<Eg::AprLine>(std::vector<Ut::Vec2d>{ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0) });
+    auto line2 = std::make_unique<Eg::AprLine>(std::vector<Ut::Vec2d>{ Ut::Vec2d(20.0, 5.0), Ut::Vec2d(30.0, 5.0) });
     // connectToPrevious=false：两个段保持各自坐标，便于验证读取时没有被二次平移
     smart->addSegmentUnique(std::move(line1), false);
     smart->addSegmentUnique(std::move(line2), false);
     smart->id = 42;
     doc.addEntity(smart.release());
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
     ASSERT_EQ(loadedDoc.entityCount(), 1u);
-    Eg::SyEntity* loadedEntity = loadedDoc.entityAt(0);
+    Eg::AprEntity* loadedEntity = loadedDoc.entityAt(0);
     ASSERT_NE(loadedEntity, nullptr);
     EXPECT_EQ(loadedEntity->eType, Eg::EType::SMARTLINE);
     EXPECT_EQ(loadedEntity->id, 42);
 
-    auto* loadedSmart = static_cast<Eg::SySmartLine*>(loadedEntity);
+    auto* loadedSmart = static_cast<Eg::AprSmartLine*>(loadedEntity);
     ASSERT_EQ(loadedSmart->segmentCount(), 2u);
 
     auto* seg0 = loadedSmart->segment(0);
@@ -322,8 +322,8 @@ TEST(SySerializerTest, SmartLineRoundTrip)
     ASSERT_EQ(seg0->eType, Eg::EType::LINE);
     ASSERT_EQ(seg1->eType, Eg::EType::LINE);
 
-    const auto& pts0 = static_cast<Eg::SyLine*>(seg0)->pointRef();
-    const auto& pts1 = static_cast<Eg::SyLine*>(seg1)->pointRef();
+    const auto& pts0 = static_cast<Eg::AprLine*>(seg0)->pointRef();
+    const auto& pts1 = static_cast<Eg::AprLine*>(seg1)->pointRef();
     ASSERT_EQ(pts0.size(), 2u);
     ASSERT_EQ(pts1.size(), 2u);
     EXPECT_NEAR(pts0[0].x(), 0.0, 1e-9);
@@ -333,20 +333,20 @@ TEST(SySerializerTest, SmartLineRoundTrip)
     EXPECT_NEAR(pts1[1].x(), 30.0, 1e-9);
 }
 
-TEST(SySerializerTest, RejectsImperialUnits)
+TEST(AprSerializerTest, RejectsImperialUnits)
 {
     // units=1 表示英制文档，当前几何恒按 mm 解释。读端必须显式失败，
     // 否则整份图会被当作毫米读入，尺寸小 25.4 倍。
-    SyDocument doc;
-    doc.addLayer(SyLayerInfo{});
+    AprDocument doc;
+    doc.addLayer(AprLayerInfo{});
     doc.setDocumentUnits(1);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     EXPECT_FALSE(loadResult.success);
     EXPECT_STRNE(loadResult.errorMessage, "");
@@ -355,10 +355,10 @@ TEST(SySerializerTest, RejectsImperialUnits)
 
 // ==================== 反序列化错误处理 ====================
 
-TEST(SySerializerTest, DeserializeFromInvalidData)
+TEST(AprSerializerTest, DeserializeFromInvalidData)
 {
-    SySerializer serializer;
-    SyDocument doc;
+    AprSerializer serializer;
+    AprDocument doc;
     std::vector<uint8_t> invalidData = { 0xDE, 0xAD, 0xBE, 0xEF };
 
     auto result = deserializeDoc(serializer, invalidData, doc);
@@ -366,11 +366,11 @@ TEST(SySerializerTest, DeserializeFromInvalidData)
     EXPECT_FALSE(result.errorMessage[0] == '\0');
 }
 
-TEST(SySerializerTest, DeserializeFromEmptyData)
+TEST(AprSerializerTest, DeserializeFromEmptyData)
 {
     // 空数据对于 protobuf 是合法的（空消息），反序列化应成功产生空文档
-    SySerializer serializer;
-    SyDocument doc;
+    AprSerializer serializer;
+    AprDocument doc;
     std::vector<uint8_t> emptyData;
 
     auto result = deserializeDoc(serializer, emptyData, doc);
@@ -380,41 +380,41 @@ TEST(SySerializerTest, DeserializeFromEmptyData)
 
 // ==================== 序列化结果工厂方法 ====================
 
-TEST(SySerializerTest, SerializeResultOk)
+TEST(AprSerializerTest, SerializeResultOk)
 {
     auto result = SerializeResult::ok();
     EXPECT_TRUE(result.success);
     EXPECT_TRUE(result.errorMessage[0] == '\0');
 }
 
-TEST(SySerializerTest, SerializeResultFail)
+TEST(AprSerializerTest, SerializeResultFail)
 {
     auto result = SerializeResult::fail("Something went wrong");
     EXPECT_FALSE(result.success);
     EXPECT_STREQ(result.errorMessage, "Something went wrong");
 }
 
-// ==================== SyDocument 便捷方法 ====================
+// ==================== AprDocument 便捷方法 ====================
 
-TEST(SySerializerTest, SyDocumentIsValid_Empty)
+TEST(AprSerializerTest, AprDocumentIsValid_Empty)
 {
-    SyDocument doc;
+    AprDocument doc;
     EXPECT_FALSE(doc.isValid());
 }
 
-TEST(SySerializerTest, SyDocumentIsValid_WithLayers)
+TEST(AprSerializerTest, AprDocumentIsValid_WithLayers)
 {
-    SyDocument doc;
-    doc.addLayer(SyLayerInfo{});
+    AprDocument doc;
+    doc.addLayer(AprLayerInfo{});
     EXPECT_TRUE(doc.isValid());
 }
 
-TEST(SySerializerTest, SyDocumentClear)
+TEST(AprSerializerTest, AprDocumentClear)
 {
-    SyDocument doc;
-    doc.addLayer(SyLayerInfo{});
+    AprDocument doc;
+    doc.addLayer(AprLayerInfo{});
     doc.setAuthor("Test");
-    SyHardwareInfo hw;
+    AprHardwareInfo hw;
     std::strcpy(hw.laserType, "CO2");
     doc.setHardware(hw);
 
@@ -422,7 +422,7 @@ TEST(SySerializerTest, SyDocumentClear)
 
     EXPECT_EQ(doc.layerCount(), 0u);
     EXPECT_STREQ(doc.author(), "");
-    SyHardwareInfo clearedHw;
+    AprHardwareInfo clearedHw;
     doc.getHardware(clearedHw);
     EXPECT_STREQ(clearedHw.laserType, "");
     EXPECT_FALSE(doc.isValid());
@@ -430,12 +430,12 @@ TEST(SySerializerTest, SyDocumentClear)
 
 // ==================== 两次序列化应产生相同结果（确定性） ====================
 
-TEST(SySerializerTest, SerializationIsDeterministic)
+TEST(AprSerializerTest, SerializationIsDeterministic)
 {
-    SyDocument doc;
+    AprDocument doc;
     doc.setAuthor("Test");
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data1, data2;
 
     auto r1 = serializeDoc(serializer, doc, data1);
@@ -448,58 +448,58 @@ TEST(SySerializerTest, SerializationIsDeterministic)
 
 // ==================== 加密标志 ====================
 
-TEST(SySerializerTest, EncryptedFlagConstant)
+TEST(AprSerializerTest, EncryptedFlagConstant)
 {
-    EXPECT_EQ(SyFileConst::FLAG_ENCRYPTED, 0x01u);
+    EXPECT_EQ(AprFileConst::FLAG_ENCRYPTED, 0x01u);
 }
 
 // ==================== 文档元数据序列化闭环 ====================
 
-TEST(SySerializerTest, DocumentWithMetadataRoundTrip)
+TEST(AprSerializerTest, DocumentWithMetadataRoundTrip)
 {
-    SyDocument original;
+    AprDocument original;
     original.setAuthor("TestAuthor");
     original.setMetadataVersion(2);
-    original.setSoftwareName("SanYiCAD");
+    original.setSoftwareName("April");
     original.setDescription("Test document");
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto result = serializeDoc(serializer, original, data);
     ASSERT_TRUE(result.success);
     EXPECT_FALSE(data.empty());
 
-    SyDocument restored;
+    AprDocument restored;
     result = deserializeDoc(serializer, data, restored);
     ASSERT_TRUE(result.success);
     EXPECT_STREQ(restored.author(), "TestAuthor");
     EXPECT_EQ(restored.metadataVersion(), 2);
-    EXPECT_STREQ(restored.softwareName(), "SanYiCAD");
+    EXPECT_STREQ(restored.softwareName(), "April");
     EXPECT_STREQ(restored.description(), "Test document");
 }
 
-TEST(SySerializerTest, DocumentWithMultipleLayersRoundTrip)
+TEST(AprSerializerTest, DocumentWithMultipleLayersRoundTrip)
 {
-    SyDocument original;
+    AprDocument original;
     for (int i = 1; i <= 5; ++i)
     {
-        SyLayerInfo layer;
+        AprLayerInfo layer;
         layer.id = i;
         std::strcpy(layer.name, ("Layer" + std::to_string(i)).c_str());
         layer.visible = (i % 2 == 0);  // 偶层可见
         original.addLayer(layer);
     }
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto result = serializeDoc(serializer, original, data);
     ASSERT_TRUE(result.success);
 
-    SyDocument restored;
+    AprDocument restored;
     result = deserializeDoc(serializer, data, restored);
     ASSERT_TRUE(result.success);
     ASSERT_EQ(restored.layerCount(), 5u);
-    SyLayerInfo l0, l1, l4;
+    AprLayerInfo l0, l1, l4;
     ASSERT_TRUE(restored.getLayerAt(0, l0));
     ASSERT_TRUE(restored.getLayerAt(1, l1));
     ASSERT_TRUE(restored.getLayerAt(4, l4));
@@ -509,10 +509,10 @@ TEST(SySerializerTest, DocumentWithMultipleLayersRoundTrip)
     EXPECT_FALSE(l0.visible);  // Layer1
 }
 
-TEST(SySerializerTest, DocumentWithHardwareInfoRoundTrip)
+TEST(AprSerializerTest, DocumentWithHardwareInfoRoundTrip)
 {
-    SyDocument original;
-    SyHardwareInfo hw;
+    AprDocument original;
+    AprHardwareInfo hw;
     std::strcpy(hw.laserType, "CO2");
     std::strcpy(hw.controllerModel, "Model-X");
     hw.maxPower = 100.0;
@@ -520,15 +520,15 @@ TEST(SySerializerTest, DocumentWithHardwareInfoRoundTrip)
     hw.workAreaHeight = 400.0;
     original.setHardware(hw);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto result = serializeDoc(serializer, original, data);
     ASSERT_TRUE(result.success);
 
-    SyDocument restored;
+    AprDocument restored;
     result = deserializeDoc(serializer, data, restored);
     ASSERT_TRUE(result.success);
-    SyHardwareInfo restoredHw;
+    AprHardwareInfo restoredHw;
     restored.getHardware(restoredHw);
     EXPECT_STREQ(restoredHw.laserType, "CO2");
     EXPECT_STREQ(restoredHw.controllerModel, "Model-X");
@@ -543,12 +543,12 @@ TEST(SySerializerTest, DocumentWithHardwareInfoRoundTrip)
 ///
 /// 这一条是「工艺是一等文档对象」的落地证明：
 /// 参数只存在内存里 = 换台电脑打开就丢，图纸不再可复现。
-TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
+TEST(AprSerializerTest, ProcessAndLayerOutputRoundTrip)
 {
-    SyDocument original;
+    AprDocument original;
 
     // 工艺 1：切割
-    SyProcessInfo cut;
+    AprProcessInfo cut;
     cut.id = 1;
     std::strcpy(cut.name, "Cut");
     cut.order = 0;
@@ -569,7 +569,7 @@ TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
     original.addProcess(cut);
 
     // 工艺 2：标刻
-    SyProcessInfo engrave;
+    AprProcessInfo engrave;
     engrave.id = 2;
     std::strcpy(engrave.name, "Engrave");
     engrave.order = 1;
@@ -579,7 +579,7 @@ TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
     original.addProcess(engrave);
 
     // 图层：默认工艺 + 输出开关
-    SyLayerInfo layer;
+    AprLayerInfo layer;
     layer.id = 7;
     std::strcpy(layer.name, "CutLayer");
     layer.visible = true;
@@ -592,19 +592,19 @@ TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
     original.setDefaultProcessId(1);
     original.setDocumentUnits(0);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto result = serializeDoc(serializer, original, data);
     ASSERT_TRUE(result.success);
 
-    SyDocument restored;
+    AprDocument restored;
     result = deserializeDoc(serializer, data, restored);
     ASSERT_TRUE(result.success);
 
     // ---- 工艺 ----
     ASSERT_EQ(restored.processCount(), 2u);
 
-    SyProcessInfo rCut;
+    AprProcessInfo rCut;
     ASSERT_TRUE(restored.getProcessAt(0, rCut));
     EXPECT_EQ(1u, rCut.id);
     EXPECT_STREQ(rCut.name, "Cut");
@@ -624,7 +624,7 @@ TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
     EXPECT_DOUBLE_EQ(0.05, rCut.params.kerfMm);
     EXPECT_DOUBLE_EQ(250.0, rCut.params.rapidSpeedMmPerSec);
 
-    SyProcessInfo rEngrave;
+    AprProcessInfo rEngrave;
     ASSERT_TRUE(restored.getProcessAt(1, rEngrave));
     EXPECT_EQ(2u, rEngrave.id);
     EXPECT_STREQ(rEngrave.name, "Engrave");
@@ -634,7 +634,7 @@ TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
 
     // ---- 图层 ----
     ASSERT_EQ(restored.layerCount(), 1u);
-    SyLayerInfo rLayer;
+    AprLayerInfo rLayer;
     ASSERT_TRUE(restored.getLayerAt(0, rLayer));
     EXPECT_EQ(7u, rLayer.id);
     EXPECT_STREQ(rLayer.name, "CutLayer");
@@ -651,35 +651,35 @@ TEST(SySerializerTest, ProcessAndLayerOutputRoundTrip)
 ///
 /// 这两个是**不同**的概念：visible=false + output=true = 不显示但要加工；
 /// visible=true + output=false = 显示但不加工。合成一个字段就再也分不开了。
-TEST(SySerializerTest, LayerOutputIsIndependentOfVisibility)
+TEST(AprSerializerTest, LayerOutputIsIndependentOfVisibility)
 {
-    SyDocument original;
+    AprDocument original;
 
-    SyLayerInfo hiddenButMachined;
+    AprLayerInfo hiddenButMachined;
     hiddenButMachined.id = 1;
     std::strcpy(hiddenButMachined.name, "Hidden");
     hiddenButMachined.visible = false;
     hiddenButMachined.output = true;
     original.addLayer(hiddenButMachined);
 
-    SyLayerInfo shownButNotMachined;
+    AprLayerInfo shownButNotMachined;
     shownButNotMachined.id = 2;
     std::strcpy(shownButNotMachined.name, "Annotation");
     shownButNotMachined.visible = true;
     shownButNotMachined.output = false;
     original.addLayer(shownButNotMachined);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto result = serializeDoc(serializer, original, data);
     ASSERT_TRUE(result.success);
 
-    SyDocument restored;
+    AprDocument restored;
     result = deserializeDoc(serializer, data, restored);
     ASSERT_TRUE(result.success);
 
     ASSERT_EQ(restored.layerCount(), 2u);
-    SyLayerInfo l0, l1;
+    AprLayerInfo l0, l1;
     ASSERT_TRUE(restored.getLayerAt(0, l0));
     ASSERT_TRUE(restored.getLayerAt(1, l1));
 
@@ -694,45 +694,45 @@ TEST(SySerializerTest, LayerOutputIsIndependentOfVisibility)
 ///
 /// 若按 proto3 默认 false 处理，打开旧文件后所有图层都不加工，
 /// 表现是「点开始加工什么都没发生」且没有任何报错 —— 最难排查的一类现场问题。
-TEST(SySerializerTest, LegacyDocumentWithoutOutputFieldDefaultsToMachined)
+TEST(AprSerializerTest, LegacyDocumentWithoutOutputFieldDefaultsToMachined)
 {
     // 构造一份「只有 visible/locked」的图层数据（模拟 v1 文件的形状）
-    SyDocument original;
-    SyLayerInfo layer;
+    AprDocument original;
+    AprLayerInfo layer;
     layer.id = 1;
     std::strcpy(layer.name, "Legacy");
     layer.visible = true;
     layer.locked = false;
     original.addLayer(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto result = serializeDoc(serializer, original, data);
     ASSERT_TRUE(result.success);
 
     // 写出的文件里 output 字段存在（proto3 optional 有值即写入）。
     // 读回时走 has_output() 分支，值应为 true。
-    SyDocument restored;
+    AprDocument restored;
     result = deserializeDoc(serializer, data, restored);
     ASSERT_TRUE(result.success);
 
-    SyLayerInfo l0;
+    AprLayerInfo l0;
     ASSERT_TRUE(restored.getLayerAt(0, l0));
     EXPECT_TRUE(l0.output) << "output 缺省必须是 true（保持旧文件的行为）";
 }
 
 // ==================== 移动语义测试 ====================
 
-TEST(SySerializerTest, MoveAssignment)
+TEST(AprSerializerTest, MoveAssignment)
 {
-    SySerializer a;
-    SySerializer b;
+    AprSerializer a;
+    AprSerializer b;
     a.setCryptoProvider(nullptr);
 
     b = std::move(a);  // 移动赋值
 
     // 移动后 b 应可用，a 应处于有效但未指定状态
-    SyDocument doc;
+    AprDocument doc;
     std::vector<uint8_t> data;
     auto result = serializeDoc(b, doc, data);
     EXPECT_TRUE(result.success);
@@ -740,9 +740,9 @@ TEST(SySerializerTest, MoveAssignment)
 
 // ==================== 颜色 alpha 持久化 ====================
 
-TEST(SySerializerTest, LayerColorAlphaRoundTrip)
+TEST(AprSerializerTest, LayerColorAlphaRoundTrip)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
     // 图层色 alpha=128，填充色 alpha=64：非不透明值必须原样往返
     LayerInfo layer;
@@ -753,12 +753,12 @@ TEST(SySerializerTest, LayerColorAlphaRoundTrip)
     layer.fillColor = 0x40C8280A; // ARGB(64,200,40,10)
     src.layers.push_back(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
@@ -768,9 +768,9 @@ TEST(SySerializerTest, LayerColorAlphaRoundTrip)
     EXPECT_EQ(loaded[0].fillColor, 0x40C8280Au);
 }
 
-TEST(SySerializerTest, LayerColorOpaqueRoundTrip)
+TEST(AprSerializerTest, LayerColorOpaqueRoundTrip)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
     LayerInfo layer;
     layer.id = 5;
@@ -779,12 +779,12 @@ TEST(SySerializerTest, LayerColorOpaqueRoundTrip)
     layer.fillColor = 0xFFC8280A;
     src.layers.push_back(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
@@ -794,9 +794,9 @@ TEST(SySerializerTest, LayerColorOpaqueRoundTrip)
     EXPECT_EQ(loaded[0].fillColor, 0xFFC8280Au);
 }
 
-TEST(SySerializerTest, LegacyLayerColorZeroAlphaFallsBackOpaque)
+TEST(AprSerializerTest, LegacyLayerColorZeroAlphaFallsBackOpaque)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
     // 模拟历史数据：颜色高 8 位为 0（旧写路径未设置 alpha）
     LayerInfo layer;
@@ -806,12 +806,12 @@ TEST(SySerializerTest, LegacyLayerColorZeroAlphaFallsBackOpaque)
     layer.fillColor = 0x00C8280A;
     src.layers.push_back(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
@@ -822,12 +822,12 @@ TEST(SySerializerTest, LegacyLayerColorZeroAlphaFallsBackOpaque)
     EXPECT_EQ(loaded[0].fillColor, 0xFFC8280Au);
 }
 
-TEST(SySerializerTest, EntityOverrideColorAlphaRoundTrip)
+TEST(AprSerializerTest, EntityOverrideColorAlphaRoundTrip)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
     // 色块实体覆盖色 alpha=96：持久化后必须保留，几何（三角形流）也要保留
-    auto fill = std::make_unique<Eg::SyFillRegion>();
+    auto fill = std::make_unique<Eg::AprFillRegion>();
     fill->id = 1001;
     const Ut::Vec2d tri[] = { Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0), Ut::Vec2d(10.0, 10.0),
         Ut::Vec2d(10.0, 10.0), Ut::Vec2d(0.0, 10.0), Ut::Vec2d(0.0, 0.0) };
@@ -837,19 +837,19 @@ TEST(SySerializerTest, EntityOverrideColorAlphaRoundTrip)
     fill->setOverrideColor(Ut::Color::fromRGB255(90, 160, 220, 96));
     src.entities.push_back(std::move(fill));
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
     const auto& loaded = syDocumentData(loadedDoc).entities;
     ASSERT_EQ(loaded.size(), 1u);
     ASSERT_EQ(loaded[0]->eType, Eg::EType::FILL_REGION);
-    const auto* loadedFill = static_cast<const Eg::SyFillRegion*>(loaded[0].get());
+    const auto* loadedFill = static_cast<const Eg::AprFillRegion*>(loaded[0].get());
     EXPECT_EQ(loadedFill->vertexCount(), 6u);
     EXPECT_EQ(loadedFill->sourceCount(), 2u);
     const auto overrideColor = loaded[0]->overrideColor();
@@ -861,21 +861,21 @@ TEST(SySerializerTest, EntityOverrideColorAlphaRoundTrip)
     EXPECT_EQ(loaded[0]->getColor().alpha255(), 96);
 }
 
-TEST(SySerializerTest, EntityWithoutOverrideColorStaysNullopt)
+TEST(AprSerializerTest, EntityWithoutOverrideColorStaysNullopt)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
-    auto poly = std::make_unique<Eg::SyPolygon>();
+    auto poly = std::make_unique<Eg::AprPolygon>();
     poly->id = 1002;
     poly->setVertices({ Ut::Vec2d(0.0, 0.0), Ut::Vec2d(10.0, 0.0), Ut::Vec2d(10.0, 10.0) });
     src.entities.push_back(std::move(poly));
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
@@ -886,13 +886,13 @@ TEST(SySerializerTest, EntityWithoutOverrideColorStaysNullopt)
 }
 
 // ==================== 图层 → 硬件 Profile 绑定持久化 ====================
-// SanYiDocument.proto 里 hardware_profile_id=12 / fill_hardware_profile_id=13
-// 早就声明了，但 SySerializer 的写/读路径一直没赋过值：保存后图层绑定的
+// AprDocument.proto 里 hardware_profile_id=12 / fill_hardware_profile_id=13
+// 早就声明了，但 AprSerializer 的写/读路径一直没赋过值：保存后图层绑定的
 // 工艺参数全部退回默认 Profile，用户设置的功率/速度在重开文档后丢失。
 
-TEST(SySerializerTest, LayerHardwareProfileIdsRoundTrip)
+TEST(AprSerializerTest, LayerHardwareProfileIdsRoundTrip)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
     LayerInfo layer;
     layer.id = 7;
@@ -901,12 +901,12 @@ TEST(SySerializerTest, LayerHardwareProfileIdsRoundTrip)
     layer.fillHardwareProfileId = 4;
     src.layers.push_back(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     const auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     const auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
@@ -916,9 +916,9 @@ TEST(SySerializerTest, LayerHardwareProfileIdsRoundTrip)
     EXPECT_EQ(loaded[0].fillHardwareProfileId, 4);
 }
 
-TEST(SySerializerTest, LayerWithoutFillProfileFallsBackToMinusOne)
+TEST(AprSerializerTest, LayerWithoutFillProfileFallsBackToMinusOne)
 {
-    SyDocument doc;
+    AprDocument doc;
     auto& src = syDocumentData(doc);
     LayerInfo layer;
     layer.id = 9;
@@ -927,12 +927,12 @@ TEST(SySerializerTest, LayerWithoutFillProfileFallsBackToMinusOne)
     // fill 未设置（-1）：不应被写成 proto3 默认 0 而误指到默认 Profile
     src.layers.push_back(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     const auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     const auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
@@ -943,15 +943,15 @@ TEST(SySerializerTest, LayerWithoutFillProfileFallsBackToMinusOne)
 }
 
 // ==================== 完整加工语义往返（公开 API 通道） ====================
-// 生产导出路径不能碰 SyDocumentData.h（那是 FileIO.dll 内部头）；它只能走
-// SyLayerDetailInfo / SyHardwareProfileInfo 这两个跨 DLL POD。下面用公开 API
-// 验证这条通道确实把图层完整字段 + Profile 值集写进 .sy 并读回来。
+// 生产导出路径不能碰 AprDocumentData.h（那是 FileIO.dll 内部头）；它只能走
+// AprLayerDetailInfo / AprHardwareProfileInfo 这两个跨 DLL POD。下面用公开 API
+// 验证这条通道确实把图层完整字段 + Profile 值集写进 .apr 并读回来。
 
-TEST(SySerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
+TEST(AprSerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
 {
-    SyDocument doc;
+    AprDocument doc;
 
-    SyLayerDetailInfo layer;
+    AprLayerDetailInfo layer;
     layer.id = 42;
     std::strncpy(layer.name, "Cut-42", sizeof(layer.name) - 1);
     layer.color = 0xFF123456;
@@ -966,7 +966,7 @@ TEST(SySerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
     layer.fillHardwareProfileId = 4;
     doc.addLayerDetail(layer);
 
-    SyHardwareProfileInfo profile;
+    AprHardwareProfileInfo profile;
     profile.id = 3;
     std::strncpy(profile.name, "Steel-3mm", sizeof(profile.name) - 1);
     profile.power = 78.5;
@@ -976,17 +976,17 @@ TEST(SySerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
     profile.passes = 3;
     doc.addHardwareProfile(profile);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     const auto saveResult = serializeDoc(serializer, doc, data);
     ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     const auto loadResult = deserializeDoc(serializer, data, loadedDoc);
     ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
 
     ASSERT_EQ(loadedDoc.layerCount(), 1u);
-    SyLayerDetailInfo loadedLayer;
+    AprLayerDetailInfo loadedLayer;
     ASSERT_TRUE(loadedDoc.getLayerDetailAt(0, loadedLayer));
     EXPECT_EQ(loadedLayer.id, 42u);
     EXPECT_STREQ(loadedLayer.name, "Cut-42");
@@ -1002,7 +1002,7 @@ TEST(SySerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
     EXPECT_EQ(loadedLayer.fillHardwareProfileId, 4);
 
     ASSERT_EQ(loadedDoc.hardwareProfileCount(), 1u);
-    SyHardwareProfileInfo loadedProfile;
+    AprHardwareProfileInfo loadedProfile;
     ASSERT_TRUE(loadedDoc.getHardwareProfileAt(0, loadedProfile));
     EXPECT_EQ(loadedProfile.id, 3);
     EXPECT_STREQ(loadedProfile.name, "Steel-3mm");
@@ -1013,25 +1013,25 @@ TEST(SySerializerTest, LayerDetailAndProfileValueSetRoundTripViaPublicApi)
     EXPECT_EQ(loadedProfile.passes, 3);
 }
 
-TEST(SySerializerTest, LegacyDocumentWithoutProfileValueSetStaysEmpty)
+TEST(AprSerializerTest, LegacyDocumentWithoutProfileValueSetStaysEmpty)
 {
     // v1/v2 旧文件没有 hardware_profiles 字段。读端必须返回空值集，
     // 由上层据此决定「保持运行时现有 Profile」——静默清空用户参数是数据丢失。
-    SyDocument doc;
-    SyLayerDetailInfo layer;
+    AprDocument doc;
+    AprLayerDetailInfo layer;
     layer.id = 1;
     std::strncpy(layer.name, "Legacy", sizeof(layer.name) - 1);
     doc.addLayerDetail(layer);
 
-    SySerializer serializer;
+    AprSerializer serializer;
     std::vector<uint8_t> data;
     ASSERT_TRUE(serializeDoc(serializer, doc, data).success);
 
-    SyDocument loadedDoc;
+    AprDocument loadedDoc;
     ASSERT_TRUE(deserializeDoc(serializer, data, loadedDoc).success);
     EXPECT_EQ(loadedDoc.hardwareProfileCount(), 0u);
 
-    SyLayerDetailInfo loadedLayer;
+    AprLayerDetailInfo loadedLayer;
     ASSERT_TRUE(loadedDoc.getLayerDetailAt(0, loadedLayer));
     EXPECT_EQ(loadedLayer.hardwareProfileId, 0);
     EXPECT_EQ(loadedLayer.fillHardwareProfileId, -1);

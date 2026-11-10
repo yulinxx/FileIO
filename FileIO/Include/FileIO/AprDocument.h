@@ -7,30 +7,30 @@
 
 namespace Eg
 {
-    struct SyEntity;
+    struct AprEntity;
 }
 
 namespace Fio
 {
     // ============================================================
-    // SyDocument —— 文档数据模型（全 PIMPL，跨 DLL 安全）
+    // AprDocument —— 文档数据模型（全 PIMPL，跨 DLL 安全）
     //
     // C3 收口 (2026-07-31)：
     //   - 原公开结构体 DocumentMetadata / LayerInfo / HardwareInfo /
     //     GroupInfo / PropertyMap 以及全部 std 容器成员已内迁至内部
-    //     数据模型（SyDocumentData.h），本头文件不再暴露任何 std 类型。
+    //     数据模型（AprDocumentData.h），本头文件不再暴露任何 std 类型。
     //   - 字符串经 const char* 出入参（返回的内部缓冲区在文档存活且
     //     未被修改期间有效）。
-    //   - 图层 / 硬件经 POD 视图（SyLayerInfo / SyHardwareInfo）传输。
+    //   - 图层 / 硬件经 POD 视图（AprLayerInfo / AprHardwareInfo）传输。
     //   - 图元仅暴露借用指针（entityAt），所有权始终由文档持有。
     // ============================================================
 
-    struct SyDocumentData;  // 内部数据模型（前向声明，仅在 DLL 内部定义）
+    struct AprDocumentData;  // 内部数据模型（前向声明，仅在 DLL 内部定义）
 
     // ---------------------------- POD 视图（跨 DLL 安全） ----------------------------
 
     /// 图层信息视图（POD，固定长度缓冲区）
-    struct FILEIO_API SyLayerInfo
+    struct FILEIO_API AprLayerInfo
     {
         uint32_t id = 0;              // 图层 ID
         char name[256] = {};          // 图层名称
@@ -43,11 +43,11 @@ namespace Fio
 
     /// 扩展图层视图（POD，跨 DLL 安全）。
     ///
-    /// 为什么另起一个结构体而不是往 `SyLayerInfo` 加字段：`SyLayerInfo` 是冻结的
-    /// 跨 DLL POD，加字段会改 sizeof 进而破坏 ABI。原生 .sy 需要把「图层表 +
+    /// 为什么另起一个结构体而不是往 `AprLayerInfo` 加字段：`AprLayerInfo` 是冻结的
+    /// 跨 DLL POD，加字段会改 sizeof 进而破坏 ABI。原生 .apr 需要把「图层表 +
     /// 硬件 Profile 绑定」完整来回，但又不能动旧结构体，所以用另一个 POD 承载
     /// 全部字段，`addLayerDetail()` / `getLayerDetailAt()` 走它。
-    struct FILEIO_API SyLayerDetailInfo
+    struct FILEIO_API AprLayerDetailInfo
     {
         uint32_t id = 0;
         char name[256] = {};
@@ -65,7 +65,7 @@ namespace Fio
 
     /// 硬件 Profile 值集视图（POD，跨 DLL 安全）。
     /// 单位与 HardwareProfileManager 一致：frequency=kHz、focusOffset=mm。
-    struct FILEIO_API SyHardwareProfileInfo
+    struct FILEIO_API AprHardwareProfileInfo
     {
         int32_t id = -1;
         char name[128] = {};
@@ -77,7 +77,7 @@ namespace Fio
     };
 
     /// 硬件信息视图（POD，固定长度缓冲区）
-    struct FILEIO_API SyHardwareInfo
+    struct FILEIO_API AprHardwareInfo
     {
         char laserType[128] = {};        // 激光类型
         char controllerModel[128] = {};  // 控制器型号
@@ -90,7 +90,7 @@ namespace Fio
     ///
     /// 字段与 `Eg::ProcessParams` 一一对应（Engine/Common/Include/Engine/Process/）。
     /// 单位：长度 mm、角度 度、速度 mm/s、频率 Hz、时间 微秒。
-    struct FILEIO_API SyProcessParamsInfo
+    struct FILEIO_API AprProcessParamsInfo
     {
         bool enabled = true;             // 是否参与加工
         double powerPercent = 50.0;      // 出光功率百分比 0-100
@@ -108,17 +108,17 @@ namespace Fio
     };
 
     /// 工艺对象视图（POD，固定长度缓冲区，跨 DLL 安全）
-    struct FILEIO_API SyProcessInfo
+    struct FILEIO_API AprProcessInfo
     {
         uint32_t id = 0;             // 工艺 ID，文档内唯一，>= 1
         char name[128] = {};         // 工艺名称
-        SyProcessParamsInfo params;  // 加工参数
+        AprProcessParamsInfo params;  // 加工参数
         int32_t order = 0;           // 工序顺序，小者先执行
         bool output = true;          // 是否输出到设备
     };
 
     /// 群组信息视图（POD，固定长度缓冲区，跨 DLL 安全）
-    struct FILEIO_API SyGroupInfo
+    struct FILEIO_API AprGroupInfo
     {
         uint64_t id = 0;             // 群组 ID
         char name[256] = {};         // 群组名称
@@ -128,15 +128,15 @@ namespace Fio
     ////////////////////////////////////////////////////////////////////
     // ---------------------------- 文档 ----------------------------
 
-    class FILEIO_API SyDocument
+    class FILEIO_API AprDocument
     {
     public:
-        SyDocument();
-        ~SyDocument();
-        SyDocument(SyDocument&&) noexcept;
-        SyDocument& operator=(SyDocument&&) noexcept;
-        SyDocument(const SyDocument&) = delete;
-        SyDocument& operator=(const SyDocument&) = delete;
+        AprDocument();
+        ~AprDocument();
+        AprDocument(AprDocument&&) noexcept;
+        AprDocument& operator=(AprDocument&&) noexcept;
+        AprDocument(const AprDocument&) = delete;
+        AprDocument& operator=(const AprDocument&) = delete;
 
         /// 清空所有数据
         void clear();
@@ -178,30 +178,30 @@ namespace Fio
 
         size_t layerCount() const;
         /// 拷贝第 index 个图层到 out；越界返回 false
-        bool getLayerAt(size_t index, SyLayerInfo& out) const;
-        void addLayer(const SyLayerInfo& layer);
+        bool getLayerAt(size_t index, AprLayerInfo& out) const;
+        void addLayer(const AprLayerInfo& layer);
         void clearLayers();
 
         /// 完整图层表出入参（含显示属性、加工语义与硬件 Profile 绑定）。
-        /// 原生 .sy 的保存/打开走这两个方法；`addLayer()` 只覆盖老 POD 的字段，
+        /// 原生 .apr 的保存/打开走这两个方法；`addLayer()` 只覆盖老 POD 的字段，
         /// 会把 layerType/fill/fillColor/硬件 Profile 绑定留成默认值，不能用于完整往返。
-        bool getLayerDetailAt(size_t index, SyLayerDetailInfo& out) const;
-        void addLayerDetail(const SyLayerDetailInfo& layer);
+        bool getLayerDetailAt(size_t index, AprLayerDetailInfo& out) const;
+        void addLayerDetail(const AprLayerDetailInfo& layer);
 
         // ---- 硬件 Profile 值集 ----
 
         size_t hardwareProfileCount() const;
         /// 拷贝第 index 个 Profile；越界返回 false
-        bool getHardwareProfileAt(size_t index, SyHardwareProfileInfo& out) const;
-        void addHardwareProfile(const SyHardwareProfileInfo& profile);
+        bool getHardwareProfileAt(size_t index, AprHardwareProfileInfo& out) const;
+        void addHardwareProfile(const AprHardwareProfileInfo& profile);
         void clearHardwareProfiles();
 
         // ---- 工艺 ----
 
         size_t processCount() const;
         /// 拷贝第 index 个工艺到 out；越界返回 false
-        bool getProcessAt(size_t index, SyProcessInfo& out) const;
-        void addProcess(const SyProcessInfo& process);
+        bool getProcessAt(size_t index, AprProcessInfo& out) const;
+        void addProcess(const AprProcessInfo& process);
         void clearProcesses();
 
         /// 工艺的显式目标图层（工艺 ID → 图层 ID 列表）
@@ -223,20 +223,20 @@ namespace Fio
 
         size_t groupCount() const;
         /// 拷贝第 index 个群组到 out；越界返回 false
-        bool getGroupAt(size_t index, SyGroupInfo& out) const;
+        bool getGroupAt(size_t index, AprGroupInfo& out) const;
 
         // ---- 图元 ----
 
         size_t entityCount() const;
         /// 获取第 index 个图元（借用指针，不转移所有权）
-        Eg::SyEntity* entityAt(size_t index) const;
+        Eg::AprEntity* entityAt(size_t index) const;
         /// 添加图元（接管所有权，传入的指针由文档负责释放）
-        void addEntity(Eg::SyEntity* entity);
+        void addEntity(Eg::AprEntity* entity);
 
         /// 添加借出图元（不接管所有权）。仅用于序列化输出路径：调用方须保证
         /// 该指针在文档被序列化的整个期间内存活，且不在此之后被文档访问。
         /// 目的是免去「为了写入而先深拷贝到文档」的开销。
-        void addBorrowedEntity(const Eg::SyEntity* entity);
+        void addBorrowedEntity(const Eg::AprEntity* entity);
 
         void clearEntities();
 
@@ -249,13 +249,13 @@ namespace Fio
 
         // ---- 硬件 ----
 
-        void getHardware(SyHardwareInfo& out) const;
-        void setHardware(const SyHardwareInfo& hardware);
+        void getHardware(AprHardwareInfo& out) const;
+        void setHardware(const AprHardwareInfo& hardware);
 
     private:
-        friend SyDocumentData& syDocumentData(SyDocument& doc);
-        friend const SyDocumentData& syDocumentData(const SyDocument& doc);
+        friend AprDocumentData& syDocumentData(AprDocument& doc);
+        friend const AprDocumentData& syDocumentData(const AprDocument& doc);
 
-        SyDocumentData* m_data;
+        AprDocumentData* m_data;
     };
 }  // namespace Fio

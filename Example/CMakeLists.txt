@@ -1,17 +1,17 @@
-add_executable(SyFileIOExample
+add_executable(AprFileIOExample
     main.cpp
 )
 
-target_compile_features(SyFileIOExample PRIVATE cxx_std_17)
+target_compile_features(AprFileIOExample PRIVATE cxx_std_17)
 
-target_link_libraries(SyFileIOExample PRIVATE
+target_link_libraries(AprFileIOExample PRIVATE
     FileIO
 )
 
 if(MSVC)
-    target_compile_options(SyFileIOExample PRIVATE /utf-8)
+    target_compile_options(AprFileIOExample PRIVATE /utf-8)
 endif()
 
-set_target_properties(SyFileIOExample PROPERTIES FOLDER "Examples")
+set_target_properties(AprFileIOExample PROPERTIES FOLDER "Examples")
 
-message(STATUS "  Example: SyFileIOExample")
+message(STATUS "  Example: AprFileIOExample")

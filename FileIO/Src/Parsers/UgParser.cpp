@@ -5,7 +5,7 @@
 #include "FileIO/Parsers/UgParser.h"
 #include "IrProjector.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <cctype>
 #include <cmath>
@@ -87,14 +87,14 @@ namespace
 
 namespace Fio
 {
-    ParseResult UgParser::parse(const char* /*filePath*/, VecSyEntityPtr& /*outEntities*/)
+    ParseResult UgParser::parse(const char* /*filePath*/, VecAprEntityPtr& /*outEntities*/)
     {
         return ParseResult::fail("Use parseToIR() for IGES import. Legacy parse() path is not supported for UG.");
     }
 
     FioParseResult UgParser::parseToIR(const char* filePath)
     {
-        SY_INFOF("[UgParser] parseToIR START: filePath=%s", filePath ? filePath : "");
+        APR_INFOF("[UgParser] parseToIR START: filePath=%s", filePath ? filePath : "");
 
         // 统一缓冲区管理（与 DxfParser/StlParser 一致）
         IrPublisher& pub = IrPublisher::threadLocal();
@@ -104,7 +104,7 @@ namespace Fio
 
         if (!filePath)
         {
-            SY_ERROR("[UgParser] parseToIR: null filePath");
+            APR_ERROR("[UgParser] parseToIR: null filePath");
             return FioParseResult{};
         }
 
@@ -113,7 +113,7 @@ namespace Fio
         std::ifstream file(std::filesystem::u8path(filePath), std::ios::binary);
         if (!file.is_open())
         {
-            SY_ERRORF("[UgParser] parseToIR: Cannot open file: %s", filePath);
+            APR_ERRORF("[UgParser] parseToIR: Cannot open file: %s", filePath);
             return FioParseResult{};
         }
         std::vector<std::string> lines;
@@ -319,11 +319,11 @@ namespace Fio
 
         if (pub.entities().empty())
         {
-            SY_WARNF("[UgParser] parseToIR: no supported entities in IGES file: %s", filePath);
+            APR_WARNF("[UgParser] parseToIR: no supported entities in IGES file: %s", filePath);
             return FioParseResult{};
         }
 
-        SY_INFOF("[UgParser] parseToIR END: %u entities, %u warnings: %s",
+        APR_INFOF("[UgParser] parseToIR END: %u entities, %u warnings: %s",
             static_cast<uint32_t>(pub.entities().size()),
             static_cast<uint32_t>(pub.warnings().size()),
             filePath);

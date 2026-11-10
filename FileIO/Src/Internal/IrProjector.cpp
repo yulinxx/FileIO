@@ -1,6 +1,6 @@
 #include "IrProjector.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <algorithm>
 #include <cstring>
@@ -125,7 +125,7 @@ namespace Fio
         constexpr std::size_t kMax = static_cast<std::size_t>(std::numeric_limits<uint32_t>::max()) - 1u;
         if (offset > kMax || bytes > kMax - offset)
         {
-            SY_WARNF("[IrProjector] Extension blob overflow: offset=%zu bytes=%zu, entity data dropped", offset, bytes);
+            APR_WARNF("[IrProjector] Extension blob overflow: offset=%zu bytes=%zu, entity data dropped", offset, bytes);
             return kInvalidOffset;
         }
 
@@ -158,7 +158,7 @@ namespace Fio
                 m_layerLimitWarned = true;
                 m_warnings.push_back("Layer count reached the limit (" + std::to_string(kMaxLayers) +
                     "), extra layers are merged into the default layer");
-                SY_WARNF("[IrProjector] Layer limit %zu reached, subsequent layers fall back to default: '%s'",
+                APR_WARNF("[IrProjector] Layer limit %zu reached, subsequent layers fall back to default: '%s'",
                     kMaxLayers,
                     key.c_str());
             }
@@ -185,7 +185,7 @@ namespace Fio
                 m_groupLimitWarned = true;
                 m_warnings.push_back("Group count reached the limit (" + std::to_string(kMaxGroups) +
                     "), extra groups are flattened into their parent");
-                SY_WARNF("[IrProjector] Group limit %zu reached, subsequent groups are flattened into parent %llu",
+                APR_WARNF("[IrProjector] Group limit %zu reached, subsequent groups are flattened into parent %llu",
                     kMaxGroups,
                     static_cast<unsigned long long>(parentSourceId));
             }
@@ -464,7 +464,7 @@ namespace Fio
                 case ParsedGeometryType::Image:
                 {
                     // 位图：扩展数据块存**编码后的原始字节**（PNG/JPEG 等），
-                    // 由消费侧 SyImage::setPixelData 解码；位置复用 line.x1/y1 作为左上角
+                    // 由消费侧 AprImage::setPixelData 解码；位置复用 line.x1/y1 作为左上角
                     info.imageWidth = g.image.width;
                     info.imageHeight = g.image.height;
                     info.line.x1 = g.image.position.x;
@@ -551,7 +551,7 @@ namespace Fio
         {
             if (!data.success)
             {
-                SY_ERRORF("[IrProjector] project called on failed ParseData: format=%s error=%s",
+                APR_ERRORF("[IrProjector] project called on failed ParseData: format=%s error=%s",
                     sourceFormat != nullptr ? sourceFormat : "?",
                     data.errorMessage.c_str());
                 return FioParseResult{};
@@ -606,7 +606,7 @@ namespace Fio
                 pub.groups()[i].parentSourceId = it->second;
             }
             // 环检测：沿 parentSourceId 上溯，超过群组总数即说明有环，把该节点提为顶层断环。
-            // 不做这一步的话，消费侧建 SyGroup 树时会无限递归。
+            // 不做这一步的话，消费侧建 AprGroup 树时会无限递归。
             for (std::size_t i = 0; i < pub.groups().size(); ++i)
             {
                 std::size_t hops = 0;
@@ -744,7 +744,7 @@ namespace Fio
             // 上层 ImportReaderBase 打的 "Converter dropped N of M" 里的 M 是 entityCount，
             // 也就是**已经**扣掉这里丢掉的量了，所以这一行是整条链上唯一能看到
             // 「解析出来了但没进 IR」的位置。
-            SY_INFOF("[IrProjector] Projected %s: %zu parsed -> %u entities, %u layers, %u groups, "
+            APR_INFOF("[IrProjector] Projected %s: %zu parsed -> %u entities, %u layers, %u groups, "
                      "%zu blob bytes, %u warnings",
                 fmt,
                 data.geometries.size(),
@@ -756,7 +756,7 @@ namespace Fio
 
             if (stats.anyDegradation())
             {
-                SY_WARNF("[IrProjector] Degraded while projecting %s: unknownType=%u smartLineSkipped=%u "
+                APR_WARNF("[IrProjector] Degraded while projecting %s: unknownType=%u smartLineSkipped=%u "
                          "blobOverflow=%u missingLayerRef=%u missingGroupRef=%u nameTruncated=%u "
                          "groupParentMissing=%u groupCycleBroken=%u",
                     fmt,
@@ -773,19 +773,19 @@ namespace Fio
                 // 具体是哪一条数据触发的降级，比只知道「有 37 条出问题」有用得多。
                 if (stats.unknownType != 0)
                 {
-                    SY_WARNF("[IrProjector] First unknown geometry type: raw=%d (%s), sourceId=%llu",
+                    APR_WARNF("[IrProjector] First unknown geometry type: raw=%d (%s), sourceId=%llu",
                         stats.firstUnknownTypeValue,
                         parsedTypeName(static_cast<ParsedGeometryType>(stats.firstUnknownTypeValue)),
                         static_cast<unsigned long long>(stats.firstUnknownSourceId));
                 }
                 if (stats.blobOverflow != 0)
                 {
-                    SY_WARNF("[IrProjector] First blob overflow at sourceId=%llu (entity became an empty shell)",
+                    APR_WARNF("[IrProjector] First blob overflow at sourceId=%llu (entity became an empty shell)",
                         static_cast<unsigned long long>(stats.firstBlobOverflowSourceId));
                 }
                 if (stats.missingLayerRef != 0)
                 {
-                    SY_WARNF("[IrProjector] First dangling layer reference at sourceId=%llu "
+                    APR_WARNF("[IrProjector] First dangling layer reference at sourceId=%llu "
                              "(entity fell back to the unassigned layer)",
                         static_cast<unsigned long long>(stats.firstMissingLayerSourceId));
                 }

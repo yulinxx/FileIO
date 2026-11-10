@@ -5,7 +5,7 @@
 #include "FileIO/Parsers/ObjParser.h"
 
 #include "IrProjector.h"
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include <cstdio>
 #include <cmath>
@@ -137,16 +137,16 @@ namespace Fio
     {
         if (filePath == nullptr)
         {
-            SY_ERRORF("[ObjParser] parseToIR: null file path");
+            APR_ERRORF("[ObjParser] parseToIR: null file path");
             return FioParseResult{};
         }
-        SY_INFOF("[ObjParser] parseToIR START: filePath=%s", filePath);
+        APR_INFOF("[ObjParser] parseToIR START: filePath=%s", filePath);
 
         // Windows 下窄字符路径按 ANSI 码页解析，中文路径打不开；统一走 u8path（与其余解析器一致）
         std::ifstream in(std::filesystem::u8path(filePath), std::ios::binary);
         if (!in)
         {
-            SY_ERRORF("[ObjParser] Cannot open file: %s", filePath);
+            APR_ERRORF("[ObjParser] Cannot open file: %s", filePath);
             return FioParseResult{};
         }
 
@@ -297,7 +297,7 @@ namespace Fio
                     {
                         truncated = true;
                         data.warnings.emplace_back("OBJ: triangle limit reached, remaining faces skipped");
-                        SY_WARNF("[ObjParser] Triangle limit %zu reached, truncating: %s", kMaxTriangles, filePath);
+                        APR_WARNF("[ObjParser] Triangle limit %zu reached, truncating: %s", kMaxTriangles, filePath);
                         break;
                     }
 
@@ -337,7 +337,7 @@ namespace Fio
 
         if (chunks.empty())
         {
-            SY_ERRORF("[ObjParser] No faces found in file: %s", filePath);
+            APR_ERRORF("[ObjParser] No faces found in file: %s", filePath);
             return FioParseResult{};
         }
 
@@ -425,13 +425,13 @@ namespace Fio
 
         if (data.geometries.empty())
         {
-            SY_ERRORF("[ObjParser] All chunks were empty: %s", filePath);
+            APR_ERRORF("[ObjParser] All chunks were empty: %s", filePath);
             return FioParseResult{};
         }
 
         data.success = true;
         // 与其它 parser 保持同一条 END 文案格式，便于按 "parseToIR END" 一把捞出所有格式的收尾统计
-        SY_INFOF("[ObjParser] parseToIR END: %zu mesh chunk(s), %zu triangles, %zu group(s): %s",
+        APR_INFOF("[ObjParser] parseToIR END: %zu mesh chunk(s), %zu triangles, %zu group(s): %s",
             data.geometries.size(),
             triangleCount,
             data.groups.size(),

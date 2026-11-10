@@ -1,10 +1,10 @@
 ﻿#include "FileIO/Parsers/NativeParser.h"
-#include "FileIO/SySerializer.h"
-#include "FileIO/SyDocument.h"
-#include "SyDocumentData.h"
+#include "FileIO/AprSerializer.h"
+#include "FileIO/AprDocument.h"
+#include "AprDocumentData.h"
 
-#include "Engine/SyEntity/SyEntity.h"
-#include "Log/SyLogger.h"
+#include "Engine/AprEntity/AprEntity.h"
+#include "Log/AprLogger.h"
 
 #include <cstdio>
 #include <cstring>
@@ -26,7 +26,7 @@ namespace Fio
         FileFormat targetFormat;
 
         /// 反序列化器实例
-        SySerializer serializer;
+        AprSerializer serializer;
     };
 
     // ----
@@ -36,7 +36,7 @@ namespace Fio
     NativeParser::NativeParser(FileFormat fmt)
         : m_impl(std::make_unique<Impl>(fmt))
     {
-        SY_INFOF("[NativeParser] Created for format=%d (%s)",
+        APR_INFOF("[NativeParser] Created for format=%d (%s)",
             static_cast<int>(fmt),
             (fmt == FileFormat::Native3D) ? "3D" : "2D");
     }
@@ -55,7 +55,7 @@ namespace Fio
     size_t NativeParser::formatName(char* buffer, size_t bufferSize) const
     {
         const char* name =
-            (m_impl->targetFormat == FileFormat::Native3D) ? "SanYi 3D Native (Protobuf)" : "SanYi Native (Protobuf)";
+            (m_impl->targetFormat == FileFormat::Native3D) ? "April 3D Native (Protobuf)" : "April Native (Protobuf)";
         const size_t len = std::strlen(name);
         if (buffer != nullptr && bufferSize > len)
         {
@@ -68,12 +68,11 @@ namespace Fio
     {
         if (m_impl->targetFormat == FileFormat::Native3D)
         {
-            visitor("syx", ctx);
-            visitor("sy3d", ctx);
+            visitor("apr3d", ctx);
         }
         else
         {
-            visitor("sy", ctx);
+            visitor("apr", ctx);
         }
     }
 
@@ -81,16 +80,16 @@ namespace Fio
     // ---- ILegacyParser 接口 ----
     //
     // 仅返回 2D 图元，适用于不区分 2D/3D 的调用方。
-    // 3D 场景使用 parseDocument() 获取完整 SyDocument。
+    // 3D 场景使用 parseDocument() 获取完整 AprDocument。
     // ----
 
-    ParseResult NativeParser::parse(const char* filePath, VecSyEntityPtr& outEntities)
+    ParseResult NativeParser::parse(const char* filePath, VecAprEntityPtr& outEntities)
     {
-        SY_INFOF("[NativeParser] parse(): path=%s, format=%d",
+        APR_INFOF("[NativeParser] parse(): path=%s, format=%d",
             filePath ? filePath : "(null)",
             static_cast<int>(m_impl->targetFormat));
 
-        SyDocument doc;
+        AprDocument doc;
         auto result = parseDocument(filePath, doc);
 
         if (!result.success)
@@ -98,7 +97,7 @@ namespace Fio
             return result;
         }
 
-        // 将 SyDocument 中的图元移动到 outEntities
+        // 将 AprDocument 中的图元移动到 outEntities
         auto& docData = syDocumentData(doc);
         outEntities.reserve(docData.entities.size());
         for (auto& entity : docData.entities)
@@ -106,7 +105,7 @@ namespace Fio
             outEntities.push_back(std::move(entity));
         }
 
-        SY_INFOF("[NativeParser] parse(): extracted %zu 2D entities", outEntities.size());
+        APR_INFOF("[NativeParser] parse(): extracted %zu 2D entities", outEntities.size());
         return result;
     }
 
@@ -114,18 +113,18 @@ namespace Fio
     // ---- 完整文档读取（推荐路径） ----
     //
     // 支持同时读取 2D 图元和 3D 网格。
-    // SySerializer 根据文件头魔数自动检测格式。
+    // AprSerializer 根据文件头魔数自动检测格式。
     // ----
 
-    ParseResult NativeParser::parseDocument(const char* filePath, SyDocument& outDoc)
+    ParseResult NativeParser::parseDocument(const char* filePath, AprDocument& outDoc)
     {
         if (!filePath || !*filePath)
         {
-            SY_ERRORF("[NativeParser] parseDocument(): empty file path");
+            APR_ERRORF("[NativeParser] parseDocument(): empty file path");
             return ParseResult::fail("Empty file path");
         }
 
-        SY_INFOF("[NativeParser] parseDocument(): path=%s", filePath);
+        APR_INFOF("[NativeParser] parseDocument(): path=%s", filePath);
 
         outDoc.clear();
 
@@ -144,11 +143,11 @@ namespace Fio
 
         if (!result.success)
         {
-            SY_ERRORF("[NativeParser] parseDocument() failed: %s", result.errorMessage);
+            APR_ERRORF("[NativeParser] parseDocument() failed: %s", result.errorMessage);
             return ParseResult::fail(result.errorMessage, collector.warnings);
         }
 
-        SY_INFOF("[NativeParser] parseDocument() succeeded: %zu entities, %zu warnings",
+        APR_INFOF("[NativeParser] parseDocument() succeeded: %zu entities, %zu warnings",
             syDocumentData(outDoc).entities.size(),
             collector.warnings.size());
 

@@ -33,7 +33,7 @@ namespace
 
 TEST(PltImportTest, PensCreateLayers)
 {
-    const auto path = std::filesystem::temp_directory_path() / "sanyi_plt_pens.plt";
+    const auto path = std::filesystem::temp_directory_path() / "apr_plt_pens.plt";
 
     // 两笔两段折线：Pen1 一段，Pen2 一段
     const char* kHpgl = "IN;SP1;\n"
@@ -72,7 +72,7 @@ TEST(PltImportTest, PensCreateLayers)
 
 TEST(PltImportTest, SinglePenAllOneLayer)
 {
-    const auto path = std::filesystem::temp_directory_path() / "sanyi_plt_single.plt";
+    const auto path = std::filesystem::temp_directory_path() / "apr_plt_single.plt";
 
     const char* kHpgl = "IN;SP3;\n"
                         "PU;PA0,0;PD;PA100,0;PA100,100;\n";

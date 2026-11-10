@@ -8,7 +8,7 @@
 
 namespace Eg
 {
-    struct SyEntity;
+    struct AprEntity;
 }
 
 namespace Fio
@@ -18,7 +18,7 @@ namespace Fio
      *
      * ABI 安全接口：
      * - 字符串统一使用 const char*（UTF-8）
-     * - 图元集合使用裸指针数组 + 计数（Eg::SyEntity* const* / Eg::SyEntity**）
+     * - 图元集合使用裸指针数组 + 计数（Eg::AprEntity* const* / Eg::AprEntity**）
      * - 错误消息写入调用方缓冲区；警告经 C 函数指针回调逐条输出
      * - 回调均为 C 函数指针 + void* ctx（不使用 std::function）
      *
@@ -61,7 +61,7 @@ namespace Fio
         // 错误消息写入 errorBuffer（尽力截断 + '\0'）。
         bool importFile(const char* filePath,
             FileFormat format,
-            Eg::SyEntity*** outEntities,
+            Eg::AprEntity*** outEntities,
             size_t* outCount,
             char* errorBuffer,
             size_t errorBufferSize);
@@ -69,7 +69,7 @@ namespace Fio
         // 带警告回调与 DXF 图层数输出的导入
         bool importFile(const char* filePath,
             FileFormat format,
-            Eg::SyEntity*** outEntities,
+            Eg::AprEntity*** outEntities,
             size_t* outCount,
             char* errorBuffer,
             size_t errorBufferSize,
@@ -79,7 +79,7 @@ namespace Fio
 
         // 自动检测格式导入
         bool importFile(const char* filePath,
-            Eg::SyEntity*** outEntities,
+            Eg::AprEntity*** outEntities,
             size_t* outCount,
             char* errorBuffer,
             size_t errorBufferSize);
@@ -101,22 +101,22 @@ namespace Fio
             void* progressCtx = nullptr);
 
         // 释放 importFile() 产生的图元数组（删除每个图元 + 数组本身）
-        static void deleteEntities(Eg::SyEntity** entities, size_t count);
+        static void deleteEntities(Eg::AprEntity** entities, size_t count);
 
         // 仅释放数组本身（图元所有权已由调用方接管时使用）
-        static void freeEntityArray(Eg::SyEntity** entities);
+        static void freeEntityArray(Eg::AprEntity** entities);
 
         // ---- 导出 ----
         // 图元以裸指针数组传入（借用，不转移所有权）。
         bool exportFile(const char* filePath,
             FileFormat format,
-            const Eg::SyEntity* const* entities,
+            const Eg::AprEntity* const* entities,
             size_t entityCount,
             char* errorBuffer,
             size_t errorBufferSize);
 
         bool exportFile(const char* filePath,
-            const Eg::SyEntity* const* entities,
+            const Eg::AprEntity* const* entities,
             size_t entityCount,
             char* errorBuffer,
             size_t errorBufferSize);

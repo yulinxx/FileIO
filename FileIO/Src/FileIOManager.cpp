@@ -5,8 +5,8 @@
 #include "FileIO/IFileParser.h"
 #include "FileIO/IFileWriter.h"
 #include "FileIOInternal.h"
-#include "Log/SyLogger.h"
-#include "Engine/SyEntity/SyEntity.h"
+#include "Log/AprLogger.h"
+#include "Engine/AprEntity/AprEntity.h"
 
 #include <cstring>
 #include <exception>
@@ -81,7 +81,7 @@ namespace Fio
 
     bool FileIOManager::importFile(const char* filePath,
         FileFormat format,
-        Eg::SyEntity*** outEntities,
+        Eg::AprEntity*** outEntities,
         size_t* outCount,
         char* errorBuffer,
         size_t errorBufferSize)
@@ -92,7 +92,7 @@ namespace Fio
 
     bool FileIOManager::importFile(const char* filePath,
         FileFormat format,
-        Eg::SyEntity*** outEntities,
+        Eg::AprEntity*** outEntities,
         size_t* outCount,
         char* errorBuffer,
         size_t errorBufferSize,
@@ -116,7 +116,7 @@ namespace Fio
         // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
-            SY_ERROR("[FileIO] importFile: invalid file path (null or empty)");
+            APR_ERROR("[FileIO] importFile: invalid file path (null or empty)");
             writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
             if (m_importCallback)
             {
@@ -167,7 +167,7 @@ namespace Fio
             return false;
         }
 
-        VecSyEntityPtr entities;
+        VecAprEntityPtr entities;
         ParseResult result;
         try
         {
@@ -205,7 +205,7 @@ namespace Fio
 
         // 转移所有权到裸指针数组
         size_t count = entities.size();
-        auto* arr = new Eg::SyEntity*[count == 0 ? 1 : count];
+        auto* arr = new Eg::AprEntity*[count == 0 ? 1 : count];
         for (size_t i = 0; i < count; ++i)
         {
             arr[i] = entities[i].release();
@@ -224,7 +224,7 @@ namespace Fio
     }
 
     bool FileIOManager::importFile(
-        const char* filePath, Eg::SyEntity*** outEntities, size_t* outCount, char* errorBuffer, size_t errorBufferSize)
+        const char* filePath, Eg::AprEntity*** outEntities, size_t* outCount, char* errorBuffer, size_t errorBufferSize)
     {
         // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
@@ -259,7 +259,7 @@ namespace Fio
         // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
-            SY_ERROR("[FileIO] importToIR: invalid file path (null or empty)");
+            APR_ERROR("[FileIO] importToIR: invalid file path (null or empty)");
             writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
             if (m_importCallback)
             {
@@ -275,7 +275,7 @@ namespace Fio
             {
                 m_importCallback(filePath, false, m_importCtx);
             }
-            SY_ERRORF("[FileIO] importToIR: no parser registered for format=%d", static_cast<int>(format));
+            APR_ERRORF("[FileIO] importToIR: no parser registered for format=%d", static_cast<int>(format));
             writeError(errorBuffer, errorBufferSize, "No parser registered for this format");
             return false;
         }
@@ -287,7 +287,7 @@ namespace Fio
             {
                 m_importCallback(filePath, false, m_importCtx);
             }
-            SY_ERRORF("[FileIO] importToIR: parser creation failed for format=%d", static_cast<int>(format));
+            APR_ERRORF("[FileIO] importToIR: parser creation failed for format=%d", static_cast<int>(format));
             writeError(errorBuffer, errorBufferSize, "Failed to create parser");
             return false;
         }
@@ -304,7 +304,7 @@ namespace Fio
         catch (const std::exception& e)
         {
             // 异常类型与文案必须落日志：errorBuffer 只回一句概括，排查时不够用
-            SY_CRITICALF(
+            APR_CRITICALF(
                 "[FileIO] importToIR: exception from parser (format=%d): %s", static_cast<int>(format), e.what());
             factory.destroyParser(parser);
             if (m_importCallback)
@@ -316,7 +316,7 @@ namespace Fio
         }
         catch (...)
         {
-            SY_CRITICALF("[FileIO] importToIR: unknown exception from parser (format=%d)", static_cast<int>(format));
+            APR_CRITICALF("[FileIO] importToIR: unknown exception from parser (format=%d)", static_cast<int>(format));
             factory.destroyParser(parser);
             if (m_importCallback)
             {
@@ -334,7 +334,7 @@ namespace Fio
             {
                 m_importCallback(filePath, false, m_importCtx);
             }
-            SY_WARNF("[FileIO] importToIR: parser produced no entity (format=%d, layers=%u, groups=%u, warnings=%u)",
+            APR_WARNF("[FileIO] importToIR: parser produced no entity (format=%d, layers=%u, groups=%u, warnings=%u)",
                 static_cast<int>(format),
                 result.layerCount,
                 result.groupCount,
@@ -356,7 +356,7 @@ namespace Fio
         return true;
     }
 
-    void FileIOManager::deleteEntities(Eg::SyEntity** entities, size_t count)
+    void FileIOManager::deleteEntities(Eg::AprEntity** entities, size_t count)
     {
         if (!entities)
         {
@@ -369,14 +369,14 @@ namespace Fio
         delete[] entities;
     }
 
-    void FileIOManager::freeEntityArray(Eg::SyEntity** entities)
+    void FileIOManager::freeEntityArray(Eg::AprEntity** entities)
     {
         delete[] entities;
     }
 
     bool FileIOManager::exportFile(const char* filePath,
         FileFormat format,
-        const Eg::SyEntity* const* entities,
+        const Eg::AprEntity* const* entities,
         size_t entityCount,
         char* errorBuffer,
         size_t errorBufferSize)
@@ -384,7 +384,7 @@ namespace Fio
         // 文件路径空指针检查
         if (!filePath || filePath[0] == '\0')
         {
-            SY_ERROR("[FileIO] exportFile: invalid file path (null or empty)");
+            APR_ERROR("[FileIO] exportFile: invalid file path (null or empty)");
             writeError(errorBuffer, errorBufferSize, "Invalid file path: path is null or empty");
             if (m_exportCallback)
             {
@@ -430,12 +430,12 @@ namespace Fio
             return false;
         }
 
-        // 借用裸指针包装为内部 VecSyEntityPtr（不转移所有权，写完归还）
-        VecSyEntityPtr borrowed;
+        // 借用裸指针包装为内部 VecAprEntityPtr（不转移所有权，写完归还）
+        VecAprEntityPtr borrowed;
         borrowed.reserve(entityCount);
         for (size_t i = 0; i < entityCount; ++i)
         {
-            borrowed.emplace_back(const_cast<Eg::SyEntity*>(entities[i]));
+            borrowed.emplace_back(const_cast<Eg::AprEntity*>(entities[i]));
         }
 
         WriteResult result;
@@ -475,7 +475,7 @@ namespace Fio
     }
 
     bool FileIOManager::exportFile(const char* filePath,
-        const Eg::SyEntity* const* entities,
+        const Eg::AprEntity* const* entities,
         size_t entityCount,
         char* errorBuffer,
         size_t errorBufferSize)

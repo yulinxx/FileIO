@@ -1,24 +1,24 @@
-﻿#include "SyEntitySerializer.h"
+﻿#include "AprEntitySerializer.h"
 
-#include "Engine2D/SyEntity/SyArc.h"
-#include "Engine2D/SyEntity/SyBarCode.h"
-#include "Engine2D/SyEntity/SyBezier.h"
-#include "Engine2D/SyEntity/SyBezier2.h"
-#include "Engine2D/SyEntity/SyCircle.h"
-#include "Engine2D/SyEntity/SyEllipse.h"
-#include "Engine2D/SyEntity/SyImage.h"
-#include "Engine2D/SyEntity/SyLine.h"
-#include "Engine2D/SyEntity/SyNurbs.h"
-#include "Engine2D/SyEntity/SyPoint.h"
-#include "Engine2D/SyEntity/SyPolygon.h"
-#include "Engine2D/SyEntity/SyQRCode.h"
-#include "Engine2D/SyEntity/SySmartLine.h"
-#include "Engine2D/SyEntity/SyText.h"
-#include "Engine3D/SyEntity/SyMeshEntity.h"
-#include "Engine/Layer/SyLayer.h"
-#include "Engine/SyEntity/SyEntity.h"
-#include "Engine2D/SyEntity/SyFillRegion.h"
-#include "Log/SyLogger.h"
+#include "Engine2D/AprEntity/AprArc.h"
+#include "Engine2D/AprEntity/AprBarCode.h"
+#include "Engine2D/AprEntity/AprBezier.h"
+#include "Engine2D/AprEntity/AprBezier2.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprEllipse.h"
+#include "Engine2D/AprEntity/AprImage.h"
+#include "Engine2D/AprEntity/AprLine.h"
+#include "Engine2D/AprEntity/AprNurbs.h"
+#include "Engine2D/AprEntity/AprPoint.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/AprEntity/AprQRCode.h"
+#include "Engine2D/AprEntity/AprSmartLine.h"
+#include "Engine2D/AprEntity/AprText.h"
+#include "Engine3D/AprEntity/AprMeshEntity.h"
+#include "Engine/Layer/AprLayer.h"
+#include "Engine/AprEntity/AprEntity.h"
+#include "Engine2D/AprEntity/AprFillRegion.h"
+#include "Log/AprLogger.h"
 #include "Ut/Color.h"
 #include "ColorArgbUtils.h"
 
@@ -26,115 +26,115 @@ namespace Fio
 {
     namespace
     {
-        sanyi::proto::EntityType toProtoType(Eg::EType type)
+        apr::proto::EntityType toProtoType(Eg::EType type)
         {
             switch (type)
             {
             case Eg::EType::POINT:
-                return sanyi::proto::ENTITY_POINT;
+                return apr::proto::ENTITY_POINT;
             case Eg::EType::LINE:
-                return sanyi::proto::ENTITY_LINE;
+                return apr::proto::ENTITY_LINE;
             case Eg::EType::POLYGON:
-                return sanyi::proto::ENTITY_POLYGON;
+                return apr::proto::ENTITY_POLYGON;
             case Eg::EType::ARC:
-                return sanyi::proto::ENTITY_ARC;
+                return apr::proto::ENTITY_ARC;
             case Eg::EType::CIRCLE:
-                return sanyi::proto::ENTITY_CIRCLE;
+                return apr::proto::ENTITY_CIRCLE;
             case Eg::EType::ELLIPSE:
-                return sanyi::proto::ENTITY_ELLIPSE;
+                return apr::proto::ENTITY_ELLIPSE;
             case Eg::EType::BEZIER2:
-                return sanyi::proto::ENTITY_BEZIER2;
+                return apr::proto::ENTITY_BEZIER2;
             case Eg::EType::BEZIER:
-                return sanyi::proto::ENTITY_BEZIER;
+                return apr::proto::ENTITY_BEZIER;
             case Eg::EType::SPLINE:
-                return sanyi::proto::ENTITY_SPLINE;
+                return apr::proto::ENTITY_SPLINE;
             case Eg::EType::NURBS:
-                return sanyi::proto::ENTITY_NURBS;
+                return apr::proto::ENTITY_NURBS;
             case Eg::EType::SMARTLINE:
-                return sanyi::proto::ENTITY_SMARTLINE;
+                return apr::proto::ENTITY_SMARTLINE;
             case Eg::EType::TEXT:
-                return sanyi::proto::ENTITY_TEXT;
+                return apr::proto::ENTITY_TEXT;
             case Eg::EType::BAR_CODE:
-                return sanyi::proto::ENTITY_BAR_CODE;
+                return apr::proto::ENTITY_BAR_CODE;
             case Eg::EType::QR_CODE:
-                return sanyi::proto::ENTITY_QR_CODE;
+                return apr::proto::ENTITY_QR_CODE;
             case Eg::EType::IMAGE:
-                return sanyi::proto::ENTITY_IMAGE;
+                return apr::proto::ENTITY_IMAGE;
             case Eg::EType::MESH:
-                return sanyi::proto::ENTITY_MESH;
+                return apr::proto::ENTITY_MESH;
             case Eg::EType::GROUP:
-                return sanyi::proto::ENTITY_GROUP;
+                return apr::proto::ENTITY_GROUP;
             case Eg::EType::FILL_REGION:
-                return sanyi::proto::ENTITY_FILL_REGION;
+                return apr::proto::ENTITY_FILL_REGION;
             default:
-                return sanyi::proto::ENTITY_UNKNOWN;
+                return apr::proto::ENTITY_UNKNOWN;
             }
         }
 
-        Eg::EType fromProtoType(sanyi::proto::EntityType type)
+        Eg::EType fromProtoType(apr::proto::EntityType type)
         {
             switch (type)
             {
-            case sanyi::proto::ENTITY_POINT:
+            case apr::proto::ENTITY_POINT:
                 return Eg::EType::POINT;
-            case sanyi::proto::ENTITY_LINE:
+            case apr::proto::ENTITY_LINE:
                 return Eg::EType::LINE;
-            case sanyi::proto::ENTITY_POLYGON:
+            case apr::proto::ENTITY_POLYGON:
                 return Eg::EType::POLYGON;
-            case sanyi::proto::ENTITY_ARC:
+            case apr::proto::ENTITY_ARC:
                 return Eg::EType::ARC;
-            case sanyi::proto::ENTITY_CIRCLE:
+            case apr::proto::ENTITY_CIRCLE:
                 return Eg::EType::CIRCLE;
-            case sanyi::proto::ENTITY_ELLIPSE:
+            case apr::proto::ENTITY_ELLIPSE:
                 return Eg::EType::ELLIPSE;
-            case sanyi::proto::ENTITY_BEZIER2:
+            case apr::proto::ENTITY_BEZIER2:
                 return Eg::EType::BEZIER2;
-            case sanyi::proto::ENTITY_BEZIER:
+            case apr::proto::ENTITY_BEZIER:
                 return Eg::EType::BEZIER;
-            case sanyi::proto::ENTITY_SPLINE:
+            case apr::proto::ENTITY_SPLINE:
                 return Eg::EType::SPLINE;
-            case sanyi::proto::ENTITY_NURBS:
+            case apr::proto::ENTITY_NURBS:
                 return Eg::EType::NURBS;
-            case sanyi::proto::ENTITY_SMARTLINE:
+            case apr::proto::ENTITY_SMARTLINE:
                 return Eg::EType::SMARTLINE;
-            case sanyi::proto::ENTITY_TEXT:
+            case apr::proto::ENTITY_TEXT:
                 return Eg::EType::TEXT;
-            case sanyi::proto::ENTITY_BAR_CODE:
+            case apr::proto::ENTITY_BAR_CODE:
                 return Eg::EType::BAR_CODE;
-            case sanyi::proto::ENTITY_QR_CODE:
+            case apr::proto::ENTITY_QR_CODE:
                 return Eg::EType::QR_CODE;
-            case sanyi::proto::ENTITY_IMAGE:
+            case apr::proto::ENTITY_IMAGE:
                 return Eg::EType::IMAGE;
-            case sanyi::proto::ENTITY_MESH:
+            case apr::proto::ENTITY_MESH:
                 return Eg::EType::MESH;
-            case sanyi::proto::ENTITY_GROUP:
+            case apr::proto::ENTITY_GROUP:
                 return Eg::EType::GROUP;
-            case sanyi::proto::ENTITY_FILL_REGION:
+            case apr::proto::ENTITY_FILL_REGION:
                 return Eg::EType::FILL_REGION;
             default:
                 return Eg::EType::UNKNOWN;
             }
         }
 
-        void toProtoVec2(const Ut::Vec2d& v, sanyi::proto::Vec2d* p)
+        void toProtoVec2(const Ut::Vec2d& v, apr::proto::Vec2d* p)
         {
             p->set_x(v.x());
             p->set_y(v.y());
         }
 
-        Ut::Vec2d fromProtoVec2(const sanyi::proto::Vec2d& p)
+        Ut::Vec2d fromProtoVec2(const apr::proto::Vec2d& p)
         {
             return Ut::Vec2d(p.x(), p.y());
         }
 
-        void toProtoVec3(const Ut::Vec3f& v, sanyi::proto::Vec3fData* p)
+        void toProtoVec3(const Ut::Vec3f& v, apr::proto::Vec3fData* p)
         {
             p->set_x(v[0]);
             p->set_y(v[1]);
             p->set_z(v[2]);
         }
 
-        Ut::Vec3f fromProtoVec3(const sanyi::proto::Vec3fData& p)
+        Ut::Vec3f fromProtoVec3(const apr::proto::Vec3fData& p)
         {
             return Ut::Vec3f(p.x(), p.y(), p.z());
         }
@@ -160,12 +160,12 @@ namespace Fio
         // unity build 会把多个 cpp 合并进同一翻译单元，各写一份会重复定义。
     }  // namespace
 
-    void SyEntitySerializer::serializeEntity(const Eg::SyEntity& entity, sanyi::proto::EntityData* out)
+    void AprEntitySerializer::serializeEntity(const Eg::AprEntity& entity, apr::proto::EntityData* out)
     {
         EntityNestingGuard nestingGuard;
         if (entityNestingTooDeep())
         {
-            SY_ERRORF("[SyEntitySerializer] Entity nesting depth exceeds %d, nested entity skipped", kMaxEntityNestingDepth);
+            APR_ERRORF("[AprEntitySerializer] Entity nesting depth exceeds %d, nested entity skipped", kMaxEntityNestingDepth);
             return;
         }
 
@@ -177,11 +177,11 @@ namespace Fio
             out->set_layer_id(static_cast<uint32_t>(entity.layer()->getId()));
         }
 
-        // MESH 不是 SyEntity2D 的子类，直接 static_cast 是未定义行为；
+        // MESH 不是 AprEntity2D 的子类，直接 static_cast 是未定义行为；
         // 2D 专有字段只对非 MESH 图元读写。
         if (entity.eType != Eg::EType::MESH)
         {
-            const auto& entity2d = static_cast<const Eg::SyEntity2D&>(entity);
+            const auto& entity2d = static_cast<const Eg::AprEntity2D&>(entity);
             toProtoVec2(entity2d.basePoint, out->mutable_base_point());
             out->set_closed(entity2d.bClosed);
             out->set_ccw(entity2d.bCCW);
@@ -204,7 +204,7 @@ namespace Fio
 
         case Eg::EType::LINE:
         {
-            const auto* line = static_cast<const Eg::SyLine*>(&entity);
+            const auto* line = static_cast<const Eg::AprLine*>(&entity);
             auto* data = out->mutable_line_data();
             const auto& pts = line->pointRef();
             data->mutable_points()->Reserve(static_cast<int>(pts.size()));
@@ -217,7 +217,7 @@ namespace Fio
 
         case Eg::EType::POLYGON:
         {
-            const auto* poly = static_cast<const Eg::SyPolygon*>(&entity);
+            const auto* poly = static_cast<const Eg::AprPolygon*>(&entity);
             auto* data = out->mutable_polygon_data();
             const auto& verts = poly->vertices();
             data->mutable_vertices()->Reserve(static_cast<int>(verts.size()));
@@ -241,7 +241,7 @@ namespace Fio
 
         case Eg::EType::ARC:
         {
-            const auto* arc = static_cast<const Eg::SyArc*>(&entity);
+            const auto* arc = static_cast<const Eg::AprArc*>(&entity);
             auto* data = out->mutable_arc_data();
             data->set_radius(arc->dRadius);
             data->set_start_angle(arc->dStartAngle);
@@ -251,14 +251,14 @@ namespace Fio
 
         case Eg::EType::CIRCLE:
         {
-            const auto* circle = static_cast<const Eg::SyCircle*>(&entity);
+            const auto* circle = static_cast<const Eg::AprCircle*>(&entity);
             out->mutable_circle_data()->set_radius(circle->dRadius);
             break;
         }
 
         case Eg::EType::ELLIPSE:
         {
-            const auto* ell = static_cast<const Eg::SyEllipse*>(&entity);
+            const auto* ell = static_cast<const Eg::AprEllipse*>(&entity);
             auto* data = out->mutable_ellipse_data();
             data->set_radius_x(ell->dRadiusX);
             data->set_radius_y(ell->dRadiusY);
@@ -268,7 +268,7 @@ namespace Fio
 
         case Eg::EType::BEZIER2:
         {
-            const auto* bz = static_cast<const Eg::SyBezier2*>(&entity);
+            const auto* bz = static_cast<const Eg::AprBezier2*>(&entity);
             auto* data = out->mutable_bezier2_data();
             toProtoVec2(bz->ptCtrl, data->mutable_ctrl());
             toProtoVec2(bz->ptEnd, data->mutable_end());
@@ -277,7 +277,7 @@ namespace Fio
 
         case Eg::EType::BEZIER:
         {
-            const auto* bz = static_cast<const Eg::SyBezier*>(&entity);
+            const auto* bz = static_cast<const Eg::AprBezier*>(&entity);
             auto* data = out->mutable_bezier_data();
             toProtoVec2(bz->ptCtrl0, data->mutable_ctrl0());
             toProtoVec2(bz->ptCtrl1, data->mutable_ctrl1());
@@ -287,7 +287,7 @@ namespace Fio
 
         case Eg::EType::SPLINE:
         {
-            const auto* spl = static_cast<const Eg::SyNurbs*>(&entity);
+            const auto* spl = static_cast<const Eg::AprNurbs*>(&entity);
             auto* data = out->mutable_spline_data();
             data->set_degree(spl->nDegree);
             data->mutable_knots()->Reserve(static_cast<int>(spl->knotRef().size()));
@@ -310,10 +310,10 @@ namespace Fio
 
         case Eg::EType::NURBS:
         {
-            // legacy 兼容：SyNurbs 的构造函数把 eType 设为 SPLINE，正常 UI 不会产出
+            // legacy 兼容：AprNurbs 的构造函数把 eType 设为 SPLINE，正常 UI 不会产出
             // NURBS 类型。这里保留 NURBS 分支，用于读取早期/外部写出的 ENTITY_NURBS。
             // 数据结构与 SplineData 相同，但写入 nurbs_data 以保持类型一致。
-            const auto* spl = static_cast<const Eg::SyNurbs*>(&entity);
+            const auto* spl = static_cast<const Eg::AprNurbs*>(&entity);
             auto* data = out->mutable_nurbs_data();
             data->set_degree(spl->nDegree);
             data->mutable_knots()->Reserve(static_cast<int>(spl->knotRef().size()));
@@ -338,12 +338,12 @@ namespace Fio
         {
             // 复合曲线：逐段递归序列化。段坐标独立保存，
             // 读取时不会按“连接上一段”重新平移。
-            const auto* smart = static_cast<const Eg::SySmartLine*>(&entity);
+            const auto* smart = static_cast<const Eg::AprSmartLine*>(&entity);
             auto* data = out->mutable_smartline_data();
             data->mutable_segments()->Reserve(static_cast<int>(smart->segmentCount()));
             for (size_t i = 0; i < smart->segmentCount(); ++i)
             {
-                const Eg::SyEntity* segment = smart->segment(i);
+                const Eg::AprEntity* segment = smart->segment(i);
                 if (segment)
                 {
                     serializeEntity(*segment, data->add_segments());
@@ -354,7 +354,7 @@ namespace Fio
 
         case Eg::EType::TEXT:
         {
-            const auto* txt = static_cast<const Eg::SyText*>(&entity);
+            const auto* txt = static_cast<const Eg::AprText*>(&entity);
             auto* data = out->mutable_text_data();
             data->set_font_name(txt->fontName());
             data->set_height(txt->dHeight);
@@ -369,7 +369,7 @@ namespace Fio
 
         case Eg::EType::BAR_CODE:
         {
-            const auto* bc = static_cast<const Eg::SyBarCode*>(&entity);
+            const auto* bc = static_cast<const Eg::AprBarCode*>(&entity);
             auto* data = out->mutable_barcode_data();
             data->set_data(bc->data());
             data->set_width(bc->dWidth);
@@ -379,7 +379,7 @@ namespace Fio
 
         case Eg::EType::QR_CODE:
         {
-            const auto* qr = static_cast<const Eg::SyQRCode*>(&entity);
+            const auto* qr = static_cast<const Eg::AprQRCode*>(&entity);
             auto* data = out->mutable_qrcode_data();
             data->set_data(qr->data());
             data->set_module_size(qr->dModuleSize);
@@ -390,7 +390,7 @@ namespace Fio
 
         case Eg::EType::IMAGE:
         {
-            const auto* img = static_cast<const Eg::SyImage*>(&entity);
+            const auto* img = static_cast<const Eg::AprImage*>(&entity);
             auto* data = out->mutable_image_data();
             data->set_width(img->nWidth);
             data->set_height(img->nHeight);
@@ -411,7 +411,7 @@ namespace Fio
         case Eg::EType::FILL_REGION:
         {
             // 跨 DLL 只使用 POD 访问器读取三角形顶点流与来源 ID
-            const auto* fill = static_cast<const Eg::SyFillRegion*>(&entity);
+            const auto* fill = static_cast<const Eg::AprFillRegion*>(&entity);
             auto* data = out->mutable_fill_region_data();
             const size_t vertexCount = fill->vertexCount();
             data->mutable_vertices()->Reserve(static_cast<int>(vertexCount));
@@ -431,7 +431,7 @@ namespace Fio
         case Eg::EType::MESH:
         {
             // 3D 网格图元序列化：顶点、法线、材质属性
-            const auto* mesh = static_cast<const Eg::SyMeshEntity*>(&entity);
+            const auto* mesh = static_cast<const Eg::AprMeshEntity*>(&entity);
             auto* data = out->mutable_mesh_data();
             data->set_name(mesh->name());
 
@@ -472,7 +472,7 @@ namespace Fio
         // 两个跳过条件：
         //   1. 类型特有数据未写入 —— 未知/不支持的类型无法还原几何，写包围盒无意义；
         //   2. MESH 是 3D 图元，2D 包围盒不参与 2D 空间索引。
-        if (out->type_specific_case() != sanyi::proto::EntityData::TYPE_SPECIFIC_NOT_SET &&
+        if (out->type_specific_case() != apr::proto::EntityData::TYPE_SPECIFIC_NOT_SET &&
             entity.eType != Eg::EType::MESH)
         {
             const Ut::BBox2d box = entity.getBbox();
@@ -485,27 +485,27 @@ namespace Fio
         }
     }
 
-    std::unique_ptr<Eg::SyEntity> SyEntitySerializer::deserializeEntity(const sanyi::proto::EntityData& protoEntity)
+    std::unique_ptr<Eg::AprEntity> AprEntitySerializer::deserializeEntity(const apr::proto::EntityData& protoEntity)
     {
         EntityNestingGuard nestingGuard;
         if (entityNestingTooDeep())
         {
-            SY_ERRORF("[SyEntitySerializer] Entity nesting depth exceeds %d, entity dropped", kMaxEntityNestingDepth);
+            APR_ERRORF("[AprEntitySerializer] Entity nesting depth exceeds %d, entity dropped", kMaxEntityNestingDepth);
             return nullptr;
         }
 
         Eg::EType eType = fromProtoType(protoEntity.type());
-        std::unique_ptr<Eg::SyEntity> result;
+        std::unique_ptr<Eg::AprEntity> result;
 
         switch (eType)
         {
         case Eg::EType::POINT:
-            result = std::make_unique<Eg::SyPoint>();
+            result = std::make_unique<Eg::AprPoint>();
             break;
 
         case Eg::EType::LINE:
         {
-            auto line = std::make_unique<Eg::SyLine>();
+            auto line = std::make_unique<Eg::AprLine>();
             if (protoEntity.has_line_data())
             {
                 const auto& ld = protoEntity.line_data();
@@ -525,7 +525,7 @@ namespace Fio
 
         case Eg::EType::POLYGON:
         {
-            auto poly = std::make_unique<Eg::SyPolygon>();
+            auto poly = std::make_unique<Eg::AprPolygon>();
             if (protoEntity.has_polygon_data())
             {
                 const auto& pd = protoEntity.polygon_data();
@@ -554,7 +554,7 @@ namespace Fio
 
         case Eg::EType::ARC:
         {
-            auto arc = std::make_unique<Eg::SyArc>();
+            auto arc = std::make_unique<Eg::AprArc>();
             if (protoEntity.has_arc_data())
             {
                 arc->dRadius = protoEntity.arc_data().radius();
@@ -567,7 +567,7 @@ namespace Fio
 
         case Eg::EType::CIRCLE:
         {
-            auto circle = std::make_unique<Eg::SyCircle>();
+            auto circle = std::make_unique<Eg::AprCircle>();
             if (protoEntity.has_circle_data())
             {
                 circle->dRadius = protoEntity.circle_data().radius();
@@ -578,7 +578,7 @@ namespace Fio
 
         case Eg::EType::ELLIPSE:
         {
-            auto ell = std::make_unique<Eg::SyEllipse>();
+            auto ell = std::make_unique<Eg::AprEllipse>();
             if (protoEntity.has_ellipse_data())
             {
                 ell->dRadiusX = protoEntity.ellipse_data().radius_x();
@@ -591,7 +591,7 @@ namespace Fio
 
         case Eg::EType::BEZIER2:
         {
-            auto bz = std::make_unique<Eg::SyBezier2>();
+            auto bz = std::make_unique<Eg::AprBezier2>();
             if (protoEntity.has_bezier2_data())
             {
                 bz->ptCtrl = fromProtoVec2(protoEntity.bezier2_data().ctrl());
@@ -603,7 +603,7 @@ namespace Fio
 
         case Eg::EType::BEZIER:
         {
-            auto bz = std::make_unique<Eg::SyBezier>();
+            auto bz = std::make_unique<Eg::AprBezier>();
             if (protoEntity.has_bezier_data())
             {
                 bz->ptCtrl0 = fromProtoVec2(protoEntity.bezier_data().ctrl0());
@@ -616,7 +616,7 @@ namespace Fio
 
         case Eg::EType::SPLINE:
         {
-            auto spl = std::make_unique<Eg::SyNurbs>();
+            auto spl = std::make_unique<Eg::AprNurbs>();
             if (protoEntity.has_spline_data())
             {
                 const auto& sd = protoEntity.spline_data();
@@ -658,8 +658,8 @@ namespace Fio
         case Eg::EType::NURBS:
         {
             // legacy 兼容：早期文件可能写出 ENTITY_NURBS + nurbs_data。
-            // SyNurbs 构造后 eType 会被归一为 SPLINE，重新保存时自然写成 SplineData。
-            auto spl = std::make_unique<Eg::SyNurbs>();
+            // AprNurbs 构造后 eType 会被归一为 SPLINE，重新保存时自然写成 SplineData。
+            auto spl = std::make_unique<Eg::AprNurbs>();
             if (protoEntity.has_nurbs_data())
             {
                 const auto& nd = protoEntity.nurbs_data();
@@ -700,7 +700,7 @@ namespace Fio
 
         case Eg::EType::SMARTLINE:
         {
-            auto smart = std::make_unique<Eg::SySmartLine>();
+            auto smart = std::make_unique<Eg::AprSmartLine>();
             if (protoEntity.has_smartline_data())
             {
                 const auto& sd = protoEntity.smartline_data();
@@ -721,15 +721,15 @@ namespace Fio
 
         case Eg::EType::TEXT:
         {
-            auto txt = std::make_unique<Eg::SyText>();
+            auto txt = std::make_unique<Eg::AprText>();
             if (protoEntity.has_text_data())
             {
                 const auto& td = protoEntity.text_data();
                 txt->setFontName(td.font_name().c_str());
                 txt->dHeight = td.height();
                 txt->dRotation = td.rotation();
-                txt->hAlign = static_cast<Eg::SyTextHAlign>(td.h_align());
-                txt->vAlign = static_cast<Eg::SyTextVAlign>(td.v_align());
+                txt->hAlign = static_cast<Eg::AprTextHAlign>(td.h_align());
+                txt->vAlign = static_cast<Eg::AprTextVAlign>(td.v_align());
                 txt->bBold = td.bold();
                 txt->bItalic = td.italic();
                 txt->setText(td.text().c_str());
@@ -740,7 +740,7 @@ namespace Fio
 
         case Eg::EType::BAR_CODE:
         {
-            auto bc = std::make_unique<Eg::SyBarCode>();
+            auto bc = std::make_unique<Eg::AprBarCode>();
             if (protoEntity.has_barcode_data())
             {
                 bc->setData(protoEntity.barcode_data().data().c_str());
@@ -753,7 +753,7 @@ namespace Fio
 
         case Eg::EType::QR_CODE:
         {
-            auto qr = std::make_unique<Eg::SyQRCode>();
+            auto qr = std::make_unique<Eg::AprQRCode>();
             if (protoEntity.has_qrcode_data())
             {
                 const auto& qrd = protoEntity.qrcode_data();
@@ -776,13 +776,13 @@ namespace Fio
 
         case Eg::EType::IMAGE:
         {
-            auto img = std::make_unique<Eg::SyImage>();
+            auto img = std::make_unique<Eg::AprImage>();
             if (protoEntity.has_image_data())
             {
                 const auto& id = protoEntity.image_data();
                 img->nWidth = id.width();
                 img->nHeight = id.height();
-                img->ePixelFormat = static_cast<Eg::SyPixelFormat>(id.pixel_format());
+                img->ePixelFormat = static_cast<Eg::AprPixelFormat>(id.pixel_format());
                 const auto& px = id.pixel_data();
                 img->setPixelData(reinterpret_cast<const unsigned char*>(px.data()), px.size());
                 img->topLeft = fromProtoVec2(id.top_left());
@@ -796,7 +796,7 @@ namespace Fio
 
         case Eg::EType::FILL_REGION:
         {
-            auto fill = std::make_unique<Eg::SyFillRegion>();
+            auto fill = std::make_unique<Eg::AprFillRegion>();
             if (protoEntity.has_fill_region_data())
             {
                 const auto& fd = protoEntity.fill_region_data();
@@ -831,7 +831,7 @@ namespace Fio
         case Eg::EType::MESH:
         {
             // 3D 网格图元反序列化：顶点、法线、材质属性
-            auto mesh = std::make_unique<Eg::SyMeshEntity>();
+            auto mesh = std::make_unique<Eg::AprMeshEntity>();
             if (protoEntity.has_mesh_data())
             {
                 const auto& md = protoEntity.mesh_data();
@@ -868,17 +868,17 @@ namespace Fio
         if (result)
         {
             result->id = static_cast<Eg::EntityId>(protoEntity.id());
-            // MESH 不是 SyEntity2D：对 3D 网格做强转写 basePoint/bClosed/bCCW
-            // 会越界覆盖 SyMeshEntity 自己的字段（未定义行为）。
+            // MESH 不是 AprEntity2D：对 3D 网格做强转写 basePoint/bClosed/bCCW
+            // 会越界覆盖 AprMeshEntity 自己的字段（未定义行为）。
             if (result->eType != Eg::EType::MESH)
             {
-                auto& entity2d = static_cast<Eg::SyEntity2D&>(*result);
+                auto& entity2d = static_cast<Eg::AprEntity2D&>(*result);
                 entity2d.basePoint = fromProtoVec2(protoEntity.base_point());
                 entity2d.bClosed = protoEntity.closed();
                 entity2d.bCCW = protoEntity.ccw();
             }
             result->setName(protoEntity.name().c_str());
-            // 旧文件没有这两个字段：保持 SyEntity 构造默认值（visible=true / locked=false）
+            // 旧文件没有这两个字段：保持 AprEntity 构造默认值（visible=true / locked=false）
             if (protoEntity.has_visible())
             {
                 result->setVisible(protoEntity.visible());

@@ -7,7 +7,7 @@
 #include "FileIO/ImageUtils.h"
 #include "IrProjector.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 #include "Ut/Vec.h"
 
@@ -117,7 +117,7 @@ namespace Fio
                 if (decompressed.size() + have > MAX_DECOMPRESSED_BYTES)
                 {
                     inflateEnd(&strm);
-                    SY_WARN("[SvgParser] SVGZ decompressed size exceeds 64MB limit, file rejected");
+                    APR_WARN("[SvgParser] SVGZ decompressed size exceeds 64MB limit, file rejected");
                     return {};
                 }
                 decompressed.insert(decompressed.end(), outBuffer, outBuffer + have);
@@ -974,7 +974,7 @@ namespace Fio
                 }
             }
 
-            SY_DEBUGF("[SvgParser] Parsed %zu visible shapes: %zu stroked, %zu fill-only",
+            APR_DEBUGF("[SvgParser] Parsed %zu visible shapes: %zu stroked, %zu fill-only",
                 shapeCount,
                 strokeCount,
                 fillOnlyCount);
@@ -1581,7 +1581,7 @@ namespace Fio
             if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
             {
                 m_warnings.push_back("SVG <image> dropped: extension blob would exceed 4 GiB");
-                SY_ERRORF("[SvgParser] Image extension blob overflow, image dropped");
+                APR_ERRORF("[SvgParser] Image extension blob overflow, image dropped");
                 return;
             }
             EntityInfo info{};
@@ -1628,7 +1628,7 @@ namespace Fio
                     m_layerLimitWarned = true;
                     m_warnings.push_back("SVG color count exceeds " + std::to_string(kMaxSvgLayers) +
                         ", extra colors are merged into the first layer");
-                    SY_WARNF(
+                    APR_WARNF(
                         "[SvgParser] Color layer limit %zu reached, extra colors merged into layer 1", kMaxSvgLayers);
                 }
                 return 1u;
@@ -1666,7 +1666,7 @@ namespace Fio
                 {
                     m_gradientWarned = true;
                     m_warnings.push_back("SVG gradient/pattern fill approximated to a blended solid color");
-                    SY_WARNF("[SvgParser] Gradient fill approximated to blended color");
+                    APR_WARNF("[SvgParser] Gradient fill approximated to blended color");
                 }
                 return approxGradientColor(paint.gradient);
             }
@@ -1715,7 +1715,7 @@ namespace Fio
                     !std::isfinite(c1.y()) || !std::isfinite(c2.x()) || !std::isfinite(c2.y()) ||
                     !std::isfinite(p1.x()) || !std::isfinite(p1.y()))
                 {
-                    SY_WARNF("[SvgParser] NaN/Inf coordinate detected at path segment %d, skipping", i);
+                    APR_WARNF("[SvgParser] NaN/Inf coordinate detected at path segment %d, skipping", i);
                     continue;
                 }
 
@@ -1774,7 +1774,7 @@ namespace Fio
             if (m_outBlob.size() + bytes > 0xFFFFFFFFull)
             {
                 m_warnings.push_back("SVG path dropped: extension blob would exceed 4 GiB");
-                SY_ERRORF("[SvgParser] Extension blob overflow at %zu bytes, path dropped", m_outBlob.size());
+                APR_ERRORF("[SvgParser] Extension blob overflow at %zu bytes, path dropped", m_outBlob.size());
                 return;
             }
 
@@ -1896,7 +1896,7 @@ namespace Fio
 
     FioParseResult SvgParser::parseToIRImpl(const char* filePath, ParseProgressCallback onProgress, void* progressCtx)
     {
-        SY_INFOF("[SvgParser] parseToIR START: %s", filePath ? filePath : "");
+        APR_INFOF("[SvgParser] parseToIR START: %s", filePath ? filePath : "");
 
         // 统一缓冲区管理（与 DxfParser/StlParser 一致）
         IrPublisher& pub = IrPublisher::threadLocal();
@@ -1904,7 +1904,7 @@ namespace Fio
 
         if (!filePath)
         {
-            SY_ERROR("[SvgParser] parseToIR: null filePath");
+            APR_ERROR("[SvgParser] parseToIR: null filePath");
             return FioParseResult{};
         }
 
@@ -1925,28 +1925,28 @@ namespace Fio
             {
                 const std::string message = pub.warnings().empty() ? std::string("Failed to parse SVG file: ") + filePath
                                                                    : pub.warnings().back();
-                SY_ERRORF("[SvgParser] parseToIR: %s", message.c_str());
+                APR_ERRORF("[SvgParser] parseToIR: %s", message.c_str());
                 return FioParseResult{};
             }
         }
         catch (const std::exception& ex)
         {
-            SY_CRITICALF("[SvgParser] parseToIR exception: %s - %s", filePath, ex.what());
+            APR_CRITICALF("[SvgParser] parseToIR exception: %s - %s", filePath, ex.what());
             return FioParseResult{};
         }
         catch (...)
         {
-            SY_CRITICALF("[SvgParser] parseToIR unknown exception: %s", filePath);
+            APR_CRITICALF("[SvgParser] parseToIR unknown exception: %s", filePath);
             return FioParseResult{};
         }
 
         if (pub.entities().empty())
         {
-            SY_WARNF("[SvgParser] parseToIR: no entities produced: %s", filePath);
+            APR_WARNF("[SvgParser] parseToIR: no entities produced: %s", filePath);
             return FioParseResult{};
         }
 
-        SY_INFOF("[SvgParser] parseToIR END: %u entities, %u layers, %u warnings: %s",
+        APR_INFOF("[SvgParser] parseToIR END: %u entities, %u layers, %u warnings: %s",
             static_cast<uint32_t>(pub.entities().size()),
             static_cast<uint32_t>(pub.layers().size()),
             static_cast<uint32_t>(pub.warnings().size()),

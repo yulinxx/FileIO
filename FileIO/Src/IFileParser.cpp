@@ -1,6 +1,6 @@
 #include "FileIO/IFileParser.h"
 
-#include "Log/SyLogger.h"
+#include "Log/AprLogger.h"
 
 namespace Fio
 {
@@ -11,10 +11,10 @@ namespace Fio
     // 这里必须留一条 ERROR：否则调用方只看到"空结果"，无法区分
     //   1) 文件真的没有内容
     //   2) 这个 parser 压根没实现 IR 路径
-    // 目前落到此分支的只有 NativeParser（.sy / .syx，仍走 legacy 路径）。
+    // 目前落到此分支的只有 NativeParser（.apr / .apr3d，仍走 legacy 路径）。
     FioParseResult IFileParser::parseToIR(const char* filePath)
     {
-        SY_ERRORF("[IFileParser] parseToIR not implemented for format=%d, returning empty IR: %s",
+        APR_ERRORF("[IFileParser] parseToIR not implemented for format=%d, returning empty IR: %s",
             static_cast<int>(format()),
             filePath ? filePath : "(null path)");
         return FioParseResult{};

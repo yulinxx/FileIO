@@ -5,19 +5,19 @@
  * 测试范围：
  *  - FileImporter 边界情况（空文件、损坏数据、大文件）
  *  - 文件格式检测
- *  - 序列化 → 反序列化往返（SySerializer/SyDocument）
+ *  - 序列化 → 反序列化往返（AprSerializer/AprDocument）
  *  - 错误恢复与幂等性
  */
 
 #include <gtest/gtest.h>
 
-#include "Engine/SyEntity/SyEntity.h"
+#include "Engine/AprEntity/AprEntity.h"
 #include "FileIO/FileImporter.h"
 #include "FileIO/FileIOManager.h"
 #include "FileIO/FileFormat.h"
 #include "FileIO/Parsers/UgParser.h"
-#include "FileIO/SySerializer.h"
-#include "FileIO/SyDocument.h"
+#include "FileIO/AprSerializer.h"
+#include "FileIO/AprDocument.h"
 #include "FileIO/FioTypes.h"
 
 #include <string>
@@ -47,7 +47,7 @@ TEST(FileIORegressionTest, DetectFormat_SvgExtension)
 TEST(FileIORegressionTest, DetectFormat_NativeExtension)
 {
     Fio::FileIOManager mgr;
-    auto format = mgr.detectFormat("C:\\test\\drawing.sy");
+    auto format = mgr.detectFormat("C:\\test\\drawing.apr");
     EXPECT_NE(format, Fio::FileFormat::Unknown);
 }
 
@@ -63,6 +63,18 @@ TEST(FileIORegressionTest, DetectFormat_NoExtension)
     Fio::FileIOManager mgr;
     auto format = mgr.detectFormat("C:\\test\\drawing");
     EXPECT_EQ(format, Fio::FileFormat::Unknown);
+}
+
+TEST(FileIORegressionTest, DetectFormat_LegacyExtensionsRejected)
+{
+    // 旧扩展名不再参与格式分派：改名后只认 .apr / .apr3d
+    Fio::FileIOManager mgr;
+    const char* legacyExtensions[] = { "sy", "syx", "sy3d" };
+    for (const char* ext : legacyExtensions)
+    {
+        auto format = mgr.detectFormat((std::string("drawing.") + ext).c_str());
+        EXPECT_EQ(format, Fio::FileFormat::Unknown) << "Legacy extension: " << ext;
+    }
 }
 
 // ---- FileImporter 空状态行为 ----
@@ -104,9 +116,9 @@ TEST(FileIORegressionTest, FileImporter_ReopenAfterFailure)
 
 TEST(FileIORegressionTest, Serialization_DeserializeEmptyData)
 {
-    Fio::SySerializer serializer;
+    Fio::AprSerializer serializer;
     std::vector<uint8_t> emptyBuffer;
-    Fio::SyDocument doc;
+    Fio::AprDocument doc;
 
     Fio::BinaryBlob in{ emptyBuffer.data(), emptyBuffer.size() };
     auto result = serializer.deserializeFromMemory(in, doc);
@@ -118,9 +130,9 @@ TEST(FileIORegressionTest, Serialization_DeserializeEmptyData)
 
 TEST(FileIORegressionTest, Serialization_DeserializeCorruptedData)
 {
-    Fio::SySerializer serializer;
+    Fio::AprSerializer serializer;
     std::vector<uint8_t> corrupted = { 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00 };
-    Fio::SyDocument doc;
+    Fio::AprDocument doc;
 
     auto result = serializer.deserializeFromMemory(Fio::BinaryBlob{ corrupted.data(), corrupted.size() }, doc);
     EXPECT_FALSE(result.success);
@@ -128,17 +140,17 @@ TEST(FileIORegressionTest, Serialization_DeserializeCorruptedData)
 
 // ---- 文档有效性检查 ----
 
-TEST(FileIORegressionTest, SyDocument_DefaultIsEmpty)
+TEST(FileIORegressionTest, AprDocument_DefaultIsEmpty)
 {
-    Fio::SyDocument doc;
+    Fio::AprDocument doc;
     EXPECT_TRUE(doc.entityCount() == 0);
 }
 
-TEST(FileIORegressionTest, SyDocument_MoveSemantics)
+TEST(FileIORegressionTest, AprDocument_MoveSemantics)
 {
-    Fio::SyDocument doc;
+    Fio::AprDocument doc;
     // 空文档移动也应安全
-    Fio::SyDocument moved = std::move(doc);
+    Fio::AprDocument moved = std::move(doc);
     EXPECT_TRUE(moved.entityCount() == 0);
     EXPECT_TRUE(doc.entityCount() == 0);
 }
@@ -168,25 +180,25 @@ TEST(FileIORegressionTest, FileFormat_AllFormatsDistinct)
 
 TEST(FileIORegressionTest, SaveLoadFile_RoundTrip)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument original;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument original;
     original.setAuthor("FileIOTest");
     original.setMetadataVersion(1);
 
-    Fio::SyLayerInfo layer;
+    Fio::AprLayerInfo layer;
     layer.id = 1;
     std::strcpy(layer.name, "TestLayer");
     original.addLayer(layer);
 
     // 保存到临时文件
-    std::string tempPath = "test_roundtrip.sy";
+    std::string tempPath = "test_roundtrip.apr";
     {
         auto result = serializer.saveToFile(tempPath.c_str(), original);
         ASSERT_TRUE(result.success) << result.errorMessage;
     }
 
     // 从文件加载
-    Fio::SyDocument restored;
+    Fio::AprDocument restored;
     {
         auto result = serializer.loadFromFile(tempPath.c_str(), restored);
         ASSERT_TRUE(result.success) << result.errorMessage;
@@ -194,7 +206,7 @@ TEST(FileIORegressionTest, SaveLoadFile_RoundTrip)
 
     EXPECT_STREQ(restored.author(), "FileIOTest");
     ASSERT_EQ(restored.layerCount(), 1u);
-    Fio::SyLayerInfo restoredLayer;
+    Fio::AprLayerInfo restoredLayer;
     ASSERT_TRUE(restored.getLayerAt(0, restoredLayer));
     EXPECT_STREQ(restoredLayer.name, "TestLayer");
 
@@ -204,18 +216,18 @@ TEST(FileIORegressionTest, SaveLoadFile_RoundTrip)
 
 TEST(FileIORegressionTest, LoadFromNonexistentFile)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument doc;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument doc;
 
-    auto result = serializer.loadFromFile("/nonexistent/path/never_exists.sy", doc);
+    auto result = serializer.loadFromFile("/nonexistent/path/never_exists.apr", doc);
     EXPECT_FALSE(result.success);
     EXPECT_TRUE(result.errorMessage[0] != '\0');
 }
 
 TEST(FileIORegressionTest, SaveToInvalidPath)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument doc;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument doc;
 
     auto result = serializer.saveToFile("", doc);
     EXPECT_FALSE(result.success);
@@ -226,12 +238,12 @@ TEST(FileIORegressionTest, SaveToInvalidPath)
 
 TEST(FileIORegressionTest, MultipleLayersRoundTrip)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument original;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument original;
 
     for (int i = 0; i < 10; ++i)
     {
-        Fio::SyLayerInfo layer;
+        Fio::AprLayerInfo layer;
         layer.id = static_cast<uint32_t>(i + 1);
         std::strcpy(layer.name, ("Layer" + std::to_string(i + 1)).c_str());
         layer.color = 0xFF0000 + i * 0x100;
@@ -240,13 +252,13 @@ TEST(FileIORegressionTest, MultipleLayersRoundTrip)
         original.addLayer(layer);
     }
 
-    std::string tempPath = "test_multilayer_roundtrip.sy";
+    std::string tempPath = "test_multilayer_roundtrip.apr";
     {
         auto result = serializer.saveToFile(tempPath.c_str(), original);
         ASSERT_TRUE(result.success) << result.errorMessage;
     }
 
-    Fio::SyDocument restored;
+    Fio::AprDocument restored;
     {
         auto result = serializer.loadFromFile(tempPath.c_str(), restored);
         ASSERT_TRUE(result.success) << result.errorMessage;
@@ -255,7 +267,7 @@ TEST(FileIORegressionTest, MultipleLayersRoundTrip)
     ASSERT_EQ(restored.layerCount(), 10u);
     for (int i = 0; i < 10; ++i)
     {
-        Fio::SyLayerInfo layer;
+        Fio::AprLayerInfo layer;
         ASSERT_TRUE(restored.getLayerAt(static_cast<size_t>(i), layer));
         EXPECT_STREQ(layer.name, ("Layer" + std::to_string(i + 1)).c_str());
         EXPECT_EQ(layer.visible, (i % 2 == 0));
@@ -267,25 +279,25 @@ TEST(FileIORegressionTest, MultipleLayersRoundTrip)
 
 TEST(FileIORegressionTest, CompleteMetadataRoundTrip)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument original;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument original;
     original.setMetadataVersion(3);
     original.setMetadataFileVersion(7);
     original.setAuthor("CompleteTestAuthor");
-    original.setSoftwareName("SanYiCAD");
+    original.setSoftwareName("April");
     original.setSoftwareVersion("2.0.0");
     original.setCreatedTime("2026-01-01T00:00:00Z");
     original.setModifiedTime("2026-07-30T12:00:00Z");
     original.setOperatingSystem("Windows 11");
     original.setDescription("Complete metadata round-trip test document");
 
-    std::string tempPath = "test_metadata_roundtrip.sy";
+    std::string tempPath = "test_metadata_roundtrip.apr";
     {
         auto result = serializer.saveToFile(tempPath.c_str(), original);
         ASSERT_TRUE(result.success) << result.errorMessage;
     }
 
-    Fio::SyDocument restored;
+    Fio::AprDocument restored;
     {
         auto result = serializer.loadFromFile(tempPath.c_str(), restored);
         ASSERT_TRUE(result.success) << result.errorMessage;
@@ -294,7 +306,7 @@ TEST(FileIORegressionTest, CompleteMetadataRoundTrip)
     EXPECT_EQ(restored.metadataVersion(), 3);
     EXPECT_EQ(restored.metadataFileVersion(), 7);
     EXPECT_STREQ(restored.author(), "CompleteTestAuthor");
-    EXPECT_STREQ(restored.softwareName(), "SanYiCAD");
+    EXPECT_STREQ(restored.softwareName(), "April");
     EXPECT_STREQ(restored.softwareVersion(), "2.0.0");
     EXPECT_STREQ(restored.createdTime(), "2026-01-01T00:00:00Z");
     EXPECT_STREQ(restored.modifiedTime(), "2026-07-30T12:00:00Z");
@@ -306,9 +318,9 @@ TEST(FileIORegressionTest, CompleteMetadataRoundTrip)
 
 TEST(FileIORegressionTest, HardwareInfoRoundTrip)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument original;
-    Fio::SyHardwareInfo hw;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument original;
+    Fio::AprHardwareInfo hw;
     std::strcpy(hw.laserType, "Fiber");
     std::strcpy(hw.controllerModel, "RDC6445G");
     hw.maxPower = 150.0;
@@ -316,19 +328,19 @@ TEST(FileIORegressionTest, HardwareInfoRoundTrip)
     hw.workAreaHeight = 900.0;
     original.setHardware(hw);
 
-    std::string tempPath = "test_hardware_roundtrip.sy";
+    std::string tempPath = "test_hardware_roundtrip.apr";
     {
         auto result = serializer.saveToFile(tempPath.c_str(), original);
         ASSERT_TRUE(result.success) << result.errorMessage;
     }
 
-    Fio::SyDocument restored;
+    Fio::AprDocument restored;
     {
         auto result = serializer.loadFromFile(tempPath.c_str(), restored);
         ASSERT_TRUE(result.success) << result.errorMessage;
     }
 
-    Fio::SyHardwareInfo restoredHw;
+    Fio::AprHardwareInfo restoredHw;
     restored.getHardware(restoredHw);
     EXPECT_STREQ(restoredHw.laserType, "Fiber");
     EXPECT_STREQ(restoredHw.controllerModel, "RDC6445G");
@@ -371,9 +383,8 @@ TEST(FileIORegressionTest, FileIOManager_FormatDetection_AllFormats)
     std::vector<FormatCase> cases = {
         { "dxf", Fio::FileFormat::DXF },
         { "svg", Fio::FileFormat::SVG },
-        { "sy", Fio::FileFormat::Native },
-        { "syx", Fio::FileFormat::Native3D },
-        { "sy3d", Fio::FileFormat::Native3D },
+        { "apr", Fio::FileFormat::Native },
+        { "apr3d", Fio::FileFormat::Native3D },
         { "plt", Fio::FileFormat::PLT },
         { "ai", Fio::FileFormat::AI },
         { "pdf", Fio::FileFormat::PDF },
@@ -393,8 +404,8 @@ TEST(FileIORegressionTest, FileIOManager_FormatDetection_AllFormats)
 TEST(FileIORegressionTest, Serialization_Idempotent)
 {
     // 多次序列化/反序列化应产生相同结果
-    Fio::SySerializer serializer;
-    Fio::SyDocument original;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument original;
     original.setAuthor("IdempotentTest");
 
     std::vector<uint8_t> data1, data2;
@@ -413,7 +424,7 @@ TEST(FileIORegressionTest, Serialization_Idempotent)
     ASSERT_TRUE(r2.success);
     EXPECT_EQ(data1, data2);
 
-    Fio::SyDocument restored1, restored2;
+    Fio::AprDocument restored1, restored2;
     auto r3 = serializer.deserializeFromMemory(Fio::BinaryBlob{ data1.data(), data1.size() }, restored1);
     auto r4 = serializer.deserializeFromMemory(Fio::BinaryBlob{ data1.data(), data1.size() }, restored2);
     ASSERT_TRUE(r3.success);
@@ -423,8 +434,8 @@ TEST(FileIORegressionTest, Serialization_Idempotent)
 
 TEST(FileIORegressionTest, Serialization_EmptyDocumentIsValid)
 {
-    Fio::SySerializer serializer;
-    Fio::SyDocument emptyDoc;
+    Fio::AprSerializer serializer;
+    Fio::AprDocument emptyDoc;
 
     Fio::BinaryBlobOut query;
     auto result = serializer.serializeToMemory(emptyDoc, &query);
@@ -492,7 +503,7 @@ TEST(FileIORegressionTest, IgesParser_LineArcPoint)
 {
     // 临时文件必须用 std::filesystem::temp_directory_path() 取系统临时目录：
     // 硬编码 "/tmp/..." 在 Windows 上不存在，fopen 会失败并返回空路径。
-    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_iges_test.igs";
+    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "apr_iges_test.igs";
     const std::string path = writeMinimalIgesFile(tempFile.string());
     ASSERT_FALSE(path.empty());
 
@@ -543,7 +554,7 @@ TEST(FileIORegressionTest, SvgParser_SelfClosingClassTagDoesNotHang)
                        "<path class=\"box\" d=\"M5,5 L25,5 L25,25 Z\"/>\n"
                        "</svg>\n";
 
-    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "sanyi_svg_selfclose_test.svg";
+    const std::filesystem::path tempFile = std::filesystem::temp_directory_path() / "apr_svg_selfclose_test.svg";
     {
         std::ofstream out(tempFile, std::ios::binary);
         ASSERT_TRUE(out.is_open());
