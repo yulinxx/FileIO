@@ -367,6 +367,10 @@ namespace Fio
         out.frequency = p.frequency;
         out.focusOffset = p.focusOffset;
         out.passes = p.passes;
+        out.kerfMm = p.kerfMm;
+        out.leadInLengthMm = p.leadInLengthMm;
+        out.leadInMode = p.leadInMode;
+        out.leadInAngleDeg = p.leadInAngleDeg;
         return true;
     }
 
@@ -385,6 +389,10 @@ namespace Fio
         p.frequency = profile.frequency;
         p.focusOffset = profile.focusOffset;
         p.passes = profile.passes;
+        p.kerfMm = profile.kerfMm;
+        p.leadInLengthMm = profile.leadInLengthMm;
+        p.leadInMode = profile.leadInMode;
+        p.leadInAngleDeg = profile.leadInAngleDeg;
         m_data->hardwareProfiles.push_back(std::move(p));
     }
 

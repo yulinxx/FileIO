@@ -74,6 +74,11 @@ namespace Fio
         double frequency = 50.0;
         double focusOffset = 0.0;
         int32_t passes = 1;
+        // ---- 尾部追加（M1）：割缝与引入线 ----
+        double kerfMm = 0.0;            // 单边割缝补偿（mm）
+        double leadInLengthMm = 0.0;    // 引入线长度（mm）
+        int32_t leadInMode = 0;         // 0=切线, 1=法向, 2=斜线
+        double leadInAngleDeg = 0.0;    // 斜线引入角度（度）
     };
 
     /// 硬件信息视图（POD，固定长度缓冲区）
@@ -105,6 +110,11 @@ namespace Fio
         int32_t fillMode = 1;            // 0=轮廓 1=双向 2=光栅
         double kerfMm = 0.0;             // 割缝补偿半径
         double rapidSpeedMmPerSec = 0.0; // 空移速度（0 = 用工程默认值）
+        // ---- 尾部追加（M1）：引入线；默认关闭 ----
+        bool leadInEnabled = false;
+        double leadInLengthMm = 0.0;
+        int32_t leadInMode = 0;          // 0=切线, 1=法向, 2=斜线
+        double leadInAngleDeg = 0.0;
     };
 
     /// 工艺对象视图（POD，固定长度缓冲区，跨 DLL 安全）

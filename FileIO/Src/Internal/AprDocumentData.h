@@ -111,6 +111,11 @@ namespace Fio
         double frequency = 50.0;
         double focusOffset = 0.0;
         int32_t passes = 1;
+        // ---- 尾部追加（M1）：割缝与引入线 ----
+        double kerfMm = 0.0;
+        double leadInLengthMm = 0.0;
+        int32_t leadInMode = 0;
+        double leadInAngleDeg = 0.0;
     };
 
     struct HardwareInfo

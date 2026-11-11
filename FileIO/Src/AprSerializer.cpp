@@ -206,6 +206,10 @@ namespace Fio
                 p->set_frequency(hp.frequency);
                 p->set_focus_offset(hp.focusOffset);
                 p->set_passes(hp.passes);
+                p->set_kerf_mm(hp.kerfMm);
+                p->set_lead_in_length_mm(hp.leadInLengthMm);
+                p->set_lead_in_mode(hp.leadInMode);
+                p->set_lead_in_angle_deg(hp.leadInAngleDeg);
             }
 
             // 预先 Reserve，避免 add_entities() 反复扩容搬移整个 repeated message 数组。
@@ -428,6 +432,10 @@ namespace Fio
                 info.frequency = hp.frequency();
                 info.focusOffset = hp.focus_offset();
                 info.passes = hp.passes();
+                info.kerfMm = hp.kerf_mm();
+                info.leadInLengthMm = hp.lead_in_length_mm();
+                info.leadInMode = hp.lead_in_mode();
+                info.leadInAngleDeg = hp.lead_in_angle_deg();
                 docData.hardwareProfiles.push_back(std::move(info));
             }
 

@@ -200,7 +200,12 @@ message ProcessParamsData {
     double rapid_speed_mm_per_sec = 14;
 
     repeated PropertyEntry custom_properties = 20;
-    reserved 21 to 49;             // v2 占位：新增参数直接用 21..49，不要塞进 custom_properties
+    // ---- 尾部追加（M1）：引入线；默认关闭，关闭时刀路不变 ----
+    bool   lead_in_enabled     = 21;
+    double lead_in_length_mm   = 22;
+    int32  lead_in_mode        = 23;  // 0=切线, 1=法向, 2=斜线
+    double lead_in_angle_deg   = 24;
+    reserved 25 to 49;             // v2 占位：新增参数直接用 25..49，不要塞进 custom_properties
 }
 
 // 工艺对象：一段"用什么参数、加工哪些目标、按什么顺序"。
@@ -245,7 +250,12 @@ message HardwareProfileData {
     double frequency     = 5;   // 频率 (kHz)
     double focus_offset  = 6;   // 焦距补偿 (mm)
     int32  passes        = 7;   // 加工遍数
-    reserved 8 to 19;
+    // ---- 尾部追加（M1）：割缝与引入线 ----
+    double kerf_mm            = 8;   // 单边割缝补偿（mm），0 = 不补偿
+    double lead_in_length_mm  = 9;   // 引入线长度（mm），0 = 不引入
+    int32  lead_in_mode       = 10;  // 0=切线, 1=法向, 2=斜线
+    double lead_in_angle_deg  = 11;  // 斜线引入角度（度）
+    reserved 12 to 19;
 }
 
 // 工程级设置：不影响几何，但影响"这份图会被怎么送去加工"。
