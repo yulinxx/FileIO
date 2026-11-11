@@ -212,6 +212,10 @@ namespace Fio
         /// 拷贝第 index 个工艺到 out；越界返回 false
         bool getProcessAt(size_t index, AprProcessInfo& out) const;
         void addProcess(const AprProcessInfo& process);
+        /// 给已添加的工艺追加一个显式目标图层（写入 target_layer_ids）。
+        /// 单独开一个方法是为了不往冻结的 AprProcessInfo 里塞变长数组。
+        /// @return false = 该工艺 ID 不存在
+        bool addProcessTargetLayer(uint32_t processId, uint32_t layerId);
         void clearProcesses();
 
         /// 工艺的显式目标图层（工艺 ID → 图层 ID 列表）

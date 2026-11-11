@@ -91,6 +91,12 @@ namespace Fio
         double kerfMm = 0.0;
         double rapidSpeedMmPerSec = 0.0;
 
+        // ---- 尾部追加（M1）：引入线；默认关闭 ----
+        bool leadInEnabled = false;
+        double leadInLengthMm = 0.0;
+        int32_t leadInMode = 0;
+        double leadInAngleDeg = 0.0;
+
         /// 显式目标图层（图层反向绑定走 LayerInfo::defaultProcessId，不重复）
         std::vector<uint32_t> targetLayerIds;
 

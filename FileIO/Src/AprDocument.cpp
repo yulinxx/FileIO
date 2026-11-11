@@ -439,6 +439,10 @@ namespace Fio
         params.fillMode = p.fillMode;
         params.kerfMm = p.kerfMm;
         params.rapidSpeedMmPerSec = p.rapidSpeedMmPerSec;
+        params.leadInEnabled = p.leadInEnabled;
+        params.leadInLengthMm = p.leadInLengthMm;
+        params.leadInMode = p.leadInMode;
+        params.leadInAngleDeg = p.leadInAngleDeg;
         return true;
     }
 
@@ -469,8 +473,29 @@ namespace Fio
         p.fillMode = src.fillMode;
         p.kerfMm = src.kerfMm;
         p.rapidSpeedMmPerSec = src.rapidSpeedMmPerSec;
+        p.leadInEnabled = src.leadInEnabled;
+        p.leadInLengthMm = src.leadInLengthMm;
+        p.leadInMode = src.leadInMode;
+        p.leadInAngleDeg = src.leadInAngleDeg;
 
         m_data->processes.push_back(std::move(p));
+    }
+
+    bool AprDocument::addProcessTargetLayer(uint32_t processId, uint32_t layerId)
+    {
+        if (!m_data)
+        {
+            return false;
+        }
+        for (auto& p : m_data->processes)
+        {
+            if (p.id == processId)
+            {
+                p.targetLayerIds.push_back(layerId);
+                return true;
+            }
+        }
+        return false;
     }
 
     void AprDocument::clearProcesses()

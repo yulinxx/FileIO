@@ -170,6 +170,10 @@ namespace Fio
                 params->set_fill_mode(p.fillMode);
                 params->set_kerf_mm(p.kerfMm);
                 params->set_rapid_speed_mm_per_sec(p.rapidSpeedMmPerSec);
+                params->set_lead_in_enabled(p.leadInEnabled);
+                params->set_lead_in_length_mm(p.leadInLengthMm);
+                params->set_lead_in_mode(p.leadInMode);
+                params->set_lead_in_angle_deg(p.leadInAngleDeg);
 
                 for (uint32_t layerId : p.targetLayerIds)
                 {
@@ -395,6 +399,12 @@ namespace Fio
                     p.fillMode = pp.fill_mode();
                     p.kerfMm = pp.kerf_mm();
                     p.rapidSpeedMmPerSec = pp.rapid_speed_mm_per_sec();
+                    // 旧文件没有这 4 个字段 → proto3 默认值即「关闭/0」，
+                    // 与 ProcessParams 的默认值一致，不会改变既有档案的刀路
+                    p.leadInEnabled = pp.lead_in_enabled();
+                    p.leadInLengthMm = pp.lead_in_length_mm();
+                    p.leadInMode = pp.lead_in_mode();
+                    p.leadInAngleDeg = pp.lead_in_angle_deg();
                 }
 
                 for (int j = 0; j < pd.target_layer_ids_size(); ++j)
