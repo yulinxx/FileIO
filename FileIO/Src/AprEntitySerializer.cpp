@@ -172,9 +172,13 @@ namespace Fio
         out->set_type(toProtoType(entity.eType));
         out->set_id(entity.id);
 
-        if (entity.layer())
+        // 图层归属以 AprEntity::layerId() 为准：LayerManager 在 assignEntityToLayer
+        // 里同时维护 layerId 与 pLayer，但导出走借出/克隆路径时 pLayer 可能为空，
+        // 只读 pLayer 会把归属写丢（审查报告 P-1）。
+        const int layerId = entity.layerId();
+        if (layerId > 0)
         {
-            out->set_layer_id(static_cast<uint32_t>(entity.layer()->getId()));
+            out->set_layer_id(static_cast<uint32_t>(layerId));
         }
 
         // MESH 不是 AprEntity2D 的子类，直接 static_cast 是未定义行为；
@@ -877,7 +881,13 @@ namespace Fio
                 entity2d.bClosed = protoEntity.closed();
                 entity2d.bCCW = protoEntity.ccw();
             }
-            result->setName(protoEntity.name().c_str());
+            // 网格名称历史上冗余写在 mesh_data.name（写入侧继续保留以兼容旧读取方）：
+            // 读取时优先取非空的 mesh_data.name，缺失时回落到公共 name 块，
+            // 这样只更新 mesh_data.name 的旧档也能读回正确名称。
+            const bool preferMeshName = result->eType == Eg::EType::MESH && protoEntity.has_mesh_data() &&
+                !protoEntity.mesh_data().name().empty();
+            result->setName(
+                preferMeshName ? protoEntity.mesh_data().name().c_str() : protoEntity.name().c_str());
             // 旧文件没有这两个字段：保持 AprEntity 构造默认值（visible=true / locked=false）
             if (protoEntity.has_visible())
             {
