@@ -87,15 +87,16 @@ apr_add_shared_library(${LIB_NAME}
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${APR_THIRDPARTY_DIR}/libdxfrw/include"
-        "${APR_THIRDPARTY_DIR}/libdxfrw/src"
-        "${APR_THIRDPARTY_DIR}/libdxfrw/src/intern"
         "${PROTO_GEN_DIR}"
         "${Stb_INCLUDE_DIR}"
         "${NANOSVG_INCLUDE_DIR}"
         "${APR_ENGINE_COMMON_DIR}/Include"
         "${APR_ENGINE_COMMON_DIR}/Include/Engine"
     PRIVATE_INCLUDE_DIRS
+        # libdxfrw 为 GPL-2.0-or-later，仅限 FileIO 内部使用，
+        # 头文件路径不能出现在 PUBLIC_INCLUDE_DIRS 中，避免向下游扩散 GPL 头文件
+        "${APR_THIRDPARTY_DIR}/libdxfrw/src"
+        "${APR_THIRDPARTY_DIR}/libdxfrw/src/intern"
         "${APR_ENGINE_2D_DIR}/Include"
         "${APR_ENGINE_2D_DIR}/Include/Engine2D"
         "${APR_ENGINE_3D_DIR}/Include"
@@ -170,9 +171,6 @@ apr_export_imported_target(${LIB_NAME}
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${APR_THIRDPARTY_DIR}/libdxfrw/include"
-        "${APR_THIRDPARTY_DIR}/libdxfrw/src"
-        "${APR_THIRDPARTY_DIR}/libdxfrw/src/intern"
         "${PROTO_GEN_DIR}"
         "${Stb_INCLUDE_DIR}"
         "${NANOSVG_INCLUDE_DIR}"
