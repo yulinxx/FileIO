@@ -19,12 +19,17 @@
 #include "FileIO/AprSerializer.h"
 #include "FileIO/AprDocument.h"
 
+// 图元级读写兼容：直接构造 proto 消息验证 mesh_data.name 的读取优先级
+#include "AprEntitySerializer.h"
+#include "AprDocument.pb.h"
+
 // AprDocument 使用 std::unique_ptr<Eg::AprEntity>，需要完整类型定义
 #include "Engine/AprEntity/AprEntity.h"
 #include "Engine2D/AprEntity/AprPolygon.h"
 #include "Engine2D/AprEntity/AprFillRegion.h"
 #include "Engine2D/AprEntity/AprLine.h"
 #include "Engine2D/AprEntity/AprSmartLine.h"
+#include "Engine3D/AprEntity/AprMeshEntity.h"
 
 // 内部文档数据：测试需要构造带填充色的图层（公开 AprLayerInfo 无 fillColor 字段）
 #include "AprDocumentData.h"
@@ -507,6 +512,62 @@ TEST(AprSerializerTest, DocumentWithMultipleLayersRoundTrip)
     EXPECT_STREQ(l4.name, "Layer5");
     EXPECT_TRUE(l1.visible);   // Layer2
     EXPECT_FALSE(l0.visible);  // Layer1
+}
+
+// ==================== 网格名称读写口径 ====================
+
+TEST(AprEntitySerializerTest, MeshNamePrefersMeshDataName)
+{
+    // 历史存档同时写 mesh_data.name 与公共 name：读取以非空的 mesh_data.name 为准，
+    // 这样只更新过 mesh_data.name 的旧档不会读回公共块里的旧名字。
+    apr::proto::EntityData proto;
+    proto.set_type(apr::proto::ENTITY_MESH);
+    proto.set_id(7);
+    proto.set_name("common_name");
+    proto.mutable_mesh_data()->set_name("mesh_name");
+
+    auto entity = Fio::AprEntitySerializer::deserializeEntity(proto);
+    ASSERT_NE(entity, nullptr);
+    EXPECT_EQ(entity->eType, Eg::EType::MESH);
+    EXPECT_STREQ(entity->name(), "mesh_name");
+}
+
+TEST(AprEntitySerializerTest, MeshNameFallsBackToCommonName)
+{
+    // 旧写路径没有 mesh_data.name（proto3 默认空串）：必须回落到公共 name，
+    // 否则旧档的网格名称会整体丢失。
+    apr::proto::EntityData proto;
+    proto.set_type(apr::proto::ENTITY_MESH);
+    proto.set_id(8);
+    proto.set_name("legacy_common_name");
+    proto.mutable_mesh_data();  // 有 mesh_data 但不带 name
+
+    auto entity = Fio::AprEntitySerializer::deserializeEntity(proto);
+    ASSERT_NE(entity, nullptr);
+    EXPECT_STREQ(entity->name(), "legacy_common_name");
+}
+
+TEST(AprSerializerTest, MeshNameRoundTrip)
+{
+    // 新存档端到端：写入两份名称，读回后名称保持一致
+    AprDocument doc;
+    auto mesh = std::make_unique<Eg::AprMeshEntity>("mesh_round_trip");
+    mesh->id = 9;
+    doc.addEntity(mesh.release());
+
+    AprSerializer serializer;
+    std::vector<uint8_t> data;
+    auto saveResult = serializeDoc(serializer, doc, data);
+    ASSERT_TRUE(saveResult.success) << saveResult.errorMessage;
+
+    AprDocument restored;
+    auto loadResult = deserializeDoc(serializer, data, restored);
+    ASSERT_TRUE(loadResult.success) << loadResult.errorMessage;
+    ASSERT_EQ(restored.entityCount(), 1u);
+    Eg::AprEntity* loaded = restored.entityAt(0);
+    ASSERT_NE(loaded, nullptr);
+    EXPECT_EQ(loaded->eType, Eg::EType::MESH);
+    EXPECT_STREQ(loaded->name(), "mesh_round_trip");
 }
 
 TEST(AprSerializerTest, DocumentWithHardwareInfoRoundTrip)

@@ -27,11 +27,28 @@ target_include_directories(FileIOTests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../Src/Internal"
     # DXF 导出回环测试要构造 Eg::AprPolygon（FileIO 的 legacy writer 直接消费 Engine 图元）
     "${APR_ENGINE_2D_DIR}/Include"
+    # 网格名称兼容测试需要构造 Eg::AprMeshEntity
+    "${APR_ENGINE_3D_DIR}/Include"
 )
+
+# 图元级序列化兼容测试直接构造 EntityData：需要 protobuf 生成目录与内部头文件。
+# 生成的 pb.cc 未从 FileIO DLL 导出符号，这里把同一份生成源编进测试可执行文件，
+# 仅用于构造测试消息，不参与产品运行路径。
+get_target_property(FILEIO_PROTO_GEN_DIR FileIO INTERFACE_APR_PROTO_GEN_DIR)
+if(FILEIO_PROTO_GEN_DIR)
+    target_include_directories(FileIOTests PRIVATE
+        "${FILEIO_PROTO_GEN_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../Src"
+    )
+    # 用目标属性里的生成目录，避免依赖父目录作用域里的同名变量
+    target_sources(FileIOTests PRIVATE "${FILEIO_PROTO_GEN_DIR}/AprDocument.pb.cc")
+    target_link_libraries(FileIOTests PRIVATE protobuf::libprotobuf-lite)
+endif()
 
 target_link_libraries(FileIOTests PRIVATE
     FileIO
     Engine2D
+    Engine3D
     Log
     GTest::gtest
     GTest::gtest_main

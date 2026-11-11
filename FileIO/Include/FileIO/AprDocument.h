@@ -39,6 +39,7 @@ namespace Fio
         bool locked = false;          // 锁定
         bool output = true;           // 是否参与加工输出（与 visible 严格分离）
         uint32_t defaultProcessId = 0; // 默认工艺 ID（0 = 未指定）
+        int32_t hardwareProfileId = 0; // 图层关联的硬件 Profile ID（0 = 默认 profile）
     };
 
     /// 扩展图层视图（POD，跨 DLL 安全）。
@@ -115,6 +116,7 @@ namespace Fio
         double leadInLengthMm = 0.0;
         int32_t leadInMode = 0;          // 0=切线, 1=法向, 2=斜线
         double leadInAngleDeg = 0.0;
+        double focusOffsetMm = 0.0;      // 焦距补偿（mm）
     };
 
     /// 工艺对象视图（POD，固定长度缓冲区，跨 DLL 安全）

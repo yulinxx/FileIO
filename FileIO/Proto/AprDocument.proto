@@ -141,6 +141,8 @@ message LayerData {
     uint32 default_process_id = 11;
 
     // 本图层关联的硬件 Profile ID。proto3 int32 默认值 0 与 C++ 默认 hardwareProfileId=0 对齐。
+    // 版本策略：v1/v2 旧文件没有本字段 → 读端拿到 0（默认 profile），与"未指定"语义等价；
+    // 新写端总是写真实值，因此不存在"字段缺失"与"显式 0"需要区分的场景。
     int32 hardware_profile_id = 12;
 
     // 填充专属硬件 Profile ID。-1 表示"未设置，回退到 hardware_profile_id"
@@ -198,6 +200,10 @@ message ProcessParamsData {
 
     // 空移速度（mm/s），= 0 时使用工程默认值
     double rapid_speed_mm_per_sec = 14;
+
+    // v3 新增：焦距补偿（mm）。旧文件没有本字段 → proto3 默认 0.0，
+    // 与 C++ HardwareProfile::focusOffset 默认值一致（不补偿），无需迁移分支。
+    double focus_offset_mm   = 15;
 
     repeated PropertyEntry custom_properties = 20;
     // ---- 尾部追加（M1）：引入线；默认关闭，关闭时刀路不变 ----

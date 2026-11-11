@@ -249,6 +249,7 @@ namespace Fio
         out.locked = l.locked;
         out.output = l.output;
         out.defaultProcessId = l.defaultProcessId;
+        out.hardwareProfileId = l.hardwareProfileId;
         return true;
     }
 
@@ -267,6 +268,7 @@ namespace Fio
         l.locked = layer.locked;
         l.output = layer.output;
         l.defaultProcessId = layer.defaultProcessId;
+        l.hardwareProfileId = layer.hardwareProfileId;
         m_data->layers.push_back(std::move(l));
     }
 
@@ -443,6 +445,7 @@ namespace Fio
         params.leadInLengthMm = p.leadInLengthMm;
         params.leadInMode = p.leadInMode;
         params.leadInAngleDeg = p.leadInAngleDeg;
+        params.focusOffsetMm = p.focusOffsetMm;
         return true;
     }
 
@@ -477,6 +480,7 @@ namespace Fio
         p.leadInLengthMm = src.leadInLengthMm;
         p.leadInMode = src.leadInMode;
         p.leadInAngleDeg = src.leadInAngleDeg;
+        p.focusOffsetMm = src.focusOffsetMm;
 
         m_data->processes.push_back(std::move(p));
     }

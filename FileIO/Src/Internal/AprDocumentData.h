@@ -60,10 +60,7 @@ namespace Fio
         // === v2：加工语义（与显示语义严格分离）===
         bool output = true;             // 是否参与加工输出
         uint32_t defaultProcessId = 0; // 默认工艺 ID，0 = 未指定
-
-        // 与 proto LayerData.hardware_profile_id / fill_hardware_profile_id 对应。
-        // 这两个字段在 AprDocument.proto 里早就声明了，但 AprSerializer 的写/读
-        // 路径一直没碰它们，导致图层→硬件 Profile 的绑定在 .apr 里全量丢失。
+        // 与 proto LayerData.hardware_profile_id / fill_hardware_profile_id 对应
         int32_t hardwareProfileId = 0;       // 0 = 默认 Profile
         int32_t fillHardwareProfileId = -1;  // -1 = 未设置，回退到 hardwareProfileId
     };
@@ -90,6 +87,7 @@ namespace Fio
         int32_t fillMode = 1;
         double kerfMm = 0.0;
         double rapidSpeedMmPerSec = 0.0;
+        double focusOffsetMm = 0.0;
 
         // ---- 尾部追加（M1）：引入线；默认关闭 ----
         bool leadInEnabled = false;

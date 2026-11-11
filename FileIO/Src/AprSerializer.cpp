@@ -174,6 +174,7 @@ namespace Fio
                 params->set_lead_in_length_mm(p.leadInLengthMm);
                 params->set_lead_in_mode(p.leadInMode);
                 params->set_lead_in_angle_deg(p.leadInAngleDeg);
+                params->set_focus_offset_mm(p.focusOffsetMm);
 
                 for (uint32_t layerId : p.targetLayerIds)
                 {
@@ -405,6 +406,8 @@ namespace Fio
                     p.leadInLengthMm = pp.lead_in_length_mm();
                     p.leadInMode = pp.lead_in_mode();
                     p.leadInAngleDeg = pp.lead_in_angle_deg();
+                    // 旧文件没有该字段 → proto3 默认 0.0，即"不补偿"
+                    p.focusOffsetMm = pp.focus_offset_mm();
                 }
 
                 for (int j = 0; j < pd.target_layer_ids_size(); ++j)
