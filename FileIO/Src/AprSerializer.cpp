@@ -2,6 +2,7 @@
 #include "AprEntitySerializer.h"
 #include "AprDocumentData.h"
 #include "ColorArgbUtils.h"
+#include "DurableIO.h"
 
 #include "FileIO/AprCryptoProvider.h"
 #include "AprDocument.pb.h"
@@ -713,15 +714,99 @@ namespace Fio
             }
         }
 
+        // flush/close 只把数据交给内核页缓存，断电后 rename 仍可能得到 0 字节文件。
+        // 必须先对临时文件内容做持久化同步，失败时目标文件保持原样。
+        const Internal::DurableResult tempSync = Internal::syncFile(tempPath);
+        if (!tempSync.success)
+        {
+            discardTemp();
+            return SerializeResult::fail(std::string("Failed to flush file to disk: ")
+                    .append(filePath)
+                    .append(" (")
+                    .append(tempSync.error)
+                    .append(")")
+                    .c_str());
+        }
+
+        // 保存前把上一版轮转为 .bak：误操作与坏盘都还有退路。
+        // 先删旧备份再 rename，避免 rename 到已存在文件在不同平台上的差异。
+        const std::filesystem::path backupPath = std::filesystem::path(targetPath).concat(".bak");
+        std::error_code existsError;
+        const bool targetExisted = std::filesystem::exists(targetPath, existsError);
+        if (existsError)
+        {
+            discardTemp();
+            return SerializeResult::fail(std::string("Failed to inspect target file: ")
+                    .append(filePath)
+                    .append(" (")
+                    .append(existsError.message())
+                    .append(")")
+                    .c_str());
+        }
+
+        if (targetExisted)
+        {
+            std::error_code removeBackupError;
+            std::filesystem::remove(backupPath, removeBackupError);
+            if (removeBackupError)
+            {
+                discardTemp();
+                return SerializeResult::fail(std::string("Failed to remove previous backup: ")
+                        .append(backupPath.u8string())
+                        .append(" (")
+                        .append(removeBackupError.message())
+                        .append(")")
+                        .c_str());
+            }
+
+            std::error_code rotateError;
+            std::filesystem::rename(targetPath, backupPath, rotateError);
+            if (rotateError)
+            {
+                discardTemp();
+                return SerializeResult::fail(std::string("Failed to rotate previous version to backup: ")
+                        .append(backupPath.u8string())
+                        .append(" (")
+                        .append(rotateError.message())
+                        .append(")")
+                        .c_str());
+            }
+        }
+
         std::error_code renameError;
         std::filesystem::rename(tempPath, targetPath, renameError);
         if (renameError)
         {
             discardTemp();
+            // 目标文件已被轮转为 .bak：必须还原，否则用户文档在磁盘上「消失」。
+            if (targetExisted)
+            {
+                std::error_code restoreError;
+                std::filesystem::rename(backupPath, targetPath, restoreError);
+                if (restoreError)
+                {
+                    APR_ERRORF("[AprSerializer] Failed to restore backup after rename failure: %s (%s)",
+                        backupPath.u8string().c_str(),
+                        restoreError.message().c_str());
+                }
+            }
             return SerializeResult::fail(std::string("Failed to replace target file: ")
                     .append(filePath)
                     .append(" (")
                     .append(renameError.message())
+                    .append(")")
+                    .c_str());
+        }
+
+        // rename 之后还必须同步父目录：否则目录项本身可能仍停留在缓存里，
+        // 掉电后表现为「文件内容在、文件名不在」。
+        const Internal::DurableResult dirSync = Internal::syncParentDirectory(targetPath);
+        if (!dirSync.success)
+        {
+            return SerializeResult::fail(std::string("Failed to flush directory entry to disk: ")
+                    .append(filePath)
+                    .append(" (")
+                    .append(dirSync.error)
                     .append(")")
                     .c_str());
         }
@@ -733,12 +818,15 @@ namespace Fio
     SerializeResult AprSerializer::loadFromFile(
         const char* filePath, AprDocument& doc, SerializeWarningCallback warningCb, void* warningCtx)
     {
-        doc.clear();
-
         if (!filePath || !*filePath)
         {
             return SerializeResult::fail("Empty file path");
         }
+
+        // 主文件与 .bak 共用同一套读取/校验逻辑（魔数、长度、CRC 全走一遍），
+        // doc 由 lambda 在每次尝试前清空，避免失败残留污染回退结果。
+        auto loadOnce = [this, &doc, warningCb, warningCtx](const char* filePath) -> SerializeResult {
+        doc.clear();
 
         std::ifstream in(std::filesystem::u8path(filePath), std::ios::binary | std::ios::ate);
         if (!in)
@@ -873,6 +961,43 @@ namespace Fio
         }
 
         emitWarnings(doc, warningCb, warningCtx);
+        return SerializeResult::ok();
+        };
+
+        const SerializeResult primaryResult = loadOnce(filePath);
+        if (primaryResult.success)
+        {
+            return primaryResult;
+        }
+
+        // 主文件损坏时给出可用的回退路径：保存侧每次覆盖前都会把上一版轮转为 .bak。
+        // 回退必须显式告知（经警告回调），否则用户会在不知情的情况下拿到旧版本。
+        const std::string backupPath = std::string(filePath).append(".bak");
+        std::error_code backupExistsError;
+        const bool backupExists = std::filesystem::exists(std::filesystem::u8path(backupPath), backupExistsError);
+        if (backupExistsError || !backupExists)
+        {
+            return primaryResult;
+        }
+
+        const SerializeResult backupResult = loadOnce(backupPath.c_str());
+        if (!backupResult.success)
+        {
+            // 两者都读不出来：返回主文件的错误（更贴近用户实际打开的目标）。
+            return primaryResult;
+        }
+
+        char notice[768] = { 0 };
+        std::snprintf(notice,
+            sizeof(notice),
+            "Primary file is damaged (%s); recovered from backup file: %s",
+            primaryResult.errorMessage,
+            backupPath.c_str());
+        APR_WARNF("[AprSerializer] %s", notice);
+        if (warningCb)
+        {
+            warningCb(notice, warningCtx);
+        }
         return SerializeResult::ok();
     }
 
