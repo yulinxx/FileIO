@@ -19,13 +19,20 @@ namespace Fio
     {
         int width = 0;
         int height = 0;
-        float dpiX = 96.0f;
-        float dpiY = 96.0f;
+        /// 文件中真实存在的 DPI。缺少元数据时为 0，调用方应通过 dpiValid 区分
+        /// “真实 96 DPI” 与 “没有 DPI、导入时按 96 兜底”。
+        float dpiX = 0.0f;
+        float dpiY = 0.0f;
+        bool dpiValid = false;
         bool isValid = false;
     };
 
     /// ABI 说明：readImageInfo 接受 UTF-8 路径文本（调用方持有缓冲，只读同步使用），
     /// 不跨 DLL 传递 std::string。返回 ImageInfo 为 POD。
+    ///
+    /// 目前会解析 PNG pHYs 与 JPEG JFIF APP0 中的物理分辨率；其它格式或缺少
+    /// 元数据的图片返回 dpiX/dpiY = 0、dpiValid = false。调用 pixelsToUnit 时
+    /// 0 会按 96 DPI 兜底，但调用方应先检查 dpiValid 并明确告知用户。
     FILEIO_API ImageInfo readImageInfo(const char* strUtf8Path);
 
     /// 解码图片文件为 RGBA8 像素数据（w*h*4 字节）。
