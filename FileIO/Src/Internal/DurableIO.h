@@ -8,8 +8,11 @@
  */
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace Fio
 {
@@ -42,5 +45,13 @@ namespace Fio
 
         /// 同步目标文件所在目录（目标路径的 parent_path；为空时用当前目录）
         DurableResult syncParentDirectory(const std::filesystem::path& filePath);
+
+        /// 以「临时文件 + 刷盘 + 原子替换 + 目录刷盘」写整块数据。
+        /// 供恢复文件 / manifest 等非文档格式的小文件复用，保证与正式保存同等耐久性。
+        DurableResult writeFileDurably(const std::filesystem::path& path, const void* data, size_t size);
+
+        /// 读取整个文件；失败时返回 false 并填充 error
+        bool readWholeFile(const std::filesystem::path& path, std::vector<uint8_t>& out, std::string& error);
     }  // namespace Internal
 }  // namespace Fio
+

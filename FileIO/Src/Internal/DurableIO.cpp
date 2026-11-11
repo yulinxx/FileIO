@@ -4,8 +4,10 @@
  */
 #include "DurableIO.h"
 
+#include <atomic>
 #include <cerrno>
 #include <cstring>
+#include <fstream>
 
 #if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
@@ -132,6 +134,84 @@ namespace Fio
                 directory = std::filesystem::path(".");
             }
             return syncDirectory(directory);
+        }
+
+        DurableResult writeFileDurably(const std::filesystem::path& path, const void* data, size_t size)
+        {
+            static std::atomic<unsigned long long> tempSequence{ 0 };
+            std::filesystem::path tempPath = path;
+            tempPath += ".tmp" + std::to_string(tempSequence.fetch_add(1, std::memory_order_relaxed));
+
+            auto discardTemp = [&tempPath]() {
+                std::error_code ignored;
+                std::filesystem::remove(tempPath, ignored);
+            };
+
+            {
+                std::ofstream out(tempPath, std::ios::binary | std::ios::trunc);
+                if (!out)
+                {
+                    return DurableResult::fail(std::string("Cannot open temp file for writing: ")
+                            .append(tempPath.u8string()));
+                }
+                if (data != nullptr && size > 0)
+                {
+                    out.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+                }
+                out.flush();
+                if (!out.good())
+                {
+                    out.close();
+                    discardTemp();
+                    return DurableResult::fail(std::string("Failed to write temp file: ").append(tempPath.u8string()));
+                }
+                out.close();
+                if (out.fail())
+                {
+                    discardTemp();
+                    return DurableResult::fail(std::string("Failed to close temp file: ").append(tempPath.u8string()));
+                }
+            }
+
+            const DurableResult contentSync = syncFile(tempPath);
+            if (!contentSync.success)
+            {
+                discardTemp();
+                return contentSync;
+            }
+
+            std::error_code renameError;
+            std::filesystem::rename(tempPath, path, renameError);
+            if (renameError)
+            {
+                discardTemp();
+                return DurableResult::fail(std::string("Failed to replace file: ")
+                        .append(path.u8string())
+                        .append(" (")
+                        .append(renameError.message())
+                        .append(")"));
+            }
+
+            return syncParentDirectory(path);
+        }
+
+        bool readWholeFile(const std::filesystem::path& path, std::vector<uint8_t>& out, std::string& error)
+        {
+            std::ifstream in(path, std::ios::binary | std::ios::ate);
+            if (!in)
+            {
+                error = std::string("Cannot open file: ").append(path.u8string());
+                return false;
+            }
+            const auto size = static_cast<size_t>(in.tellg());
+            in.seekg(0);
+            out.resize(size);
+            if (size > 0 && !in.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(size)))
+            {
+                error = std::string("Failed to read file: ").append(path.u8string());
+                return false;
+            }
+            return true;
         }
     }  // namespace Internal
 }  // namespace Fio
