@@ -53,6 +53,13 @@ namespace Fio
         /// @param is3D        true → .apr3d 恢复文件，false → .apr
         bool recoveryPathFor(const char* documentKey, bool is3D, char* buffer, size_t bufferSize) const;
 
+        /// 计算恢复文件路径并确保父目录存在（供工作台用自身快照写出恢复文件前调用）
+        bool prepareRecoveryPath(const char* documentKey, bool is3D, char* buffer, size_t bufferSize);
+
+        /// 为已由工作台写出的恢复文件补写 manifest（原始路径/时间/格式）。
+        /// 供无法直接提供 AprDocument 的 2D/3D 场景快照路径使用。
+        SerializeResult writeRecoveryManifest(const char* documentKey, bool is3D);
+
         /// 写入恢复文件（原子写 + fsync，另写 manifest 记录原始路径/时间/格式）
         SerializeResult writeRecovery(const char* documentKey, bool is3D, const AprDocument& doc);
 

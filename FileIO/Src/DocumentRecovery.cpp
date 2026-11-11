@@ -283,25 +283,9 @@ namespace Fio
     SerializeResult RecoveryStore::writeRecovery(const char* documentKey, bool is3D, const AprDocument& doc)
     {
         char pathBuffer[1200] = { 0 };
-        if (!recoveryPathFor(documentKey, is3D, pathBuffer, sizeof(pathBuffer)))
+        if (!prepareRecoveryPath(documentKey, is3D, pathBuffer, sizeof(pathBuffer)))
         {
             return SerializeResult::fail("Failed to resolve recovery file path");
-        }
-
-        const fs::path recoveryPath = fs::u8path(pathBuffer);
-        std::error_code dirError;
-        if (!recoveryPath.parent_path().empty())
-        {
-            fs::create_directories(recoveryPath.parent_path(), dirError);
-            if (dirError)
-            {
-                return SerializeResult::fail(std::string("Cannot create recovery directory: ")
-                        .append(recoveryPath.parent_path().u8string())
-                        .append(" (")
-                        .append(dirError.message())
-                        .append(")")
-                        .c_str());
-            }
         }
 
         AprSerializer serializer;
@@ -313,9 +297,52 @@ namespace Fio
             return saveResult;
         }
 
+        return writeRecoveryManifest(documentKey, is3D);
+    }
+
+    bool RecoveryStore::prepareRecoveryPath(
+        const char* documentKey, bool is3D, char* buffer, size_t bufferSize)
+    {
+        char pathBuffer[1200] = { 0 };
+        if (!recoveryPathFor(documentKey, is3D, pathBuffer, sizeof(pathBuffer)))
+        {
+            return false;
+        }
+
+        const fs::path recoveryPath = fs::u8path(pathBuffer);
+        std::error_code dirError;
+        if (!recoveryPath.parent_path().empty())
+        {
+            fs::create_directories(recoveryPath.parent_path(), dirError);
+            if (dirError)
+            {
+                APR_ERRORF("[RecoveryStore] Cannot create recovery directory: %s (%s)",
+                    recoveryPath.parent_path().u8string().c_str(),
+                    dirError.message().c_str());
+                return false;
+            }
+        }
+
+        const std::string utf8 = recoveryPath.u8string();
+        if (utf8.size() + 1 > bufferSize)
+        {
+            return false;
+        }
+        std::memcpy(buffer, utf8.c_str(), utf8.size() + 1);
+        return true;
+    }
+
+    SerializeResult RecoveryStore::writeRecoveryManifest(const char* documentKey, bool is3D)
+    {
+        char pathBuffer[1200] = { 0 };
+        if (!prepareRecoveryPath(documentKey, is3D, pathBuffer, sizeof(pathBuffer)))
+        {
+            return SerializeResult::fail("Failed to resolve recovery file path");
+        }
+
         const long long savedAt = static_cast<long long>(std::time(nullptr));
         const std::string manifest = joinKeyValues((documentKey != nullptr) ? documentKey : "", savedAt, is3D);
-        const fs::path manifestPath = fs::path(recoveryPath).concat(kManifestSuffix);
+        const fs::path manifestPath = fs::path(fs::u8path(pathBuffer)).concat(kManifestSuffix);
         const Internal::DurableResult manifestResult =
             Internal::writeFileDurably(manifestPath, manifest.data(), manifest.size());
         if (!manifestResult.success)
