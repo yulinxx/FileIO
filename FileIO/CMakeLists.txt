@@ -87,12 +87,14 @@ apr_add_shared_library(${LIB_NAME}
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${PROTO_GEN_DIR}"
-        "${Stb_INCLUDE_DIR}"
-        "${NANOSVG_INCLUDE_DIR}"
         "${APR_ENGINE_COMMON_DIR}/Include"
         "${APR_ENGINE_COMMON_DIR}/Include/Engine"
     PRIVATE_INCLUDE_DIRS
+        # protobuf/stb/nanosvg 只被 FileIO 实现使用，公开头不包含它们，
+        # 不作为导出面传播（MainTests 需要的生成目录走 INTERFACE_APR_PROTO_GEN_DIR 属性）
+        "${PROTO_GEN_DIR}"
+        "${Stb_INCLUDE_DIR}"
+        "${NANOSVG_INCLUDE_DIR}"
         # libdxfrw 为 GPL-2.0-or-later，仅限 FileIO 内部使用，
         # 头文件路径不能出现在 PUBLIC_INCLUDE_DIRS 中，避免向下游扩散 GPL 头文件
         "${APR_THIRDPARTY_DIR}/libdxfrw/src"
@@ -171,13 +173,10 @@ apr_export_imported_target(${LIB_NAME}
     PUBLIC_INCLUDE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}/Include"
         "${CMAKE_CURRENT_SOURCE_DIR}/Include/FileIO"
-        "${PROTO_GEN_DIR}"
-        "${Stb_INCLUDE_DIR}"
-        "${NANOSVG_INCLUDE_DIR}"
         "${APR_ENGINE_COMMON_DIR}/Include"
         "${APR_ENGINE_COMMON_DIR}/Include/Engine"
     INTERFACE_LINK_LIBRARIES
+        # 公开头只依赖 EngineCommon（FioTypes.h 转发中立 IR 契约），
+        # protobuf/nanosvg 是纯实现依赖，不再通过导出面传播头文件或库
         EngineCommon::EngineCommon
-        protobuf::libprotobuf-lite
-        NanoSVG::nanosvg
 )
