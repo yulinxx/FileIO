@@ -10,8 +10,12 @@
 #include "Engine2D/AprEntity/AprBezier2.h"
 #include "Engine2D/AprEntity/AprNurbs.h"
 #include "Engine2D/AprEntity/AprSmartLine.h"
+#include "Engine2D/AprEntity/AprText.h"
+
+#include "Log/AprLogger.h"
 
 #include "drw_objects.h"
+#include "drw_textcodec.h"
 
 #include <algorithm>
 #include <cmath>
@@ -52,12 +56,94 @@ namespace Fio
             return std::clamp(scaled, 0, 255);
         }
 
+        /// 是否全部为 ASCII 字节（含空串）
+        bool isAsciiText(const std::string& text)
+        {
+            for (unsigned char ch : text)
+            {
+                if (ch >= 0x80)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// DXF 文本编码器：非 ASCII 字符统一转成 $DWGCODEPAGE 声明的 ANSI_936（GBK）。
+        ///
+        /// 版本选择依据（均以 libdxfrw 实际读回验证，非按规范推测）：
+        /// 1. 本写出器只产出 R12 形状的文档：没有 CLASSES/OBJECTS 段、没有图元句柄、
+        ///    没有 100 子类标记。把 $ACADVER 单独改成 AC1021 后，libdxfrw 判为结构非法，
+        ///    整份文件读不回来（open=0），所以「直接升版本」不可行；
+        /// 2. R12 下的字符串按 $DWGCODEPAGE 解释。写 ANSI_936 + GBK 字节后，
+        ///    本工程导入器（libdxfrw）能把图层名逐字读回成 UTF-8，这也是中文 R12 DXF 的通行做法。
+        ///
+        /// 编码器按线程持有：导出可能发生在后台线程；每次 write() 开头调用 reset()。
+        class DxfTextEncoder
+        {
+        public:
+            DxfTextEncoder()
+            {
+                m_codec.setVersion(DRW::AC1009, true);
+                m_codec.setCodePage("ANSI_936", true);
+            }
+
+            void reset()
+            {
+                m_sawNonAscii = false;
+                m_lossy = false;
+            }
+
+            std::string encode(const std::string& utf8)
+            {
+                if (isAsciiText(utf8))
+                {
+                    return utf8;
+                }
+                m_sawNonAscii = true;
+                const std::string encoded = m_codec.fromUtf8(utf8);
+                // 反查一次：GBK 无法表示的字符会被替换，必须能让调用方知道
+                if (m_codec.toUtf8(encoded) != utf8)
+                {
+                    m_lossy = true;
+                }
+                return encoded;
+            }
+
+            bool sawNonAscii() const
+            {
+                return m_sawNonAscii;
+            }
+
+            bool lossy() const
+            {
+                return m_lossy;
+            }
+
+        private:
+            DRW_TextCodec m_codec;
+            bool m_sawNonAscii{ false };
+            bool m_lossy{ false };
+        };
+
+        DxfTextEncoder& dxfEncoder()
+        {
+            thread_local DxfTextEncoder encoder;
+            return encoder;
+        }
+
+        /// 任意 UTF-8 字符串 → 当前导出编码（ASCII 原样返回）
+        std::string encodeDxfText(const std::string& utf8)
+        {
+            return dxfEncoder().encode(utf8);
+        }
+
         /// 图元所属图层名；无图层或空名时落到 DXF 约定的默认图层 "0"
-        const char* layerNameOf(const Eg::AprEntity* entity)
+        std::string layerNameOf(const Eg::AprEntity* entity)
         {
             const Eg::AprLayer* layer = entity != nullptr ? entity->layer() : nullptr;
             const char* name = layer != nullptr ? layer->getName() : nullptr;
-            return (name != nullptr && name[0] != '\0') ? name : "0";
+            return encodeDxfText((name != nullptr && name[0] != '\0') ? name : "0");
         }
 
         /// RGB → 最接近的 ACI 索引（1-255）。
@@ -112,14 +198,16 @@ namespace Fio
             }
         }
 
-        /// 写出 TABLES 段里的 LAYER 表，覆盖被图元引用到的所有图层。
-        ///
-        /// 只导出「有图元在用」的图层：写出器只拿得到图元列表、拿不到 LayerManager，
-        /// 所以空图层不会出现在导出结果里（往返时这一点是有损的，已在图层文档中记录）。
-        void writeLayerTable(std::ostream& out, const VecAprEntityPtr& entities)
+        /// 图层表记录：颜色 + 可见性（写出时都要落到 LAYER 表）
+        struct LayerRecord
         {
-            // 用 map 而不是 unordered_map：输出顺序稳定，同一份文档导出字节可复现
-            std::map<std::string, Ut::Color> layers;
+            Ut::Color color{ Ut::Color::Black() };
+            bool visible{ true };
+        };
+
+        /// 导出内容里是否含非 ASCII 字符串（决定是否写 $DWGCODEPAGE）
+        bool entitiesNeedCodepage(const VecAprEntityPtr& entities)
+        {
             for (const auto& entity : entities)
             {
                 if (!entity)
@@ -127,7 +215,42 @@ namespace Fio
                     continue;
                 }
                 const Eg::AprLayer* layer = entity->layer();
-                layers.emplace(layerNameOf(entity.get()), layer != nullptr ? layer->getColor() : Ut::Color::Black());
+                const char* name = layer != nullptr ? layer->getName() : nullptr;
+                if (name != nullptr && !isAsciiText(name))
+                {
+                    return true;
+                }
+                if (entity->eType == Eg::EType::TEXT)
+                {
+                    const auto* text = static_cast<const Eg::AprText*>(entity.get());
+                    if (!isAsciiText(text->textStr()))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// 写出 TABLES 段里的 LAYER 表，覆盖被图元引用到的所有图层。
+        ///
+        /// 只导出「有图元在用」的图层：写出器只拿得到图元列表、拿不到 LayerManager，
+        /// 所以空图层不会出现在导出结果里（往返时这一点是有损的，已在图层文档中记录）。
+        void writeLayerTable(std::ostream& out, const VecAprEntityPtr& entities)
+        {
+            // 用 map 而不是 unordered_map：输出顺序稳定，同一份文档导出字节可复现
+            std::map<std::string, LayerRecord> layers;
+            for (const auto& entity : entities)
+            {
+                if (!entity)
+                {
+                    continue;
+                }
+                const Eg::AprLayer* layer = entity->layer();
+                LayerRecord record;
+                record.color = layer != nullptr ? layer->getColor() : Ut::Color::Black();
+                record.visible = layer != nullptr ? layer->isVisible() : true;
+                layers.emplace(layerNameOf(entity.get()), record);
             }
 
             writePair(out, 0, "SECTION");
@@ -136,17 +259,19 @@ namespace Fio
             writePair(out, 2, "LAYER");
             writePair(out, 70, static_cast<int>(layers.size()));
 
-            for (const auto& [name, color] : layers)
+            for (const auto& [name, record] : layers)
             {
                 writePair(out, 0, "LAYER");
                 writePair(out, 2, name);
-                writePair(out, 70, 0);
+                // 70 组码：bit0 = 冻结（不可见），bit2 = 锁定。这里只映射可见性；
+                // 「关层」的另一套语义（62 组码取负）不混用，否则读方会得到负 ACI 颜色。
+                writePair(out, 70, record.visible ? 0 : 1);
                 writePair(out,
                     62,
-                    nearestAci(static_cast<uint8_t>(channel255(color.r())),
-                        static_cast<uint8_t>(channel255(color.g())),
-                        static_cast<uint8_t>(channel255(color.b()))));
-                writeTrueColor(out, color);
+                    nearestAci(static_cast<uint8_t>(channel255(record.color.r())),
+                        static_cast<uint8_t>(channel255(record.color.g())),
+                        static_cast<uint8_t>(channel255(record.color.b()))));
+                writeTrueColor(out, record.color);
                 writePair(out, 6, "CONTINUOUS");
             }
 
@@ -190,10 +315,21 @@ namespace Fio
         out.imbue(std::locale::classic());
         out << std::setprecision(15);
 
+        // 本次导出的字符串编码状态按 write 调用重置（编码器按线程持有）
+        dxfEncoder().reset();
+        const bool needsCodepage = entitiesNeedCodepage(entities);
+
         writePair(out, 0, "SECTION");
         writePair(out, 2, "HEADER");
         writePair(out, 9, "$ACADVER");
         writePair(out, 1, "AC1009");
+        if (needsCodepage)
+        {
+            // 非 ASCII 字符串按 ANSI_936（GBK）写出，必须显式声明代码页；
+            // 只含 ASCII 时不写，保持与历史导出的字节兼容。
+            writePair(out, 9, "$DWGCODEPAGE");
+            writePair(out, 3, "ANSI_936");
+        }
         writePair(out, 0, "ENDSEC");
 
         // TABLES 段必须在 ENTITIES 之前：DXF 规范要求图层表先于引用它的图元
@@ -425,6 +561,34 @@ namespace Fio
                 ++exported;
                 break;
             }
+            case Eg::EType::TEXT:
+            {
+                // 单行 TEXT：多行内容里的换行会破坏 DXF 的「组码/值」行结构，先压平成空格。
+                const auto* text = static_cast<const Eg::AprText*>(entity.get());
+                std::string content = text->textStr();
+                for (char& ch : content)
+                {
+                    if (ch == '\r' || ch == '\n')
+                    {
+                        ch = ' ';
+                    }
+                }
+                if (content.empty() || !std::isfinite(text->dHeight) || text->dHeight <= 0.0)
+                {
+                    // 空文本/非法高度写出去就是无效 TEXT，与其它不可写图元一样跳过
+                    break;
+                }
+                writeEntityHeader(out, "TEXT", entity.get());
+                writePair(out, 10, text->basePoint.x());
+                writePair(out, 20, text->basePoint.y());
+                writePair(out, 30, 0.0);
+                writePair(out, 40, text->dHeight);
+                writePair(out, 1, encodeDxfText(content));
+                writePair(out, 50, text->dRotation * 180.0 / M_PI);
+                writePair(out, 7, "Standard");
+                ++exported;
+                break;
+            }
             default:
                 break;
             }
@@ -432,6 +596,13 @@ namespace Fio
 
         writePair(out, 0, "ENDSEC");
         writePair(out, 0, "EOF");
+
+        if (dxfEncoder().lossy())
+        {
+            APR_WARNF("[DxfFileWriter] Some non-ASCII characters cannot be represented in ANSI_936 (GBK) "
+                      "and were replaced while writing '%s'",
+                filePath);
+        }
 
         if (exported == 0)
         {

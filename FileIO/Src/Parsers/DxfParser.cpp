@@ -83,6 +83,98 @@ namespace Fio
         return oss.str();
     }
 
+    // 把 libdxfrw 的结构化失败诊断拼成可读后缀。
+    //
+    // 旧实现只报 "Failed to read DXF file"，调用方（FileImporter.Open）拿到后无法区分：
+    //   - 文档结构与声明的 $ACADVER 不匹配（例如把 R12 形状的内容谎报成 AC1021）；
+    //   - 编码/代码页不支持导致记录错位；
+    //   - 真正的语法损坏。
+    // libdxfrw 的 getLastDiagnostic() 已经给出 cause/code/message，直接透出，
+    // 让错误信息能指向「版本/编码不支持」而不是笼统的读取失败。
+    static std::string describeReadFailure(const DRW_OperationDiagnostic& diag)
+    {
+        if (diag.code.empty() && diag.cause == DRW::OperationCause::None)
+        {
+            return {};
+        }
+
+        std::ostringstream oss;
+        oss << " [cause=" << (diag.code.empty() ? "unknown" : diag.code);
+        if (!diag.message.empty())
+        {
+            oss << ": " << diag.message;
+        }
+        if (diag.cause == DRW::OperationCause::UnsupportedVersion)
+        {
+            oss << "; hint: DXF version or code page not supported";
+        }
+        oss << "]";
+        return oss.str();
+    }
+
+    // 读取 HEADER 段里某个 DXF 变量（$ACADVER / $DWGCODEPAGE）的声明值。
+    // 变量在文件里的布局固定为「9 / $VAR / 组码 / 值」四行，这里只做文本定位：
+    // 失败路径上不能依赖 reader 已成功初始化，也不能再走一遍完整解析。
+    static std::string headerVarValue(const std::string& content, const char* var)
+    {
+        const size_t pos = content.find(var);
+        if (pos == std::string::npos)
+        {
+            return {};
+        }
+
+        const size_t varLineEnd = content.find('\n', pos);
+        if (varLineEnd == std::string::npos)
+        {
+            return {};
+        }
+
+        // 跳过变量名后的组码行
+        const size_t codeLineEnd = content.find('\n', varLineEnd + 1);
+        if (codeLineEnd == std::string::npos)
+        {
+            return {};
+        }
+
+        const size_t valueBegin = codeLineEnd + 1;
+        size_t valueEnd = content.find('\n', valueBegin);
+        if (valueEnd == std::string::npos)
+        {
+            valueEnd = content.size();
+        }
+
+        std::string value = content.substr(valueBegin, valueEnd - valueBegin);
+        while (!value.empty() && (value.back() == '\r' || value.back() == ' ' || value.back() == '\t'))
+        {
+            value.pop_back();
+        }
+        const size_t first = value.find_first_not_of(" \t");
+        if (first == std::string::npos)
+        {
+            return {};
+        }
+        return value.substr(first);
+    }
+
+    // 失败信息里附上文件声明的版本与代码页。
+    // 最常见的两类失败都能由这两行定位：
+    //   - 声明 AC1021 但文档仍是 R12 形状（无 CLASSES/句柄/子类标记）；
+    //   - 含非 ASCII 字节却没有 $DWGCODEPAGE（不知道按哪种编码解释）。
+    static std::string describeDeclaredEncoding(const std::string& content)
+    {
+        const std::string version = headerVarValue(content, "$ACADVER");
+        const std::string codepage = headerVarValue(content, "$DWGCODEPAGE");
+        if (version.empty() && codepage.empty())
+        {
+            return {};
+        }
+
+        std::ostringstream oss;
+        oss << " [declared ACADVER=" << (version.empty() ? "(none)" : version)
+            << ", DWGCODEPAGE=" << (codepage.empty() ? "(none)" : codepage) << "]";
+        return oss.str();
+    }
+
     // 将 0-255 RGB 打包为 0xAARRGGBB（与 Ut::Color / EntityInfo.color 约定一致）
     static uint32_t packRgb255(uint8_t r, uint8_t g, uint8_t b)
     {
@@ -1787,19 +1879,109 @@ namespace Fio
 
     // libdxfrw 的 ASCII 读取器用 std::getline 按行切分，无法识别多字节编码（如 GBK/ANSI_936）
     // 中第二字节恰好为 0x0A 的字符，会把这个字节误判为换行，导致整份文件记录错位、解析失败。
-    // 在交给 libdxfrw 前，把这类"嵌入字符串内部的 0x0A"替换为空格，从而避免错位，无需修改第三方库。
-    // 仅当 0x0A 的前一个字节 >= 0x80（即它是多字节字符的延续字节）时才处理，因此不会破坏
-    // CRLF 换行，也不会破坏 Unix 风格 LF-only 换行的文件。
+    //
+    // 旧做法是「0x0A 的前一个字节 >= 0x80 就替换成空格」，但它分不清两种 0x0A：
+    //   a) 多字节字符内部的 0x0A（需要替换）；
+    //   b) 以多字节字符结尾的行的真实换行（必须保留）。
+    // 中文图层名/中文文本几乎必然命中 b，结果整份文件被改坏、导入直接失败。
+    //
+    // 现在改为按 DXF 的「组码行 + 值行」结构判断：组码行必须是 0..1071 的十进制整数。
+    // 在期待组码的位置读到非组码行，才说明上一行字符串里的 0x0A 是被误切的，
+    // 此时才把那个换行替换为空格并把后续片段并回同一个值。合法文件不会被改动。
+    static bool parseGroupCodeLine(const char* begin, const char* end, long long& code)
+    {
+        while (begin < end && (*begin == ' ' || *begin == '\t' || *begin == '\r'))
+        {
+            ++begin;
+        }
+        while (end > begin && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r'))
+        {
+            --end;
+        }
+        if (begin == end || (end - begin) > 4)
+        {
+            return false;
+        }
+        long long value = 0;
+        for (const char* p = begin; p < end; ++p)
+        {
+            if (*p < '0' || *p > '9')
+            {
+                return false;
+            }
+            value = value * 10 + (*p - '0');
+        }
+        if (value > 1071)
+        {
+            return false;
+        }
+        code = value;
+        return true;
+    }
+
     static void sanitizeDxfBytes(std::string& content)
     {
-        const unsigned char* bytes = reinterpret_cast<const unsigned char*>(content.data());
-        const size_t n = content.size();
-        for (size_t i = 1; i < n; ++i)
+        // 收集每行（不含换行符）的区间；end 指向该行末尾的 '\n'（最后一行可能没有）
+        struct LineSpan
         {
-            if (bytes[i] == 0x0A && bytes[i - 1] >= 0x80)
+            size_t start;
+            size_t end;
+        };
+        std::vector<LineSpan> lines;
+        lines.reserve(content.size() / 8 + 1);
+        size_t lineStart = 0;
+        for (size_t i = 0; i < content.size(); ++i)
+        {
+            if (content[i] == '\n')
             {
-                content[i] = ' ';
+                lines.push_back({ lineStart, i });
+                lineStart = i + 1;
             }
+        }
+        if (lineStart < content.size())
+        {
+            lines.push_back({ lineStart, content.size() });
+        }
+
+        bool expectCode = true;
+        size_t previousValueLine = static_cast<size_t>(-1);
+        std::vector<size_t> brokenNewlines;
+        for (size_t i = 0; i < lines.size(); ++i)
+        {
+            long long code = 0;
+            const bool isCode = parseGroupCodeLine(
+                content.data() + lines[i].start, content.data() + lines[i].end, code);
+            if (expectCode)
+            {
+                if (isCode)
+                {
+                    expectCode = false;
+                    continue;
+                }
+                // 期待组码却读到非组码：上一行值内部的 0x0A 被误当成换行，记录待修复位置
+                if (previousValueLine != static_cast<size_t>(-1))
+                {
+                    brokenNewlines.push_back(lines[previousValueLine].end);
+                }
+                previousValueLine = i;  // 后续片段继续并回同一个值
+                continue;
+            }
+            expectCode = true;
+            previousValueLine = i;
+        }
+
+        for (size_t pos : brokenNewlines)
+        {
+            if (pos >= content.size())
+            {
+                continue;
+            }
+            // CRLF 时把 '\r' 一并吃掉，避免把 '\r' 留在字符串中间
+            if (pos > 0 && content[pos - 1] == '\r')
+            {
+                content[pos - 1] = ' ';
+            }
+            content[pos] = ' ';
         }
     }
 
@@ -2113,7 +2295,9 @@ namespace Fio
 
             if (!readResult)
             {
-                APR_ERRORF("[DxfParser] parseToIR: libdxfrw read failed: %s", filePath);
+                const std::string detail =
+                    describeReadFailure(reader.getLastDiagnostic()) + describeDeclaredEncoding(content);
+                APR_ERRORF("[DxfParser] parseToIR: libdxfrw read failed: %s%s", filePath, detail.c_str());
                 return FioParseResult{};
             }
 
@@ -2197,8 +2381,10 @@ namespace Fio
 
             if (!readResult)
             {
-                APR_ERRORF("[DxfParser] libdxfrw read failed: %s", filePath);
-                return ParseResult::fail(std::string("Failed to read DXF file: ") + filePath);
+                const std::string detail =
+                    describeReadFailure(reader.getLastDiagnostic()) + describeDeclaredEncoding(content);
+                APR_ERRORF("[DxfParser] libdxfrw read failed: %s%s", filePath, detail.c_str());
+                return ParseResult::fail(std::string("Failed to read DXF file: ") + filePath + detail);
             }
 
             size_t entityCount = outEntities.size();
