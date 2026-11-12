@@ -1,4 +1,5 @@
 #include "FileIO/AprSerializer.h"
+#include "FileIO/ProcessModelSnapshot.h"
 #include "AprEntitySerializer.h"
 #include "AprDocumentData.h"
 #include "ColorArgbUtils.h"
@@ -22,6 +23,378 @@
 
 namespace Fio
 {
+    // ---- 作业级工艺模型编解码（内部实现，不跨 DLL） ----
+    namespace ProcessModelCodec
+    {
+        using namespace ::apr::proto;
+
+        inline void writeParams(const Eg::ProcessParams& p, ProcessParamsData* out)
+        {
+            out->set_enabled(p.enabled);
+            out->set_power_percent(p.powerPercent);
+            out->set_frequency_hz(p.frequencyHz);
+            out->set_pulse_width_us(p.pulseWidthUs);
+            out->set_waveform_index(p.waveformIndex);
+            out->set_speed_mm_per_sec(p.speedMmPerSec);
+            out->set_rapid_speed_mm_per_sec(p.rapidSpeedMmPerSec);
+            out->set_passes(p.passes);
+            out->set_fill_enabled(p.fillEnabled);
+            out->set_fill_interval_mm(p.fillIntervalMm);
+            out->set_fill_angle_deg(p.fillAngleDeg);
+            out->set_fill_mode(static_cast<int32_t>(p.fillMode));
+            out->set_kerf_mm(p.kerfMm);
+            out->set_focus_offset_mm(p.focusOffsetMm);
+            out->set_lead_in_enabled(p.leadInEnabled);
+            out->set_lead_in_length_mm(p.leadInLengthMm);
+            out->set_lead_in_mode(p.leadInMode);
+            out->set_lead_in_angle_deg(p.leadInAngleDeg);
+            out->set_contour_ordering(p.contourOrdering);
+        }
+
+        inline Eg::ProcessParams readParams(const ProcessParamsData& in)
+        {
+            Eg::ProcessParams p;
+            p.enabled = in.enabled();
+            p.powerPercent = in.power_percent();
+            p.frequencyHz = in.frequency_hz();
+            p.pulseWidthUs = in.pulse_width_us();
+            p.waveformIndex = in.waveform_index();
+            p.speedMmPerSec = in.speed_mm_per_sec();
+            p.rapidSpeedMmPerSec = in.rapid_speed_mm_per_sec();
+            p.passes = in.passes();
+            p.fillEnabled = in.fill_enabled();
+            p.fillIntervalMm = in.fill_interval_mm();
+            p.fillAngleDeg = in.fill_angle_deg();
+            p.fillMode = static_cast<Eg::FillMode>(in.fill_mode());
+            p.kerfMm = in.kerf_mm();
+            p.focusOffsetMm = in.focus_offset_mm();
+            p.leadInEnabled = in.lead_in_enabled();
+            p.leadInLengthMm = in.lead_in_length_mm();
+            p.leadInMode = in.lead_in_mode();
+            p.leadInAngleDeg = in.lead_in_angle_deg();
+            p.contourOrdering = in.contour_ordering();
+            return p;
+        }
+
+        /// 只写显式存在的子块：缺失的子块必须保持「无」，不能被零值/默认值冒充。
+        inline void writeDetail(const Eg::ProcessDetail& d, ProcessDetailData* out)
+        {
+            if (d.hasKerf)
+            {
+                auto* kerf = out->mutable_kerf();
+                kerf->set_enabled(d.kerf.enabled);
+                kerf->set_kerf_mm(d.kerf.kerfMm);
+                kerf->set_arc_tolerance_mm(d.kerf.arcToleranceMm);
+            }
+
+            if (d.hasLeadInOut)
+            {
+                auto* lead = out->mutable_lead_in_out();
+                lead->set_enabled(d.leadInOut.enabled);
+                lead->set_lead_in_length_mm(d.leadInOut.leadInLengthMm);
+                lead->set_lead_out_length_mm(d.leadInOut.leadOutLengthMm);
+                lead->set_ramp_angle_deg(d.leadInOut.rampAngleDeg);
+                lead->set_lead_in_mode(static_cast<int32_t>(d.leadInOut.leadInMode));
+                lead->set_lead_in_angle_deg(d.leadInOut.leadInAngleDeg);
+                lead->set_lead_in_arc_radius_mm(d.leadInOut.leadInArcRadiusMm);
+                lead->set_lead_in_arc_angle_deg(d.leadInOut.leadInArcAngleDeg);
+                lead->set_lead_out_mode(static_cast<int32_t>(d.leadInOut.leadOutMode));
+                lead->set_lead_out_angle_deg(d.leadInOut.leadOutAngleDeg);
+                lead->set_check_scrap_side(d.leadInOut.checkScrapSide);
+            }
+
+            if (d.hasPierce)
+            {
+                auto* pierce = out->mutable_pierce();
+                pierce->set_enabled(d.pierce.enabled);
+                pierce->set_pierce_delay_us(d.pierce.pierceDelayUs);
+                pierce->set_pierce_power_percent(d.pierce.piercePowerPercent);
+                pierce->set_pierce_speed_mm_per_sec(d.pierce.pierceSpeedMmPerSec);
+                pierce->set_pierce_count(d.pierce.pierceCount);
+                pierce->set_dwell_us(d.pierce.dwellUs);
+                pierce->set_pierce_offset_mm(d.pierce.pierceOffsetMm);
+                pierce->set_pre_pierced(d.pierce.prePierced);
+            }
+
+            if (d.hasCorner)
+            {
+                auto* corner = out->mutable_corner();
+                corner->set_strategy(d.corner.strategy);
+                corner->set_radius_mm(d.corner.radiusMm);
+                corner->set_overcut_mm(d.corner.overcutMm);
+                corner->set_slowdown_factor(d.corner.slowdownFactor);
+            }
+
+            if (d.hasPowerCurve)
+            {
+                auto* curve = out->mutable_power_curve();
+                curve->set_enabled(d.powerCurve.enabled);
+                for (const Eg::PowerCurvePointSpec& point : d.powerCurve.points)
+                {
+                    auto* pp = curve->add_points();
+                    pp->set_speed_mm_per_sec(point.speedMmPerSec);
+                    pp->set_power_percent(point.powerPercent);
+                }
+                curve->set_start_transition_mm(d.powerCurve.startTransitionMm);
+                curve->set_end_transition_mm(d.powerCurve.endTransitionMm);
+                curve->set_transition_min_power_percent(d.powerCurve.transitionMinPowerPercent);
+            }
+
+            if (d.hasPassStrategy)
+            {
+                auto* pass = out->mutable_pass_strategy();
+                pass->set_adaptive_thickness(d.passStrategy.adaptiveThickness);
+                pass->set_total_depth_layers(d.passStrategy.totalDepthLayers);
+                pass->set_total_depth_mm(d.passStrategy.totalDepthMm);
+            }
+
+            if (d.hasCommonEdge)
+            {
+                auto* common = out->mutable_common_edge();
+                common->set_enabled(d.commonEdge.enabled);
+                common->set_tolerance_mm(d.commonEdge.toleranceMm);
+            }
+        }
+
+        inline void readDetail(const ProcessDetailData& in, Eg::ProcessDetail& d)
+        {
+            if (in.has_kerf())
+            {
+                const auto& kerf = in.kerf();
+                d.hasKerf = true;
+                d.kerf.enabled = kerf.enabled();
+                d.kerf.kerfMm = kerf.kerf_mm();
+                d.kerf.arcToleranceMm = kerf.arc_tolerance_mm();
+            }
+
+            if (in.has_lead_in_out())
+            {
+                const auto& lead = in.lead_in_out();
+                d.hasLeadInOut = true;
+                d.leadInOut.enabled = lead.enabled();
+                d.leadInOut.leadInLengthMm = lead.lead_in_length_mm();
+                d.leadInOut.leadOutLengthMm = lead.lead_out_length_mm();
+                d.leadInOut.rampAngleDeg = lead.ramp_angle_deg();
+                d.leadInOut.leadInMode = static_cast<Eg::LeadInMode>(lead.lead_in_mode());
+                d.leadInOut.leadInAngleDeg = lead.lead_in_angle_deg();
+                d.leadInOut.leadInArcRadiusMm = lead.lead_in_arc_radius_mm();
+                d.leadInOut.leadInArcAngleDeg = lead.lead_in_arc_angle_deg();
+                d.leadInOut.leadOutMode = static_cast<Eg::LeadInMode>(lead.lead_out_mode());
+                d.leadInOut.leadOutAngleDeg = lead.lead_out_angle_deg();
+                // 旧写端若没有该字段，proto3 默认 false；v1 起写端总是显式写入。
+                d.leadInOut.checkScrapSide = lead.check_scrap_side();
+            }
+
+            if (in.has_pierce())
+            {
+                const auto& pierce = in.pierce();
+                d.hasPierce = true;
+                d.pierce.enabled = pierce.enabled();
+                d.pierce.pierceDelayUs = pierce.pierce_delay_us();
+                d.pierce.piercePowerPercent = pierce.pierce_power_percent();
+                d.pierce.pierceSpeedMmPerSec = pierce.pierce_speed_mm_per_sec();
+                d.pierce.pierceCount = pierce.pierce_count();
+                d.pierce.dwellUs = pierce.dwell_us();
+                d.pierce.pierceOffsetMm = pierce.pierce_offset_mm();
+                d.pierce.prePierced = pierce.pre_pierced();
+            }
+
+            if (in.has_corner())
+            {
+                const auto& corner = in.corner();
+                d.hasCorner = true;
+                d.corner.strategy = corner.strategy();
+                d.corner.radiusMm = corner.radius_mm();
+                d.corner.overcutMm = corner.overcut_mm();
+                d.corner.slowdownFactor = corner.slowdown_factor();
+            }
+
+            if (in.has_power_curve())
+            {
+                const auto& curve = in.power_curve();
+                d.hasPowerCurve = true;
+                d.powerCurve.enabled = curve.enabled();
+                d.powerCurve.points.clear();
+                for (int i = 0; i < curve.points_size(); ++i)
+                {
+                    Eg::PowerCurvePointSpec point;
+                    point.speedMmPerSec = curve.points(i).speed_mm_per_sec();
+                    point.powerPercent = curve.points(i).power_percent();
+                    d.powerCurve.points.push_back(point);
+                }
+                d.powerCurve.startTransitionMm = curve.start_transition_mm();
+                d.powerCurve.endTransitionMm = curve.end_transition_mm();
+                d.powerCurve.transitionMinPowerPercent = curve.transition_min_power_percent();
+            }
+
+            if (in.has_pass_strategy())
+            {
+                const auto& pass = in.pass_strategy();
+                d.hasPassStrategy = true;
+                d.passStrategy.adaptiveThickness = pass.adaptive_thickness();
+                d.passStrategy.totalDepthLayers = pass.total_depth_layers();
+                d.passStrategy.totalDepthMm = pass.total_depth_mm();
+            }
+
+            if (in.has_common_edge())
+            {
+                const auto& common = in.common_edge();
+                d.hasCommonEdge = true;
+                d.commonEdge.enabled = common.enabled();
+                d.commonEdge.toleranceMm = common.tolerance_mm();
+            }
+        }
+
+        inline void writeModel(const Eg::ProcessModel& model, ProcessModelData* out)
+        {
+            out->set_version(model.version);
+            writeParams(model.defaults, out->mutable_defaults());
+            writeDetail(model.defaultDetail, out->mutable_default_detail());
+
+            auto* global = out->mutable_global();
+            global->set_rapid_speed_mm_per_sec(model.global.rapidSpeedMmPerSec);
+            global->set_chord_tolerance_mm(model.global.chordToleranceMm);
+            global->set_emit_arcs(model.global.emitArcs);
+            global->set_skip_hidden_layers(model.global.skipHiddenLayers);
+            global->set_skip_locked_layers(model.global.skipLockedLayers);
+            global->set_emit_trailing_laser_off(model.global.emitTrailingLaserOff);
+            global->set_fail_on_unmachinable(model.global.failOnUnmachinable);
+
+            for (const Eg::LayerProcessEntry& layer : model.layers)
+            {
+                auto* outLayer = out->add_layers();
+                outLayer->set_layer_id(layer.layerId);
+                outLayer->set_output_enabled(layer.outputEnabled);
+                writeParams(layer.params, outLayer->mutable_params());
+                writeDetail(layer.detail, outLayer->mutable_detail());
+            }
+        }
+
+        inline void readModel(const ProcessModelData& in, Eg::ProcessModel& model)
+        {
+            model.version = in.version();
+            if (in.has_defaults())
+            {
+                model.defaults = readParams(in.defaults());
+            }
+            if (in.has_default_detail())
+            {
+                readDetail(in.default_detail(), model.defaultDetail);
+            }
+            if (in.has_global())
+            {
+                const auto& global = in.global();
+                model.global.rapidSpeedMmPerSec = global.rapid_speed_mm_per_sec();
+                model.global.chordToleranceMm = global.chord_tolerance_mm();
+                model.global.emitArcs = global.emit_arcs();
+                model.global.skipHiddenLayers = global.skip_hidden_layers();
+                model.global.skipLockedLayers = global.skip_locked_layers();
+                model.global.emitTrailingLaserOff = global.emit_trailing_laser_off();
+                model.global.failOnUnmachinable = global.fail_on_unmachinable();
+            }
+
+            model.layers.clear();
+            for (int i = 0; i < in.layers_size(); ++i)
+            {
+                const auto& inLayer = in.layers(i);
+                Eg::LayerProcessEntry layer;
+                layer.layerId = inLayer.layer_id();
+                layer.outputEnabled = inLayer.output_enabled();
+                if (inLayer.has_params())
+                {
+                    layer.params = readParams(inLayer.params());
+                }
+                if (inLayer.has_detail())
+                {
+                    readDetail(inLayer.detail(), layer.detail);
+                }
+                model.layers.push_back(std::move(layer));
+            }
+        }
+
+        inline Eg::ProcessParams paramsFromLegacy(const ProcessInfo& p)
+        {
+            Eg::ProcessParams params;
+            params.enabled = p.paramsEnabled;
+            params.powerPercent = p.powerPercent;
+            params.speedMmPerSec = p.speedMmPerSec;
+            params.frequencyHz = p.frequencyHz;
+            params.pulseWidthUs = p.pulseWidthUs;
+            params.waveformIndex = p.waveformIndex;
+            params.passes = p.passes;
+            params.fillEnabled = p.fillEnabled;
+            params.fillIntervalMm = p.fillIntervalMm;
+            params.fillAngleDeg = p.fillAngleDeg;
+            params.fillMode = static_cast<Eg::FillMode>(p.fillMode);
+            params.kerfMm = p.kerfMm;
+            params.rapidSpeedMmPerSec = p.rapidSpeedMmPerSec;
+            params.focusOffsetMm = p.focusOffsetMm;
+            params.leadInEnabled = p.leadInEnabled;
+            params.leadInLengthMm = p.leadInLengthMm;
+            params.leadInMode = p.leadInMode;
+            params.leadInAngleDeg = p.leadInAngleDeg;
+            params.contourOrdering = p.contourOrdering;
+            return params;
+        }
+
+        inline const ProcessInfo* findProcess(const AprDocumentData& doc, uint32_t id)
+        {
+            if (id == 0)
+            {
+                return nullptr;
+            }
+            for (const ProcessInfo& p : doc.processes)
+            {
+                if (p.id == id)
+                {
+                    return &p;
+                }
+            }
+            return nullptr;
+        }
+
+        /// 旧档案没有 ProcessModelData：从 processes + layers 迁移。
+        ///
+        /// 迁移只搬运「旧档案里确实存在的字段」，不写任何细节子块：
+        /// 割缝/引入由 resolveLayerDetail 从基础参数派生，穿孔/功率曲线/
+        /// 拐角/共边/遍次保持「无」，由上层按需继承。
+        /// 这样迁移前后走的是同一组参数值，刀路才能逐字节一致。
+        inline void migrateLegacy(const AprDocumentData& doc, Eg::ProcessModel& model)
+        {
+            model.version = Eg::kProcessModelVersion;
+
+            const ProcessInfo* defaultProcess = findProcess(doc, doc.defaultProcessId);
+            if (!defaultProcess && !doc.processes.empty())
+            {
+                defaultProcess = &doc.processes.front();
+            }
+            if (defaultProcess)
+            {
+                model.defaults = paramsFromLegacy(*defaultProcess);
+            }
+
+            for (const LayerInfo& layerInfo : doc.layers)
+            {
+                Eg::LayerProcessEntry layer;
+                layer.layerId = static_cast<int32_t>(layerInfo.id);
+                layer.outputEnabled = layerInfo.output;
+
+                const ProcessInfo* process = findProcess(doc, layerInfo.defaultProcessId);
+                if (!process)
+                {
+                    process = defaultProcess;
+                }
+                if (process)
+                {
+                    layer.params = paramsFromLegacy(*process);
+                    layer.outputEnabled = layerInfo.output && process->output;
+                }
+
+                model.layers.push_back(std::move(layer));
+            }
+        }
+    }  // namespace ProcessModelCodec
+
     // 显式前向声明，确保 IAprCryptoProvider 在此作用域内可见
     class IAprCryptoProvider;
 
@@ -175,6 +548,7 @@ namespace Fio
                 params->set_lead_in_mode(p.leadInMode);
                 params->set_lead_in_angle_deg(p.leadInAngleDeg);
                 params->set_focus_offset_mm(p.focusOffsetMm);
+                params->set_contour_ordering(p.contourOrdering);
 
                 for (uint32_t layerId : p.targetLayerIds)
                 {
@@ -215,6 +589,15 @@ namespace Fio
                 p->set_lead_in_length_mm(hp.leadInLengthMm);
                 p->set_lead_in_mode(hp.leadInMode);
                 p->set_lead_in_angle_deg(hp.leadInAngleDeg);
+                p->set_contour_ordering(hp.contourOrdering);
+            }
+
+            // === v4：作业级工艺模型 ===
+            // 只有调用方显式提供模型时才写；旧代码路径保持为空，
+            // 写出的文件与旧版逐字节一致（新增字段不出现）。
+            if (docData.processModel)
+            {
+                ProcessModelCodec::writeModel(*docData.processModel, protoDoc.mutable_process_model());
             }
 
             // 预先 Reserve，避免 add_entities() 反复扩容搬移整个 repeated message 数组。
@@ -408,6 +791,8 @@ namespace Fio
                     p.leadInAngleDeg = pp.lead_in_angle_deg();
                     // 旧文件没有该字段 → proto3 默认 0.0，即"不补偿"
                     p.focusOffsetMm = pp.focus_offset_mm();
+                    // 旧文件没有该字段 → proto3 默认 0，即"文档顺序"
+                    p.contourOrdering = pp.contour_ordering();
                 }
 
                 for (int j = 0; j < pd.target_layer_ids_size(); ++j)
@@ -449,7 +834,32 @@ namespace Fio
                 info.leadInLengthMm = hp.lead_in_length_mm();
                 info.leadInMode = hp.lead_in_mode();
                 info.leadInAngleDeg = hp.lead_in_angle_deg();
+                // 旧文件没有该字段 → proto3 默认 0，即"文档顺序"
+                info.contourOrdering = hp.contour_ordering();
                 docData.hardwareProfiles.push_back(std::move(info));
+            }
+
+            // === v4：作业级工艺模型 ===
+            if (protoDoc.has_process_model())
+            {
+                auto model = std::make_unique<Eg::ProcessModel>();
+                ProcessModelCodec::readModel(protoDoc.process_model(), *model);
+                if (model->version > Eg::kProcessModelVersion)
+                {
+                    // 不降级、不猜测：保留版本号交给消费端拒绝，同时留警告。
+                    docData.warnings.push_back(
+                        "process model version " + std::to_string(model->version) +
+                        " is newer than supported version " + std::to_string(Eg::kProcessModelVersion));
+                }
+                docData.processModel = std::move(model);
+            }
+            else
+            {
+                // 旧档案：从 processes + layers 迁移，仅内存生效，不回写。
+                auto model = std::make_unique<Eg::ProcessModel>();
+                ProcessModelCodec::migrateLegacy(docData, *model);
+                docData.processModel = std::move(model);
+                docData.processModelMigrated = true;
             }
 
             for (int i = 0; i < protoDoc.entities_size(); ++i)
@@ -1088,5 +1498,49 @@ namespace Fio
             return false;
         }
         return std::memcmp(header, AprFileConst::MAGIC_APR3D, 4) == 0;
+    }
+
+    // ---- JobRecord 工艺快照接口 ----
+
+    namespace
+    {
+        uint64_t fnv1a64(const std::string& data)
+        {
+            uint64_t hash = 1469598103934665603ull;
+            for (unsigned char c : data)
+            {
+                hash ^= static_cast<uint64_t>(c);
+                hash *= 1099511628211ull;
+            }
+            return hash;
+        }
+    }  // namespace
+
+    ProcessModelSnapshotResult SerializeProcessModel(const Eg::ProcessModel& model)
+    {
+        ProcessModelSnapshotResult result;
+        apr::proto::ProcessModelData data;
+        ProcessModelCodec::writeModel(model, &data);
+        if (!data.SerializeToString(&result.bytes))
+        {
+            result.error = "failed to serialize process model";
+            return result;
+        }
+        result.version = model.version;
+        result.contentHash = fnv1a64(result.bytes);
+        result.ok = true;
+        return result;
+    }
+
+    bool DeserializeProcessModel(const std::string& bytes, Eg::ProcessModel& model, std::string& error)
+    {
+        apr::proto::ProcessModelData data;
+        if (!data.ParseFromString(bytes))
+        {
+            error = "failed to parse process model snapshot";
+            return false;
+        }
+        ProcessModelCodec::readModel(data, model);
+        return true;
     }
 }  // namespace Fio

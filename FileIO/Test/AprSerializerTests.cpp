@@ -779,7 +779,7 @@ TEST(AprSerializerTest, LegacyDocumentWithoutOutputFieldDefaultsToMachined)
 
     AprLayerInfo l0;
     ASSERT_TRUE(restored.getLayerAt(0, l0));
-    EXPECT_TRUE(l0.output) << "output 缺省必须是 true（保持旧文件的行为）";
+    EXPECT_TRUE(l0.output) << "output must default to true (preserving the behavior of older files)";
 }
 
 // ==================== 移动语义测试 ====================
@@ -1096,4 +1096,73 @@ TEST(AprSerializerTest, LegacyDocumentWithoutProfileValueSetStaysEmpty)
     ASSERT_TRUE(loadedDoc.getLayerDetailAt(0, loadedLayer));
     EXPECT_EQ(loadedLayer.hardwareProfileId, 0);
     EXPECT_EQ(loadedLayer.fillHardwareProfileId, -1);
+}
+
+// ==================== 轮廓加工顺序（contourOrdering）序列化 ====================
+
+TEST(AprSerializerTest, ProcessContourOrderingRoundTrip)
+{
+    // 工艺参数的 contourOrdering 以前没有 proto 字段，保存后即丢；
+    // 这里锁定「写进去 → 读回来」并且旧档案（0）保持文档顺序。
+    AprDocument doc;
+    doc.setDefaultProcessId(1);
+
+    AprProcessInfo ordered;
+    ordered.id = 1;
+    std::strncpy(ordered.name, "InnerFirst", sizeof(ordered.name) - 1);
+    ordered.params.contourOrdering = 1;
+    doc.addProcess(ordered);
+
+    AprProcessInfo legacy;
+    legacy.id = 2;
+    std::strncpy(legacy.name, "DocumentOrder", sizeof(legacy.name) - 1);
+    legacy.params.contourOrdering = 0;
+    doc.addProcess(legacy);
+
+    AprSerializer serializer;
+    std::vector<uint8_t> data;
+    ASSERT_TRUE(serializeDoc(serializer, doc, data).success);
+
+    AprDocument loadedDoc;
+    ASSERT_TRUE(deserializeDoc(serializer, data, loadedDoc).success);
+    ASSERT_EQ(loadedDoc.processCount(), 2u);
+
+    AprProcessInfo loaded;
+    ASSERT_TRUE(loadedDoc.getProcessAt(0, loaded));
+    EXPECT_EQ(loaded.params.contourOrdering, 1);
+
+    ASSERT_TRUE(loadedDoc.getProcessAt(1, loaded));
+    EXPECT_EQ(loaded.params.contourOrdering, 0);
+}
+
+TEST(AprSerializerTest, HardwareProfileContourOrderingRoundTrip)
+{
+    // HardwareProfile 的 proto 原来没有 contour_ordering，导出后重开就退回文档顺序。
+    AprDocument doc;
+
+    AprHardwareProfileInfo ordered;
+    ordered.id = 5;
+    std::strncpy(ordered.name, "InnerFirst", sizeof(ordered.name) - 1);
+    ordered.contourOrdering = 1;
+    doc.addHardwareProfile(ordered);
+
+    AprHardwareProfileInfo sourceDefault;
+    sourceDefault.id = 6;
+    std::strncpy(sourceDefault.name, "DocumentOrder", sizeof(sourceDefault.name) - 1);
+    doc.addHardwareProfile(sourceDefault);
+
+    AprSerializer serializer;
+    std::vector<uint8_t> data;
+    ASSERT_TRUE(serializeDoc(serializer, doc, data).success);
+
+    AprDocument loadedDoc;
+    ASSERT_TRUE(deserializeDoc(serializer, data, loadedDoc).success);
+    ASSERT_EQ(loadedDoc.hardwareProfileCount(), 2u);
+
+    AprHardwareProfileInfo loadedProfile;
+    ASSERT_TRUE(loadedDoc.getHardwareProfileAt(0, loadedProfile));
+    EXPECT_EQ(loadedProfile.contourOrdering, 1);
+
+    ASSERT_TRUE(loadedDoc.getHardwareProfileAt(1, loadedProfile));
+    EXPECT_EQ(loadedProfile.contourOrdering, 0);
 }

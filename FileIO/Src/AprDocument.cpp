@@ -2,6 +2,8 @@
 #include "AprDocumentData.h"
 #include "ColorArgbUtils.h"
 
+#include "FileIO/ProcessModelSnapshot.h"
+
 #include "Engine/AprEntity/AprEntity.h"
 
 #include <cstring>
@@ -373,6 +375,7 @@ namespace Fio
         out.leadInLengthMm = p.leadInLengthMm;
         out.leadInMode = p.leadInMode;
         out.leadInAngleDeg = p.leadInAngleDeg;
+        out.contourOrdering = p.contourOrdering;
         return true;
     }
 
@@ -395,6 +398,7 @@ namespace Fio
         p.leadInLengthMm = profile.leadInLengthMm;
         p.leadInMode = profile.leadInMode;
         p.leadInAngleDeg = profile.leadInAngleDeg;
+        p.contourOrdering = profile.contourOrdering;
         m_data->hardwareProfiles.push_back(std::move(p));
     }
 
@@ -446,6 +450,7 @@ namespace Fio
         params.leadInMode = p.leadInMode;
         params.leadInAngleDeg = p.leadInAngleDeg;
         params.focusOffsetMm = p.focusOffsetMm;
+        params.contourOrdering = p.contourOrdering;
         return true;
     }
 
@@ -481,6 +486,7 @@ namespace Fio
         p.leadInMode = src.leadInMode;
         p.leadInAngleDeg = src.leadInAngleDeg;
         p.focusOffsetMm = src.focusOffsetMm;
+        p.contourOrdering = src.contourOrdering;
 
         m_data->processes.push_back(std::move(p));
     }
@@ -722,5 +728,16 @@ namespace Fio
         h.maxPower = hardware.maxPower;
         h.workAreaWidth = hardware.workAreaWidth;
         h.workAreaHeight = hardware.workAreaHeight;
+    }
+
+    bool ReadProcessModelFromDocument(const AprDocument& document, Eg::ProcessModel& out)
+    {
+        const AprDocumentData& data = syDocumentData(document);
+        if (!data.processModel)
+        {
+            return false;
+        }
+        out = *data.processModel;
+        return true;
     }
 }  // namespace Fio

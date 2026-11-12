@@ -211,7 +211,9 @@ message ProcessParamsData {
     double lead_in_length_mm   = 22;
     int32  lead_in_mode        = 23;  // 0=切线, 1=法向, 2=斜线
     double lead_in_angle_deg   = 24;
-    reserved 25 to 49;             // v2 占位：新增参数直接用 25..49，不要塞进 custom_properties
+    // 轮廓顺序（0=文档顺序，1=先内后外）。旧文件默认 0，行为与旧版一致。
+    int32  contour_ordering    = 25;
+    reserved 26 to 49;             // v2 占位：新增参数直接用 26..49，不要塞进 custom_properties
 }
 
 // 工艺对象：一段"用什么参数、加工哪些目标、按什么顺序"。
@@ -261,7 +263,123 @@ message HardwareProfileData {
     double lead_in_length_mm  = 9;   // 引入线长度（mm），0 = 不引入
     int32  lead_in_mode       = 10;  // 0=切线, 1=法向, 2=斜线
     double lead_in_angle_deg  = 11;  // 斜线引入角度（度）
-    reserved 12 to 19;
+    // 轮廓顺序（0=文档顺序，1=先内后外）。旧文件默认 0。
+    int32  contour_ordering   = 12;
+    reserved 13 to 19;
+}
+
+// ---------------------------- 作业级工艺模型（v4） ----------------------------
+//
+// 与 ProcessData / HardwareProfileData 的关系：
+//   - ProcessParamsData 仍是基础参数的权威载体；
+//   - ProcessModelData 是「作业提交时」的完整快照：基础参数 + 每层细节
+//     （割缝/引入引出/穿孔/拐角/功率曲线/遍次/共边）+ 全局设置；
+//   - 旧版本软件忽略本字段；新版本软件优先读本字段，缺失时从
+//     processes + hardware_profiles + layers 迁移。
+//
+// 兼容规则：version 单调递增；读到更高版本必须拒绝，不许静默降级。
+message ProcessModelData {
+    uint32 version = 1;                     // 模型版本（当前 1）
+    ProcessParamsData defaults = 2;         // 未单独配置图层的默认基础参数
+    ProcessDetailData default_detail = 3;   // 未单独配置图层的默认细节
+    ProcessModelGlobal global = 4;          // 作业级全局设置
+    repeated ProcessModelLayer layers = 5;  // 每层工艺
+    reserved 6 to 19;
+}
+
+message ProcessModelGlobal {
+    double rapid_speed_mm_per_sec = 1;
+    double chord_tolerance_mm = 2;
+    bool emit_arcs = 3;
+    bool skip_hidden_layers = 4;
+    bool skip_locked_layers = 5;
+    bool emit_trailing_laser_off = 6;
+    bool fail_on_unmachinable = 7;
+    reserved 8 to 19;
+}
+
+message ProcessModelLayer {
+    int32 layer_id = 1;
+    bool output_enabled = 2;
+    ProcessParamsData params = 3;
+    ProcessDetailData detail = 4;
+    reserved 5 to 19;
+}
+
+message ProcessDetailData {
+    KerfSpecData kerf = 1;
+    LeadInOutSpecData lead_in_out = 2;
+    PierceSpecData pierce = 3;
+    CornerSpecData corner = 4;
+    PowerCurveSpecData power_curve = 5;
+    PassStrategySpecData pass_strategy = 6;
+    CommonEdgeSpecData common_edge = 7;
+    reserved 8 to 19;
+}
+
+message KerfSpecData {
+    bool enabled = 1;
+    // 唯一权威：单边补偿 + 符号（>0 外扩，<0 内缩，0 不补偿）。
+    // CAM 的总缝宽在桥接处经显式换算，不直接落盘。
+    double kerf_mm = 2;
+    double arc_tolerance_mm = 4;
+    reserved 3;
+}
+
+message LeadInOutSpecData {
+    bool enabled = 1;
+    double lead_in_length_mm = 2;
+    double lead_out_length_mm = 3;
+    double ramp_angle_deg = 4;
+    int32 lead_in_mode = 5;
+    double lead_in_angle_deg = 6;
+    double lead_in_arc_radius_mm = 7;
+    double lead_in_arc_angle_deg = 8;
+    int32 lead_out_mode = 9;
+    double lead_out_angle_deg = 10;
+    bool check_scrap_side = 11;
+}
+
+message PierceSpecData {
+    bool enabled = 1;
+    uint32 pierce_delay_us = 2;
+    double pierce_power_percent = 3;
+    double pierce_speed_mm_per_sec = 4;
+    int32 pierce_count = 5;
+    uint32 dwell_us = 6;
+    double pierce_offset_mm = 7;
+    bool pre_pierced = 8;
+}
+
+message CornerSpecData {
+    int32 strategy = 1;
+    double radius_mm = 2;
+    double overcut_mm = 3;
+    double slowdown_factor = 4;
+}
+
+message PowerCurveSpecData {
+    bool enabled = 1;
+    repeated PowerCurvePointData points = 2;
+    double start_transition_mm = 3;
+    double end_transition_mm = 4;
+    double transition_min_power_percent = 5;
+}
+
+message PowerCurvePointData {
+    double speed_mm_per_sec = 1;
+    double power_percent = 2;
+}
+
+message PassStrategySpecData {
+    bool adaptive_thickness = 1;
+    int32 total_depth_layers = 2;
+    double total_depth_mm = 3;
+}
+
+message CommonEdgeSpecData {
+    bool enabled = 1;
+    double tolerance_mm = 2;
 }
 
 // 工程级设置：不影响几何，但影响"这份图会被怎么送去加工"。
@@ -532,7 +650,10 @@ message AprDocument {
     repeated HardwareProfileData hardware_profiles = 8;
 
     // === 扩展预留 ===
-    // 8 已用于 hardware_profiles，预留区间从 9 起。
-    reserved 9 to 99;                 // v2 之后的常规扩展位
+    // 8 已用于 hardware_profiles，9 用于作业级工艺模型。
+    // 旧版本软件读新文件时 protobuf 忽略 process_model，行为与旧版一致。
+    ProcessModelData process_model = 9;
+
+    reserved 10 to 99;                // v2 之后的常规扩展位
     reserved 100 to 200;              // 为未来大版本扩展预留字段号
 }

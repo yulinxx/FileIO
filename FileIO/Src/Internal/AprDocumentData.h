@@ -10,6 +10,7 @@
 
 #include "FileIO/AprDocument.h"
 #include "Engine/AprEntity/AprEntity.h"
+#include "Engine/Process/ProcessModel.h"
 
 #include <cstdint>
 #include <map>
@@ -88,6 +89,7 @@ namespace Fio
         double kerfMm = 0.0;
         double rapidSpeedMmPerSec = 0.0;
         double focusOffsetMm = 0.0;
+        int32_t contourOrdering = 0;
 
         // ---- 尾部追加（M1）：引入线；默认关闭 ----
         bool leadInEnabled = false;
@@ -120,6 +122,7 @@ namespace Fio
         double leadInLengthMm = 0.0;
         int32_t leadInMode = 0;
         double leadInAngleDeg = 0.0;
+        int32_t contourOrdering = 0;
     };
 
     struct HardwareInfo
@@ -166,6 +169,13 @@ namespace Fio
 
         // === v2：工艺（加工参数的一等载体）===
         std::vector<ProcessInfo> processes;
+
+        /// 作业级工艺模型（v4）。nullptr = 旧档案没有该块，读取时由 legacy 迁移；
+        /// 迁移结果不回写，避免一次打开就改写旧文件。
+        std::unique_ptr<Eg::ProcessModel> processModel;
+
+        /// 本次读取是否由 legacy 工艺表迁移而来（仅内存标记，不序列化）
+        bool processModelMigrated = false;
 
         /// 机器档案引用（仅追溯，不参与坐标换算）
         std::string machineProfileRef;

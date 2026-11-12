@@ -80,6 +80,8 @@ namespace Fio
         double leadInLengthMm = 0.0;    // 引入线长度（mm）
         int32_t leadInMode = 0;         // 0=切线, 1=法向, 2=斜线
         double leadInAngleDeg = 0.0;    // 斜线引入角度（度）
+        // ---- 尾部追加（M2）：轮廓加工顺序；0 = 文档顺序（既有行为） ----
+        int32_t contourOrdering = 0;
     };
 
     /// 硬件信息视图（POD，固定长度缓冲区）
@@ -117,6 +119,8 @@ namespace Fio
         int32_t leadInMode = 0;          // 0=切线, 1=法向, 2=斜线
         double leadInAngleDeg = 0.0;
         double focusOffsetMm = 0.0;      // 焦距补偿（mm）
+        // ---- 尾部追加（M2）：轮廓加工顺序；0 = 文档顺序（既有行为） ----
+        int32_t contourOrdering = 0;
     };
 
     /// 工艺对象视图（POD，固定长度缓冲区，跨 DLL 安全）
