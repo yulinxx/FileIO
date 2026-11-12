@@ -125,6 +125,16 @@ apr_add_shared_library(${LIB_NAME}
 set_source_files_properties(${LIB_DXFRW_SOURCES} PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 target_sources(${LIB_NAME} PRIVATE ${LIB_DXFRW_SOURCES})
 
+# libdxfrw 不做 -Werror：它是第三方源码，告警不归属本项目（见 CMake/QualityGates.cmake）。
+# 源文件属性只能在定义目标的目录里生效，所以必须写在这里，不能放到根目录统一处理。
+if(APR_WERROR)
+    if(MSVC)
+        set_source_files_properties(${LIB_DXFRW_SOURCES} PROPERTIES COMPILE_OPTIONS "/WX-")
+    else()
+        set_source_files_properties(${LIB_DXFRW_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wno-error")
+    endif()
+endif()
+
 protobuf_generate(
     TARGET ${LIB_NAME}
     APPEND_PATH
