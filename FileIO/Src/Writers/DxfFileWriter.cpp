@@ -232,6 +232,45 @@ namespace Fio
             return false;
         }
 
+        /// 图层名长度上限（字节）。
+        ///
+        /// 导入侧契约 IrLayerInfo::name[256] 含结尾 NUL，超过 255 字节会被静默截断，
+        /// 往返后图层名就变了。该字段是冻结 ABI，不能扩；改为在写文件之前拒绝。
+        ///
+        /// 必须同时看两种编码的字节数：
+        ///   - DXF 文件里写的是目标代码页（中文为 GBK，2 字节/字）；
+        ///   - IR 契约存的是 UTF-8（中文 3 字节/字）。
+        /// 只查 GBK 会放过“文件写得下、读回却被 IR 截断”的中文名（85 个汉字已占 255 字节 UTF-8）。
+        constexpr size_t kMaxLayerNameBytes = 255;
+
+        /// 校验所有被图元引用的图层名（DXF 编码与 UTF-8 字节数都不能超限）
+        bool validateLayerNames(const VecAprEntityPtr& entities, std::string& error)
+        {
+            for (const auto& entity : entities)
+            {
+                if (!entity)
+                {
+                    continue;
+                }
+
+                const Eg::AprLayer* layer = entity->layer();
+                const char* name = layer != nullptr ? layer->getName() : nullptr;
+                const std::string utf8Name = (name != nullptr && name[0] != '\0') ? name : "0";
+                const size_t dxfBytes = encodeDxfText(utf8Name).size();
+                const size_t utf8Bytes = utf8Name.size();
+                if (dxfBytes > kMaxLayerNameBytes || utf8Bytes > kMaxLayerNameBytes)
+                {
+                    std::ostringstream oss;
+                    oss << "Layer name too long: \"" << utf8Name << "\" is " << dxfBytes
+                        << " bytes in DXF encoding and " << utf8Bytes << " bytes in UTF-8 (limit "
+                        << kMaxLayerNameBytes << " bytes each). Rename the layer to fewer bytes.";
+                    error = oss.str();
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /// 写出 TABLES 段里的 LAYER 表，覆盖被图元引用到的所有图层。
         ///
         /// 只导出「有图元在用」的图层：写出器只拿得到图元列表、拿不到 LayerManager，
@@ -302,6 +341,19 @@ namespace Fio
             return WriteResult::fail("No entities to export");
         }
 
+        // 编码状态按 write 调用重置（编码器按线程持有）
+        dxfEncoder().reset();
+
+        // 图层名校验必须在打开文件之前：超长直接拒绝，避免留下半截文件
+        std::string layerNameError;
+        if (!validateLayerNames(entities, layerNameError))
+        {
+            return WriteResult::fail(layerNameError);
+        }
+        // 校验过程会设置编码器的 sawNonAscii，重新 reset 保证后续写出状态干净
+        dxfEncoder().reset();
+        const bool needsCodepage = entitiesNeedCodepage(entities);
+
         std::filesystem::path fsPath = std::filesystem::u8path(filePath);
         std::ofstream out(fsPath, std::ios::binary | std::ios::trunc);
         if (!out)
@@ -314,10 +366,6 @@ namespace Fio
         // classic locale：DXF 坐标小数点必须是 '.'，不随系统 locale 变化。
         out.imbue(std::locale::classic());
         out << std::setprecision(15);
-
-        // 本次导出的字符串编码状态按 write 调用重置（编码器按线程持有）
-        dxfEncoder().reset();
-        const bool needsCodepage = entitiesNeedCodepage(entities);
 
         writePair(out, 0, "SECTION");
         writePair(out, 2, "HEADER");

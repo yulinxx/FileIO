@@ -17,6 +17,11 @@
 #include "Engine/Layer/AprLayer.h"
 #include "Engine2D/AprEntity/AprLine.h"
 #include "Engine2D/AprEntity/AprText.h"
+#include "Engine2D/AprEntity/AprCircle.h"
+#include "Engine2D/AprEntity/AprPolygon.h"
+#include "Engine2D/Algorithm/EntityContourFiller.h"
+#include "Engine2D/Geometry/Geo2DOffset.h"
+#include "Engine2D/Import/Fio2DEntityConverter.h"
 
 #include <cmath>
 #include <filesystem>
@@ -256,4 +261,186 @@ TEST(DxfEncodingRoundTripTest, ReadFailureErrorPointsToDeclaredVersion)
     EXPECT_NE(r.errorMessage.find("ACADVER=AC1021"), std::string::npos) << r.errorMessage;
 
     DxfTest::removeFile(path);
+}
+
+// R1 回归：混合场景（开放折线 + 圆 + 闭合多段线）导出再导入后填充，
+// 开放折线必须被跳过，不得产生任何越界环；圆与闭合多段线的输出与基线逐项一致。
+TEST(DxfEncodingRoundTripTest, OpenPathStaysOpenAfterRoundTripAndProducesNoOutOfBoundRings)
+{
+    Eg::AprLayer layer(1, "0");
+
+    // 开放折线放在 y=50 以上，作为“越界”的判定区
+    auto openPath = std::make_unique<Eg::AprPolygon>();
+    openPath->setVertices({ Ut::Vec2d(0.0, 50.0), Ut::Vec2d(10.0, 50.0), Ut::Vec2d(10.0, 60.0) });
+    openPath->bClosed = false;
+    openPath->setLayer(&layer);
+
+    auto circle = std::make_unique<Eg::AprCircle>();
+    circle->basePoint = Ut::Vec2d(0.0, 0.0);
+    circle->dRadius = 5.0;
+    circle->setLayer(&layer);
+
+    auto closedPoly = std::make_unique<Eg::AprPolygon>();
+    closedPoly->setVertices(
+        { Ut::Vec2d(20.0, 0.0), Ut::Vec2d(30.0, 0.0), Ut::Vec2d(30.0, 10.0), Ut::Vec2d(20.0, 10.0) });
+    closedPoly->bClosed = true;
+    closedPoly->setLayer(&layer);
+
+    Fio::VecAprEntityPtr source;
+    source.push_back(std::move(openPath));
+    source.push_back(std::move(circle));
+    source.push_back(std::move(closedPoly));
+
+    const std::string path = tempPath("apr_dxf_mixed_open_closed.dxf");
+    Fio::DxfFileWriter writer;
+    const Fio::WriteResult wr = writer.write(path.c_str(), source);
+    ASSERT_TRUE(wr.success) << wr.errorMessage;
+
+    Fio::DxfParser parser;
+    const Fio::FioParseResult ir = parser.parseToIR(path.c_str());
+    ASSERT_EQ(ir.entityCount, 3u);
+
+    // IR → Engine 图元，走真实导入链路
+    std::vector<std::unique_ptr<Eg::AprEntity>> imported;
+    std::vector<Eg::AprEntity*> mixed;
+    for (uint32_t i = 0; i < ir.entityCount; ++i)
+    {
+        std::unique_ptr<Eg::AprEntity> entity = Eg::convertFio2DEntity(ir.entities[i], ir.extensionBlob);
+        ASSERT_TRUE(entity != nullptr) << "convert failed at entity " << i;
+        mixed.push_back(entity.get());
+        imported.push_back(std::move(entity));
+    }
+
+    Eg::ContourFillParameters params;
+    params.dOffsetDistance = 1.0;
+    params.bAutoMaxLayers = false;
+    params.nMaxLayers = 2;
+    params.dMinArea = 0.0;
+
+    std::vector<Eg::Geo2DRingLayer> mixedLayers;
+    double mixedLength = 0.0;
+    int skippedOpen = 0;
+    ASSERT_TRUE(Eg::EntityContourFiller::computeRings(mixed, params, mixedLayers, mixedLength, &skippedOpen));
+    EXPECT_GE(skippedOpen, 1) << "开放折线没有被判定为开路径";
+
+    int outOfBoundRings = 0;
+    for (const auto& layerRings : mixedLayers)
+    {
+        for (const auto& ring : layerRings.rings)
+        {
+            for (const auto& point : ring)
+            {
+                if (point.y() > 40.0)
+                {
+                    ++outOfBoundRings;
+                    break;
+                }
+            }
+        }
+    }
+    EXPECT_EQ(outOfBoundRings, 0) << "开放折线被闭合后产生了越界填充环";
+
+    // 基线：只用圆与闭合多段线填充，结果必须与混合场景完全一致
+    std::vector<Eg::AprEntity*> baseline{ mixed[1], mixed[2] };
+    std::vector<Eg::Geo2DRingLayer> baselineLayers;
+    double baselineLength = 0.0;
+    int baselineSkipped = 0;
+    ASSERT_TRUE(Eg::EntityContourFiller::computeRings(
+        baseline, params, baselineLayers, baselineLength, &baselineSkipped));
+    EXPECT_EQ(baselineSkipped, 0);
+
+    size_t mixedRings = 0;
+    for (const auto& l : mixedLayers)
+    {
+        mixedRings += l.rings.size();
+    }
+    size_t baselineRings = 0;
+    for (const auto& l : baselineLayers)
+    {
+        baselineRings += l.rings.size();
+    }
+    EXPECT_EQ(mixedRings, baselineRings);
+    EXPECT_EQ(mixedLayers.size(), baselineLayers.size());
+    EXPECT_NEAR(mixedLength, baselineLength, 1e-9) << "圆/闭合多段线的填充结果被改变";
+
+    DxfTest::removeFile(path);
+}
+
+// R3：图层名按字节数校验；255 字节通过，256 字节在写文件前被拒绝。
+// 注意中文名同时受 IR 的 UTF-8 存储上限约束（85 个汉字 = 255 字节 UTF-8）。
+TEST(DxfEncodingRoundTripTest, LayerNameByteLimitIsEnforcedBeforeWriting)
+{
+    Fio::DxfFileWriter writer;
+    Fio::DxfParser parser;
+
+    // 1) ASCII 恰好 255 字节：通过并逐字读回
+    const std::string asciiAtLimit(255, 'a');
+    Eg::AprLayer asciiLayer(1, asciiAtLimit);
+    auto asciiLine = makeLine(Ut::Vec2d(0.0, 0.0), Ut::Vec2d(1.0, 0.0), &asciiLayer);
+    Fio::VecAprEntityPtr asciiEntities;
+    asciiEntities.push_back(std::move(asciiLine));
+
+    const std::string asciiPath = tempPath("apr_dxf_layer_name_ascii_limit.dxf");
+    const Fio::WriteResult asciiResult = writer.write(asciiPath.c_str(), asciiEntities);
+    ASSERT_TRUE(asciiResult.success) << asciiResult.errorMessage;
+
+    const Fio::FioParseResult asciiIr = parser.parseToIR(asciiPath.c_str());
+    ASSERT_EQ(asciiIr.layerCount, 1u);
+    EXPECT_EQ(asciiAtLimit, asciiIr.layers[0].name);
+
+    // 2) 中文 85 字 = 170 字节 GBK / 255 字节 UTF-8：通过并逐字读回
+    std::string chineseAtLimit;
+    for (int i = 0; i < 85; ++i)
+    {
+        chineseAtLimit += "切";
+    }
+    Eg::AprLayer cnLayer(2, chineseAtLimit);
+    auto cnLine = makeLine(Ut::Vec2d(0.0, 0.0), Ut::Vec2d(1.0, 0.0), &cnLayer);
+    Fio::VecAprEntityPtr cnEntities;
+    cnEntities.push_back(std::move(cnLine));
+
+    const std::string cnPath = tempPath("apr_dxf_layer_name_cn_limit.dxf");
+    const Fio::WriteResult cnResult = writer.write(cnPath.c_str(), cnEntities);
+    ASSERT_TRUE(cnResult.success) << cnResult.errorMessage;
+
+    const Fio::FioParseResult cnIr = parser.parseToIR(cnPath.c_str());
+    ASSERT_EQ(cnIr.layerCount, 1u);
+    EXPECT_EQ(chineseAtLimit, cnIr.layers[0].name);
+
+    // 3) 超 1 字节（256 ASCII）：必须在打开文件前被拒绝
+    const std::string asciiOver(256, 'b');
+    Eg::AprLayer badAsciiLayer(3, asciiOver);
+    auto badAsciiLine = makeLine(Ut::Vec2d(0.0, 0.0), Ut::Vec2d(1.0, 0.0), &badAsciiLayer);
+    Fio::VecAprEntityPtr badAsciiEntities;
+    badAsciiEntities.push_back(std::move(badAsciiLine));
+
+    const std::string badAsciiPath = tempPath("apr_dxf_layer_name_ascii_over.dxf");
+    std::filesystem::remove(badAsciiPath);
+    const Fio::WriteResult badAscii = writer.write(badAsciiPath.c_str(), badAsciiEntities);
+    EXPECT_FALSE(badAscii.success);
+    EXPECT_NE(badAscii.errorMessage.find(asciiOver), std::string::npos) << badAscii.errorMessage;
+    EXPECT_NE(badAscii.errorMessage.find("256"), std::string::npos) << badAscii.errorMessage;
+    EXPECT_NE(badAscii.errorMessage.find("255"), std::string::npos) << badAscii.errorMessage;
+    EXPECT_NE(badAscii.errorMessage.find("Rename"), std::string::npos) << badAscii.errorMessage;
+    EXPECT_FALSE(std::filesystem::exists(badAsciiPath)) << "拒绝发生在写文件之后，留下了半截文件";
+
+    // 4) 中文 86 字 = 172 字节 GBK / 258 字节 UTF-8：UTF-8 侧超限，必须拒绝
+    std::string chineseOver = chineseAtLimit + "切";
+    Eg::AprLayer badCnLayer(4, chineseOver);
+    auto badCnLine = makeLine(Ut::Vec2d(0.0, 0.0), Ut::Vec2d(1.0, 0.0), &badCnLayer);
+    Fio::VecAprEntityPtr badCnEntities;
+    badCnEntities.push_back(std::move(badCnLine));
+
+    const std::string badCnPath = tempPath("apr_dxf_layer_name_cn_over.dxf");
+    std::filesystem::remove(badCnPath);
+    const Fio::WriteResult badCn = writer.write(badCnPath.c_str(), badCnEntities);
+    EXPECT_FALSE(badCn.success);
+    EXPECT_NE(badCn.errorMessage.find(chineseOver), std::string::npos) << badCn.errorMessage;
+    EXPECT_NE(badCn.errorMessage.find("258"), std::string::npos) << badCn.errorMessage;
+    EXPECT_NE(badCn.errorMessage.find("172"), std::string::npos) << badCn.errorMessage;
+    EXPECT_NE(badCn.errorMessage.find("255"), std::string::npos) << badCn.errorMessage;
+    EXPECT_FALSE(std::filesystem::exists(badCnPath)) << "拒绝发生在写文件之后，留下了半截文件";
+
+    DxfTest::removeFile(asciiPath);
+    DxfTest::removeFile(cnPath);
 }
